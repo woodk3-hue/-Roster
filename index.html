@@ -98,7 +98,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:3px;}
 .cal-dow{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:5px 0;text-transform:uppercase;}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
-.cal-cell{border-radius:8px;padding:6px 5px;min-height:74px;cursor:pointer;position:relative;overflow:hidden;border:1px solid var(--border);transition:border-color .1s;}
+.cal-cell{border-radius:8px;padding:6px 5px;min-height:90px;cursor:pointer;position:relative;overflow:hidden;border:1px solid var(--border);transition:border-color .1s;}
 .cal-cell:active{opacity:.7;}
 .cal-cell.today{border-color:var(--accent);}
 .cal-cell.other-month{opacity:.3;}
@@ -259,6 +259,11 @@ body.day-mode .b-blp,.day-mode .b-slp{background:rgba(79,70,229,.2);color:#3730a
 .toggle-pill button.active{background:var(--accent);color:#000;}
 /* ── CAL GUARD QUICK VIEW ── */
 .cal-guard{font-size:11px;color:var(--accent2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;font-weight:700;}
+.cal-appt{font-size:10px;color:#ef4444;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;font-weight:600;}
+.appt-item{background:var(--surface2);border-left:3px solid #ef4444;border-radius:6px;padding:8px 10px;margin-top:8px;}
+.appt-item-title{font-size:13px;font-weight:700;color:#ef4444;}
+.appt-item-meta{font-size:11px;color:var(--muted);margin-top:2px;}
+.appt-item-notes{font-size:11px;color:var(--muted);margin-top:4px;font-style:italic;}
 /* ── LEAVE MANAGEMENT ── */
 .leave-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
 .leave-type-al{border-left:3px solid #dc2626;}
@@ -418,8 +423,10 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
       <button class="btn btn-icon btn-sm" onclick="closeDayPanel()">✕</button>
     </div>
     <div id="day-panel-content"></div>
+    <div id="day-panel-appts"></div>
     <div style="margin-top:10px;display:flex;gap:8px;">
       <button class="btn btn-accent" style="flex:1;" id="day-panel-edit-btn">Edit Shift</button>
+      <button class="btn" onclick="openApptModal(dayPanelDate)">+ Appt</button>
     </div>
   </div>
 </div>
@@ -821,9 +828,26 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
         <option value="sick">Sick Leave</option>
         <option value="lwop">Leave Without Pay</option>
         <option value="ot">Overtime</option>
-        <option value="swap">Swap</option>
+        <option value="swap">Link Swap (Whole Week)</option>
+        <option value="single_day_swap">Single Day Swap</option>
         <option value="rdo">RDO</option>
       </select>
+    </div>
+    <div id="sm-single-day-swap-fields" style="display:none;">
+      <div class="form-group">
+        <label class="form-label">Driver Name</label>
+        <input type="text" class="form-input" id="sm-sds-driver" placeholder="e.g. Harmeet Singh">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Their Start Time</label>
+          <input type="time" class="form-input" id="sm-sds-their-start">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Their Job</label>
+          <input type="text" class="form-input" id="sm-sds-their-job" placeholder="e.g. EB076S-9">
+        </div>
+      </div>
     </div>
     <div id="sm-swap-fields" style="display:none;">
       <div class="form-row">
@@ -1088,6 +1112,37 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
   </div>
 </div>
 
+<!-- Appointment Modal -->
+<div class="modal-overlay" id="appt-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="appt-modal-title">Add Appointment</div>
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input type="text" class="form-input" id="appt-title" placeholder="e.g. Doctor, Dinner, Car service">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" class="form-input" id="appt-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Time (optional)</label>
+        <input type="time" class="form-input" id="appt-time">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <textarea class="form-textarea" id="appt-notes" placeholder="Any extra details…" style="min-height:56px;"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeApptModal()">Cancel</button>
+      <button class="btn btn-danger btn-sm" id="appt-delete-btn" style="display:none;" onclick="deleteAppt()">Delete</button>
+      <button class="btn btn-accent" style="flex:1;" onclick="saveAppt()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1129,7 +1184,8 @@ let S = {
   stats: {},
   plannedLeave: [],
   swapEmailSent: {},
-  leaveAdj: []   // [{id,leaveType,type,dir,hours,date,reason}]
+  leaveAdj: [],
+  appointments: []   // [{id,leaveType,type,dir,hours,date,reason}]
 };
 
 function fixContactSections(){
@@ -1166,6 +1222,7 @@ function loadState(){
       if(p.plannedLeave) S.plannedLeave = p.plannedLeave;
       if(p.swapEmailSent) S.swapEmailSent = p.swapEmailSent;
       if(p.leaveAdj) S.leaveAdj = p.leaveAdj;
+      if(p.appointments) S.appointments = p.appointments;
       if(p.leaveAdjBase) S.leaveAdjBase = p.leaveAdjBase;
     }
   }catch(e){}
@@ -1211,7 +1268,7 @@ function parseShift(raw){
   if(!raw) return {code:'--',time:null,typeKey:'normal'};
   const v=raw.trim(), u=v.toUpperCase();
   if(['BLP','SLP','AFA','AFP'].includes(u)) return {code:u,time:null,typeKey:u.toLowerCase()};
-  if(/^(AM1|AM2|AM3|PM1|PM2|PM3)$/.test(u)) return {code:u,time:SPARE_TIMES[u],typeKey:u.toLowerCase()};
+  if(/^(AM1|AM2|AM3|PM1|PM2|PM3)$/.test(u)) return {code:u,time:null,typeKey:u.toLowerCase()};
   const m=v.match(/^(\d{1,2}:\d{2})\s+(.+)$/);
   if(m) return {code:m[2].trim(),time:m[1].trim(),typeKey:'normal'};
   return {code:v,time:null,typeKey:'normal'};
@@ -1278,9 +1335,32 @@ function getEffectiveShift(dateStr){
   if(t==='slp_worked') return {code:'SLP✓',time:ov.start,typeKey:'slp_worked',link,idx,ov,endTime:ov.end,guards:ov.guards||''};
   if(t==='ot')      return {code:'OT',time:ov.start,typeKey:'ot',link,idx,ov,endTime:ov.end,guards:ov.guards||''};
   if(t==='swap'){
-    const raw=getRaw(ov.swapTo,idx);
-    const sh=parseShift(raw);
-    return {...sh,typeKey:'swap',link,idx,ov,swapTo:ov.swapTo,swapPartner:ov.swapPartner,guards:ov.guards||''};
+    // Rule: show received-link's roster time, overridden by manually edited time
+    const swapSh=parseShift(getRaw(ov.swapTo,idx));
+    const displayTime=ov.start||swapSh.time||null;
+    const displayEnd=ov.end||null;
+    return {
+      code:swapSh.code||'⇄',
+      time:displayTime,
+      endTime:displayEnd,
+      typeKey:'swap',
+      swapInnerType:swapSh.typeKey,
+      link,idx,ov,
+      swapTo:ov.swapTo,
+      swapPartner:ov.swapPartner,
+      guards:ov.guards||''
+    };
+  }
+  if(t==='single_day_swap'){
+    // Single day swap: always show the manually entered time
+    return {
+      code:'⇄',
+      time:ov.start||null,
+      endTime:ov.end||null,
+      typeKey:'single_day_swap',
+      link,idx,ov,
+      guards:ov.guards||''
+    };
   }
   return {code:'--',time:null,typeKey:'normal',link,idx,ov:null,guards:''};
 }
@@ -1362,6 +1442,7 @@ function renderDash(){
               ?'<div style="text-align:right;white-space:nowrap;"><span style="color:var(--early);font-size:11px;font-weight:700;">✓ Sent</span><br><button class="btn btn-sm" style="font-size:9px;padding:2px 6px;margin-top:2px;" data-swapid="'+sw.id+'" onclick="undoSwapEmailSentById(this)">Undo</button></div>'
               :'<button class="btn btn-sm btn-accent" style="font-size:10px;white-space:nowrap;" data-swapid="'+sw.id+'" onclick="markSwapEmailSentById(this)">Mark Sent</button>')+
           '</div>'+
+          '<button class="btn btn-sm" style="font-size:10px;width:100%;margin-top:6px;" data-swapid="'+sw.id+'" onclick="generateSwapEmailById(this)">📧 Generate Email</button>'+
         '</div>';
       }).join('');
   } else {
@@ -1471,6 +1552,16 @@ function renderDashShift(which){
     '<div class="shift-preview-time">'+info.start+(info.end?'–'+info.end:'')+'</div>'+
     (info.dur?'<div class="shift-preview-meta">'+info.dur+'</div>':'')+
     (info.guards?'<div class="shift-preview-meta" style="color:var(--accent2);">'+info.guards+'</div>':'');
+
+  // Append appointments for this day
+  const dayAppts=(S.appointments||[]).filter(function(a){ return a.date===ds; });
+  if(dayAppts.length){
+    el.innerHTML+=dayAppts.map(function(a){
+      return '<div style="font-size:11px;color:#ef4444;font-weight:600;margin-top:4px;">'+
+        a.title+(a.time?' @'+a.time.slice(0,5):'')+
+      '</div>';
+    }).join('');
+  }
 }
 
 function openDashShiftEdit(which){
@@ -1633,7 +1724,7 @@ function renderCalCell(d, otherMonth){
   if(isPH) cls+=' c-ph';
 
   const ovForCell=S.days[ds];
-  const hasWorkedOverride=ovForCell&&(!ovForCell.type||ovForCell.type==='normal')&&ovForCell.start;
+  const hasWorkedOverride=ovForCell&&ovForCell.start;
 
   // Background colour class
   if(tk==='al') cls+=' c-al';
@@ -1641,7 +1732,13 @@ function renderCalCell(d, otherMonth){
   else if(tk==='afp'||tk==='afa') cls+=' c-afa';
   else if(tk==='blp') cls+=' c-blp';
   else if(tk==='slp') cls+=' c-slp';
-  else if(tk==='swap') cls+=' c-swap';
+  else if(tk==='swap'){
+    const swapInner=sh.swapInnerType||'normal';
+    if(swapInner==='blp') cls+=' c-blp';
+    else if(swapInner==='slp') cls+=' c-slp';
+    else cls+=' c-swap';
+  }
+  else if(tk==='single_day_swap') cls+=' c-swap';
   else if(tk==='sl') cls+=' c-sl';
   // Keep BLP/SLP background even when worked (hasWorkedOverride on a BLP day)
   if(hasWorkedOverride&&(tk==='blp'||tk==='blp_worked')) cls+=' c-blp';
@@ -1655,9 +1752,13 @@ function renderCalCell(d, otherMonth){
     const wStart=ovForCell.start;
     const wEnd=ovForCell.end||null;
     const durDisp=wStart&&wEnd?fmtDur(wStart,wEnd):null;
-    // If original roster was BLP/SLP, show the badge so it's still visible
-    if(tk==='blp'||tk==='slp'){
-      inner+='<div class="cal-badge '+(tk==='blp'?'b-blp':'b-slp')+'" style="margin-bottom:2px;">'+(tk==='blp'?'BLP':'SLP')+'</div>';
+    // Show badge for special day types so context is still visible
+    if(tk==='blp'||tk==='blp_worked'){
+      inner+='<div class="cal-badge b-blp" style="margin-bottom:2px;">BLP</div>';
+    } else if(tk==='slp'||tk==='slp_worked'){
+      inner+='<div class="cal-badge b-slp" style="margin-bottom:2px;">SLP</div>';
+    } else if(tk==='single_day_swap'){
+      inner+='<div class="cal-badge b-swap" style="font-size:9px;padding:1px 4px;margin-bottom:2px;">⇄ Day</div>';
     }
     inner+='<div class="cal-time" style="'+timeColor(wStart)+';">'+wStart+'</div>';
     if(durDisp) inner+='<div style="font-size:12px;color:var(--muted);line-height:1.3;">('+durDisp+')</div>';
@@ -1676,20 +1777,27 @@ function renderCalCell(d, otherMonth){
     const bcls={al:'b-al',lsl:'b-lsl',afp:'b-afp',afa:'b-afa',blp:'b-blp',slp:'b-slp',sl:'b-sl',lwop:'b-al',blp_worked:'b-am1',slp_worked:'b-slp'};
     inner+='<div class="cal-badge '+bcls[tk]+'">'+labels[tk]+'</div>';
   } else if(tk==='swap'){
-    // Swapped day: show shift info + colour, NO link numbers
-    if(['blp','slp'].includes(sh.typeKey)||sh.code==='BLP'||sh.code==='SLP'){
-      inner+='<div class="cal-badge b-slp">'+(sh.code||'BLP')+'</div>';
-    } else if(['am1','am2','am3'].includes(sh.typeKey)){
+    const swapInner=sh.swapInnerType||'normal';
+    const displayTime=sh.time||null;
+    if(swapInner==='blp'||swapInner==='slp'){
+      // Received link's day is BLP/SLP — show that, blue border already indicates swap
+      inner+='<div class="cal-badge '+(swapInner==='blp'?'b-blp':'b-slp')+'">'+(swapInner==='blp'?'BLP':'SLP')+'</div>';
+    } else if(['am1','am2','am3'].includes(swapInner)){
       inner+='<div class="cal-badge b-am1">'+sh.code+'</div>';
-      if(sh.time) inner+='<div class="cal-time" style="'+timeColor(sh.time)+';">'+sh.time+'</div>';
-    } else if(['pm1','pm2','pm3'].includes(sh.typeKey)){
+      if(displayTime) inner+='<div class="cal-time" style="'+timeColor(displayTime)+';">'+displayTime+'</div>';
+    } else if(['pm1','pm2','pm3'].includes(swapInner)){
       inner+='<div class="cal-badge b-pm1">'+sh.code+'</div>';
-      if(sh.time) inner+='<div class="cal-time" style="'+timeColor(sh.time)+';">'+sh.time+'</div>';
-    } else if(sh.time){
+      if(displayTime) inner+='<div class="cal-time" style="'+timeColor(displayTime)+';">'+displayTime+'</div>';
+    } else if(displayTime){
+      inner+='<div class="cal-time" style="'+timeColor(displayTime)+';">'+displayTime+'</div>';
+    }
+  } else if(tk==='single_day_swap'){
+    // Single day swap — show entered time + ⇄ indicator
+    if(sh.time){
       inner+='<div class="cal-time" style="'+timeColor(sh.time)+';">'+sh.time+'</div>';
-      inner+='<div class="cal-code">'+sh.code+'</div>';
+      inner+='<div class="cal-badge b-swap" style="font-size:9px;padding:1px 4px;">⇄ Day</div>';
     } else {
-      inner+='<div class="cal-badge b-swap">⇄</div>';
+      inner+='<div class="cal-badge b-swap">⇄ Day</div>';
     }
   } else if(['am1','am2','am3'].includes(tk)){
     inner+='<div class="cal-badge b-am1">'+sh.code+'</div>';
@@ -1710,8 +1818,14 @@ function renderCalCell(d, otherMonth){
   } else if(sh.code&&sh.code!=='--'){
     inner+='<div class="cal-code" style="font-weight:700;">'+sh.code+'</div>';
   }
+  // Appointments for this day
+  const dayAppts=(S.appointments||[]).filter(function(a){ return a.date===ds; });
+  dayAppts.forEach(function(a){
+    const lbl=a.title+(a.time?' @'+a.time.slice(0,5):'');
+    inner+='<div class="cal-appt">'+lbl+'</div>';
+  });
   if(isPH) inner+='<div class="cal-badge b-pm1" style="font-size:7px;">PH</div>';
-  if(hasOv) inner+='<div class="cal-mod-dot"></div>';
+  if(hasOv||dayAppts.length) inner+='<div class="cal-mod-dot"></div>';
   // Planned leave overlay — check if this date falls in a planned leave range
   const leavePeriod=(S.plannedLeave||[]).find(function(lv){
     const lvStart=lv.start; const lvEnd=lv.end||lv.start;
@@ -1807,8 +1921,14 @@ function renderDayPanel(ds){
   } else if(sh.typeKey==='sl'){
     html='<div class="cal-badge b-sl" style="font-size:13px;padding:4px 10px;">Sick Leave</div>';
   } else if(sh.typeKey==='swap'){
+    // Find the swap record for this week
+    const d2=parseDate(ds);
+    const mon2=getMonday(d2);
+    const swapRec=S.swaps.find(function(s){ return s.wc===fmtDate(mon2)&&s.linkReceived===sh.swapTo; });
+    const undoId=swapRec?swapRec.id:null;
     html='<div class="cal-badge b-swap" style="font-size:12px;padding:3px 8px;margin-bottom:6px;">⇄ Swap · Link '+sh.swapTo+(sh.swapPartner?' · '+sh.swapPartner:'')+'</div>';
     if(sh.time) html+='<div class="day-panel-time" style="'+timeColor(sh.time)+';">'+sh.time+'</div><div class="day-panel-code">'+sh.code+'</div>';
+    if(undoId) html+='<button class="btn btn-sm btn-danger" data-undoid="'+undoId+'" onclick="undoSwap(this.getAttribute('+"'data-undoid'"+'\))" style="margin-top:8px;width:100%;">Undo Swap</button>';
   } else if(sh.time){
     const dispTime=(sh.timeChanged&&sh.endTime)?(sh.time+'–'+sh.endTime):sh.time;
     html='<div class="day-panel-time" style="'+timeColor(sh.time)+';">'+dispTime+'</div>';
@@ -1833,6 +1953,75 @@ function renderDayPanel(ds){
     html+='<div style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--muted);">'+ov.notes+'</div>';
   }
   document.getElementById('day-panel-content').innerHTML=html;
+  // Render appointments for this day
+  const apptEl=document.getElementById('day-panel-appts');
+  if(apptEl){
+    const appts=(S.appointments||[]).filter(function(a){ return a.date===ds; });
+    if(appts.length){
+      let ahtml='<div style="margin-top:12px;font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Appointments</div>';
+      appts.forEach(function(a){
+        ahtml+='<div class="appt-item">'+
+          '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'+
+            '<div>'+
+              '<div class="appt-item-title">'+a.title+'</div>'+
+              (a.time?'<div class="appt-item-meta">'+a.time+'</div>':'')+
+              (a.notes?'<div class="appt-item-notes">'+a.notes+'</div>':'')+
+            '</div>'+
+            '<button class="btn btn-sm" data-ds="'+ds+'" data-apptid="'+a.id+'" onclick="openApptModal(this.getAttribute('+"'data-ds'"+'\),this.getAttribute('+"'data-apptid'"+'\))">Edit</button>'+
+          '</div>'+
+        '</div>';
+      });
+      apptEl.innerHTML=ahtml;
+    } else {
+      apptEl.innerHTML='';
+    }
+  }
+}
+
+// ── APPOINTMENTS ────────────────────────────────────────
+let apptEditId=null;
+
+function openApptModal(ds, editId){
+  apptEditId=editId||null;
+  const existing=editId?(S.appointments||[]).find(function(a){ return a.id===editId; }):null;
+  document.getElementById('appt-modal-title').textContent=editId?'Edit Appointment':'Add Appointment';
+  document.getElementById('appt-title').value=existing?existing.title:'';
+  document.getElementById('appt-date').value=existing?existing.date:(ds||fmtDate(today()));
+  document.getElementById('appt-time').value=existing?existing.time||'':'';
+  document.getElementById('appt-notes').value=existing?existing.notes||'':'';
+  document.getElementById('appt-delete-btn').style.display=editId?'':'none';
+  document.getElementById('appt-modal').classList.add('open');
+}
+
+function closeApptModal(){
+  document.getElementById('appt-modal').classList.remove('open');
+}
+
+function saveAppt(){
+  const title=document.getElementById('appt-title').value.trim();
+  const date=document.getElementById('appt-date').value;
+  const time=document.getElementById('appt-time').value;
+  const notes=document.getElementById('appt-notes').value.trim();
+  if(!title){ toast('Enter a title'); return; }
+  if(!date){ toast('Enter a date'); return; }
+  if(!S.appointments) S.appointments=[];
+  if(apptEditId){
+    const idx=S.appointments.findIndex(function(a){ return a.id===apptEditId; });
+    if(idx>-1) S.appointments[idx]={...S.appointments[idx],title,date,time,notes};
+  } else {
+    S.appointments.push({id:uid(),title,date,time,notes});
+  }
+  saveState(); closeApptModal(); renderCal();
+  if(dayPanelDate) renderDayPanel(dayPanelDate);
+  toast('Appointment saved');
+}
+
+function deleteAppt(){
+  if(!apptEditId) return;
+  S.appointments=(S.appointments||[]).filter(function(a){ return a.id!==apptEditId; });
+  saveState(); closeApptModal(); renderCal();
+  if(dayPanelDate) renderDayPanel(dayPanelDate);
+  toast('Appointment deleted');
 }
 
 function closeDayPanel(){
@@ -1858,7 +2047,7 @@ function openShiftModal(ds){
   const sh=parseShift(raw);
 
   document.getElementById('sm-type').value=ov.type||'normal';
-  document.getElementById('sm-start').value=ov.start||(sh.typeKey==='normal'?sh.time||'':'');
+  document.getElementById('sm-start').value=ov.start||(sh.typeKey==='normal'?sh.time||'':sh.typeKey==='swap'?sh.time||'':'');
   document.getElementById('sm-end').value=ov.end||'';
   document.getElementById('sm-job').value=ov.job||'';
   document.getElementById('sm-guards').value=ov.guards||'';
@@ -1875,6 +2064,7 @@ function closeShiftModal(){ document.getElementById('shift-modal').classList.rem
 
 function onShiftTypeChange(){
   const t=document.getElementById('sm-type').value;
+  document.getElementById('sm-single-day-swap-fields').style.display=(t==='single_day_swap')?'block':'none';
   document.getElementById('sm-swap-fields').style.display=t==='swap'?'':'none';
   document.getElementById('sm-ot-fields').style.display=t==='ot'?'':'none';
 }
@@ -1896,8 +2086,19 @@ function saveShift(){
   const swapPartner=document.getElementById('sm-swap-partner').value.trim();
   const otJob=document.getElementById('sm-ot-job').value.trim();
 
+  const existingOv=S.days[ds]||{};
   const d={type,start,end,job,guards,notes};
-  if(type==='swap'){d.swapFrom=swapFrom;d.swapTo=parseInt(swapTo);d.swapPartner=swapPartner;}
+  if(type==='swap'){
+    // Preserve swapFrom/swapTo/swapPartner from existing override if not overridden
+    d.swapFrom=swapFrom||existingOv.swapFrom||'';
+    d.swapTo=parseInt(swapTo)||existingOv.swapTo||null;
+    d.swapPartner=swapPartner||existingOv.swapPartner||'';
+  }
+  if(type==='single_day_swap'){
+    d.sdsDriver=document.getElementById('sm-sds-driver').value.trim();
+    d.sdsTheirStart=document.getElementById('sm-sds-their-start').value;
+    d.sdsTheirJob=document.getElementById('sm-sds-their-job').value.trim();
+  }
   if(type==='ot') d.otJob=otJob;
 
   // Only save if meaningful
@@ -1911,7 +2112,7 @@ function saveShift(){
   closeShiftModal();
   if(currentScreen==='cal'){ renderCal(); if(dayPanelDate===ds) renderDayPanel(ds); }
   if(currentScreen==='dash') renderDash();
-  toast('Shift saved');
+  toast('Saved: type='+type+' start='+start);
 }
 function resetShift(){
   if(S.days[shiftModalDate]){
@@ -1958,6 +2159,102 @@ function toggleSwapHistory(){
   }
 }
 
+function undoSwap(elOrId){
+  const id=typeof elOrId==='string'?elOrId:(elOrId&&elOrId.getAttribute?elOrId.getAttribute('data-undoid'):elOrId);
+  const sw=S.swaps.find(function(s){ return s.id===id; });
+  if(!sw) return;
+  const btn=document.querySelector('[data-undoid="'+id+'"]');
+  if(btn&&btn.dataset.confirming==='yes'){
+    btn.dataset.confirming='';
+    // Remove the swap record
+    S.swaps=S.swaps.filter(function(s){ return s.id!==id; });
+    // Clear S.days stamps for this swap's week
+    const mon=parseDate(sw.wc);
+    if(sw.scope==='week'){
+      for(var i=0;i<7;i++){
+        var ds=fmtDate(addDays(mon,i));
+        if(S.days[ds]&&S.days[ds].type==='swap'&&S.days[ds].swapTo===sw.linkReceived){
+          delete S.days[ds];
+        }
+      }
+    } else {
+      // Single day — find the specific day
+      if(sw.dayIdx!=null){
+        var ds=fmtDate(addDays(mon,sw.dayIdx));
+        if(S.days[ds]&&S.days[ds].type==='swap') delete S.days[ds];
+      }
+    }
+    // Clear email sent status
+    if(S.swapEmailSent) delete S.swapEmailSent[id];
+    saveState();
+    renderSwaps();
+    renderCal();
+    renderDash();
+    closeDayPanel();
+    toast('Swap undone');
+  } else if(btn){
+    btn.dataset.confirming='yes';
+    btn.textContent='Confirm Undo?';
+    btn.style.background='#ef4444';
+    btn.style.color='#fff';
+    setTimeout(function(){
+      if(btn.dataset.confirming==='yes'){
+        btn.dataset.confirming='';
+        btn.textContent='Undo Swap';
+        btn.style.background='';
+        btn.style.color='';
+      }
+    },3000);
+  }
+}
+
+function generateSwapEmailById(btn){
+  const id=btn.getAttribute('data-swapid');
+  const sw=S.swaps.find(function(s){ return s.id===id; });
+  if(sw) generateSwapEmail(sw);
+}
+
+function generateSwapEmail(sw){
+  const myName='Kim';
+  let text='';
+  if(sw.scope==='day'){
+    // Single-day swap email (Fix 6)
+    const d=parseDate(sw.wc);
+    // dayIdx stored on sw, or default to first pm day
+    const dayIdx=sw.dayIdx!=null?sw.dayIdx:0;
+    const dateStr=fmtDDMM(addDays(d,dayIdx))+'/'+addDays(d,dayIdx).getFullYear().toString().slice(2);
+    const myLink=sw.linkGiven;
+    const theirLink=sw.linkReceived;
+    const myRaw=getRaw(myLink,dayIdx);
+    const mySh=parseShift(myRaw);
+    const theirRaw=getRaw(theirLink,dayIdx);
+    const theirSh=parseShift(theirRaw);
+    const myTime=mySh.time||'(time)';
+    const myJob=mySh.code||('Link '+myLink);
+    const theirTime=theirSh.time||'(time)';
+    const theirJob=theirSh.code||('Link '+theirLink);
+    const driver=sw.driver||'(driver)';
+    text=
+      'Hi Roster Team\n\n'+'Could I please request a swap for myself and '+driver+' for '+dateStr+'.\n\n'+myName+' to work '+myTime+' ('+myJob+')\n'+driver+' to work '+theirTime+' ('+theirJob+')\n\n'+'Thanks for your help in advance.\n\n'+'Regards,\n'+myName;
+  } else {
+    // Link swap email (Fix 5)
+    const driver=sw.driver||'(driver)';
+    text=
+      'Hi ROSTER\n\n'+'Could I please request a link swap between myself and '+driver+'\n\n'+myName+' from link '+sw.linkGiven+' to link '+sw.linkReceived+'\n'+driver+' from link '+sw.linkReceived+' to link '+sw.linkGiven+'\n\n'+'Thanks for your help in advance.\n\n'+'Regards,\n'+myName;
+  }
+  // Copy to clipboard using reliable method
+  const ta=document.createElement('textarea');
+  ta.value=text; ta.setAttribute('readonly','');
+  ta.style.cssText='position:fixed;top:0;left:0;width:2em;height:2em;opacity:0;';
+  document.body.appendChild(ta);
+  ta.select(); ta.setSelectionRange(0,99999);
+  let ok=false;
+  try{ ok=document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+  if(!ok&&navigator.clipboard){ navigator.clipboard.writeText(text).catch(()=>{}); ok=true; }
+  toast(ok?'Email copied to clipboard':'Copy failed — check clipboard');
+}
+
 function renderSwapLog(){
   const el=document.getElementById('swap-log');
   if(!S.swaps.length){ el.innerHTML='<div class="empty-state">No swaps recorded yet.</div>'; return; }
@@ -1997,6 +2294,21 @@ function renderSwapLog(){
     div.innerHTML+=emailBadge.outerHTML+blpInfo+
       '<button class="del-swap-btn" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer;padding:0 2px;">×</button>';
     div.querySelector('.del-swap-btn').onclick=()=>deleteSwap(sw.id);
+    // Generate email button
+    const emailBtn=document.createElement('button');
+    emailBtn.className='btn btn-sm';
+    emailBtn.style.cssText='font-size:10px;padding:3px 8px;margin-top:4px;width:100%;';
+    emailBtn.textContent='📧 Generate Email';
+    emailBtn.onclick=function(){ generateSwapEmail(sw); };
+    div.appendChild(emailBtn);
+    // Undo Swap button
+    const undoBtn=document.createElement('button');
+    undoBtn.className='btn btn-sm btn-danger';
+    undoBtn.style.cssText='font-size:10px;padding:3px 8px;margin-top:4px;width:100%;';
+    undoBtn.textContent='Undo Swap';
+    undoBtn.setAttribute('data-undoid',sw.id);
+    undoBtn.onclick=function(){ undoSwap(this.getAttribute('data-undoid')); };
+    div.appendChild(undoBtn);
     el.appendChild(div);
   });
 }
@@ -2309,7 +2621,7 @@ function renderPMFinder(){
         const sh=parseShift(raw);
         // PM detection: spare codes PM1/PM2/PM3, OR normal shift starting at or after 12:00
         const mins=parseTime(sh.time);
-        const isSparePM=['pm1','pm2','pm3'].includes(sh.typeKey);
+        const isSparePM=['pm1','pm2','pm3','afp'].includes(sh.typeKey);
         const isTimePM=mins!==null&&mins>=720; // 720 = 12:00
         const isPM=isSparePM||isTimePM;
         // Apply type filter from dropdown
@@ -3691,7 +4003,7 @@ function toast(msg){
 }
 
 // Modal close on backdrop tap
-['shift-modal','claim-modal','contact-modal','swap-modal','leave-modal','leave-adj-modal'].forEach(id=>{
+['shift-modal','claim-modal','contact-modal','swap-modal','leave-modal','leave-adj-modal','appt-modal'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){
     if(e.target===this) this.classList.remove('open');
   });
