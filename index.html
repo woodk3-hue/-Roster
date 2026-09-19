@@ -1315,6 +1315,16 @@ function updateSyncUI(){
   if(partnerBtn) partnerBtn.style.background=syncRole==='partner'?'var(--accent)':'';
   if(partnerBtn) partnerBtn.style.color=syncRole==='partner'?'#000':'';
   if(pinEl&&syncPin) pinEl.value=syncPin;
+  // Show/hide tabs based on role
+  const partnerHiddenTabs=['nav-swaps','nav-claims','nav-contacts','nav-stats'];
+  partnerHiddenTabs.forEach(function(id){
+    const el=document.getElementById(id);
+    if(el) el.style.display=(syncEnabled&&syncRole==='partner')?'none':'';
+  });
+  // If partner is on a hidden screen, redirect to dash
+  if(syncEnabled&&syncRole==='partner'&&['swaps','claims','contacts','stats'].includes(currentScreen)){
+    showScreen('dash');
+  }
 }
 
 let isSyncPushing=false;
