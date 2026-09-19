@@ -1328,17 +1328,19 @@ function startSync(){
     if(isSyncPushing) return;
     const data=snap.val();
     if(!data) return;
-    if(syncRole==='owner'){
-      if(data.days) S.days=data.days;
-      if(data.swaps) S.swaps=data.swaps;
-      if(data.claims) S.claims=data.claims;
-      if(data.contacts) S.contacts=data.contacts;
-      if(data.leave) Object.assign(S.leave,data.leave);
-      if(data.plannedLeave) S.plannedLeave=data.plannedLeave;
-      if(data.swapEmailSent) S.swapEmailSent=data.swapEmailSent;
-      if(data.leaveAdj) S.leaveAdj=data.leaveAdj;
-      if(data.settings) Object.assign(S.settings,data.settings);
-    }
+    // Both Owner and Partner receive all roster data from Firebase
+    // (Partner just can't write roster data back)
+    if(data.anchorLink!=null) S.anchorLink=data.anchorLink;
+    if(data.anchorDate!=null) S.anchorDate=data.anchorDate;
+    if(data.days) S.days=data.days;
+    if(data.swaps) S.swaps=data.swaps;
+    if(data.claims) S.claims=data.claims;
+    if(data.contacts) S.contacts=data.contacts;
+    if(data.leave) Object.assign(S.leave,data.leave);
+    if(data.plannedLeave) S.plannedLeave=data.plannedLeave;
+    if(data.swapEmailSent) S.swapEmailSent=data.swapEmailSent;
+    if(data.leaveAdj) S.leaveAdj=data.leaveAdj;
+    if(data.settings) Object.assign(S.settings,data.settings);
     if(data.appointments) S.appointments=data.appointments;
     localStorage.setItem(STATE_KEY,JSON.stringify(S));
     refreshAllScreens();
@@ -1351,6 +1353,8 @@ function pushSync(){
   isSyncPushing=true;
   const ref=fbDb.ref('roster/'+syncPin);
   const payload={
+    anchorLink:S.anchorLink,
+    anchorDate:S.anchorDate,
     days:S.days,
     swaps:S.swaps,
     claims:S.claims,
