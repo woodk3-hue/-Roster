@@ -3467,22 +3467,22 @@ function saveClaim(){
 // PAY
 // ═══════════════════════════════════════════════════════════
 function renderPay(){
-  const cph=S.settings.cph;
-  const hrs=S.settings.cycleHrs;
-  const gross=cph*hrs;
+  const cph=S.settings.cph||66.50;
+  const hrs=S.settings.cycleHrs||80.43;
   const hpd=hrs/10;
-  document.getElementById('pay-cph').textContent='$'+cph.toFixed(2);
-  document.getElementById('pay-fn-gross').textContent='$'+gross.toFixed(2);
-  document.getElementById('pay-fn-sub').textContent=hrs+'h × $'+cph.toFixed(2);
   const alInput=document.getElementById('pay-al-input');
   const lslInput=document.getElementById('pay-lsl-input');
   const pcInput=document.getElementById('pay-pc-input');
   if(alInput&&document.activeElement!==alInput) alInput.value=S.leave.al.toFixed(2);
   if(lslInput&&document.activeElement!==lslInput) lslInput.value=S.leave.lsl.toFixed(2);
   if(pcInput&&document.activeElement!==pcInput) pcInput.value=S.leave.pc.toFixed(2);
-  document.getElementById('pay-al-days').textContent='≈'+(S.leave.al/hpd).toFixed(1)+' days';
-  document.getElementById('pay-lsl-days').textContent='≈'+(S.leave.lsl/hpd).toFixed(1)+' days';
-  document.getElementById('pay-pc-days').textContent='≈'+(S.leave.pc/hpd).toFixed(1)+' days';
+  // Show days equivalent under each balance
+  const alDays=document.getElementById('pay-al-days');
+  const lslDays=document.getElementById('pay-lsl-days');
+  const pcDays=document.getElementById('pay-pc-days');
+  if(alDays) alDays.textContent='≈'+(S.leave.al/hpd).toFixed(1)+' days';
+  if(lslDays) lslDays.textContent='≈'+(S.leave.lsl/hpd).toFixed(1)+' days';
+  if(pcDays) pcDays.textContent='≈'+(S.leave.pc/hpd).toFixed(1)+' days';
 
   // Projected balances after future planned leave
   const impact=calcLeaveImpact();
@@ -3673,7 +3673,7 @@ function clampLamHours(){
 
 function savePaySetting(key, val){
   const v=parseFloat(val);
-  if(isNaN(v)) return;
+  if(isNaN(v)||v<0) return;
   S.settings[key]=v;
   saveState();
   renderPayProjection();
@@ -3715,36 +3715,44 @@ function calcPayProjection(){
     const dow=cur.getDay(); // 0=Sun,6=Sat
     const ov=S.days[ds];
     const isPH=QLD_PH.has(ds);
-    const sh=getEffectiveShift(ds);
 
-    // Hours worked this day (from override if set)
+    // Get the effective shift to know the roster type for this day
+    const sh=getEffectiveShift(ds);
+    const rosterTk=sh.typeKey;
+
+    // Hours worked — from override start/end
     let hrs=0;
     if(ov&&ov.start&&ov.end){
       const h=calcHrs(ov.start,ov.end);
       if(h) hrs=h;
     }
+    if(!hrs||!ov) { cur=addDays(cur,1); continue; }
 
-    if(ov&&(ov.type==='blp_worked'||ov.type==='slp_worked')&&hrs>0){
-      blpHrs+=hrs;
-    } else if(isPH&&hrs>0){
+    // BLP/SLP worked — explicit type OR normal override on a BLP/SLP roster day
+    const isBlpWorked=ov.type==='blp_worked'||ov.type==='slp_worked'||
+      (ov.start&&(rosterTk==='blp'||rosterTk==='slp'));
+
+    if(isPH){
       phHrs+=hrs;
-    } else if(dow===6&&hrs>0){ // Saturday
+    } else if(isBlpWorked){
+      blpHrs+=hrs;
+    } else if(dow===6){ // Saturday
       satHrs+=hrs;
-    } else if(dow===0&&hrs>0){ // Sunday
+    } else if(dow===0){ // Sunday
       sunHrs+=hrs;
-    } else if(hrs>0){
-      // Check if AL on rostered weekend day
-      const lv=(S.plannedLeave||[]).find(function(l){ return l.type==='al'&&ds>=l.start&&ds<=(l.end||l.start); });
-      if(lv&&(dow===6||dow===0)){
-        alWkndHrs+=hrs;
-      }
+    } else {
+      // AL on rostered weekend
+      const lv=(S.plannedLeave||[]).find(function(l){
+        return l.type==='al'&&ds>=l.start&&ds<=(l.end||l.start);
+      });
+      if(lv&&(dow===6||dow===0)) alWkndHrs+=hrs;
     }
     cur=addDays(cur,1);
   }
 
   // ── GROSS EARNINGS ──
   const baseGross=80*cph;                          // guaranteed 80h
-  const blpGross=blpHrs*cph*(175/100-1);          // 75% extra on BLP hrs (175% total, base counted in 80h)
+  const blpGross=blpHrs*cph*1.75;                  // full 175% (BLP hours replace ordinary hours)
   const satGross=satHrs*cph*0.50;                 // 50% extra
   const sunGross=sunHrs*cph*1.00;                 // 100% extra
   const phGross=phHrs*cph*0.50;                   // 50% extra when worked
@@ -3763,7 +3771,7 @@ function calcPayProjection(){
   const annualTaxable=taxableIncome*26;             // 26 fortnights/year
   const annualTax=calcAnnualTax(annualTaxable);
   const fnTax=annualTax/26;
-  const mediLevy=annualTaxable*0.02/26;             // 2% Medicare levy
+  const mediLevy=0; // Medicare levy settled at tax time, not deducted fortnightly
   const totalTax=fnTax+mediLevy;
 
   // ── SUPER ──
@@ -3803,36 +3811,62 @@ function renderPayProjection(){
       '<div style="font-size:13px;font-weight:700;color:'+(colour||'var(--text)')+';">'+val+'</div>'+
     '</div>';
 
+  const payRow=(label,hrs,rate,amt,colour)=>
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--border)33;">'+
+      '<div style="font-size:12px;color:var(--text);flex:1;">'+label+'</div>'+
+      '<div style="font-size:11px;color:var(--muted);width:60px;text-align:right;">'+hrs+'</div>'+
+      '<div style="font-size:11px;color:var(--muted);width:60px;text-align:right;">'+rate+'</div>'+
+      '<div style="font-size:13px;font-weight:700;color:'+(colour||'var(--text)')+';width:80px;text-align:right;">'+amt+'</div>'+
+    '</div>';
+
   let html='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Fortnight: '+fnLabel+'</div>';
 
-  // Gross
-  html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Gross Earnings</div>';
-  html+=row('Ordinary Time (80h guaranteed)','80h × '+fmt$(S.settings.cph),'','')+
-        (p.blpHrs>0?row('BLP/SLP Worked',fmt$(p.blpGross),p.blpHrs.toFixed(1)+'h × 175%','var(--early)'):'')+
-        (p.satHrs>0?row('Saturday Penalty',fmt$(p.satGross),p.satHrs.toFixed(1)+'h × 50% extra','var(--early)'):'')+
-        (p.sunHrs>0?row('Sunday Penalty',fmt$(p.sunGross),p.sunHrs.toFixed(1)+'h × 100% extra','var(--early)'):'')+
-        (p.phHrs>0?row('Public Holiday Worked',fmt$(p.phGross),p.phHrs.toFixed(1)+'h × 50% extra','var(--early)'):'')+
-        (p.alWkndHrs>0?row('AL (rostered weekend)',fmt$(p.alWkndGross),p.alWkndHrs.toFixed(1)+'h × 50% extra','var(--early)'):'')+
-        '<div style="display:flex;justify-content:space-between;padding:6px 0;margin-bottom:8px;">'+
-          '<div style="font-size:13px;font-weight:800;">Total Gross</div>'+
-          '<div style="font-size:15px;font-weight:900;color:var(--accent);">'+fmt$(p.totalGross)+'</div>'+
-        '</div>';
+  // Column headers
+  html+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding-bottom:4px;border-bottom:1px solid var(--border);">'+
+    '<div style="flex:1;">Payment Type</div>'+
+    '<div style="width:60px;text-align:right;">Hours</div>'+
+    '<div style="width:60px;text-align:right;">Rate</div>'+
+    '<div style="width:80px;text-align:right;">Gross</div>'+
+  '</div>';
 
-  // Pre-tax deductions
-  html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Pre-Tax Deductions</div>';
-  html+=row('SG Fleet Pre (Car)','-'+fmt$(p.fleetPre),'Novated lease','#ef4444')+
-        row('Salary Sacrifice %','-'+fmt$(p.salarySac),'AP Vol SS %','#ef4444')+
-        row('Voluntary Super','-'+fmt$(p.volSuper),'AP Vol SS AMT','#ef4444')+
-        '<div style="display:flex;justify-content:space-between;padding:6px 0;margin-bottom:8px;">'+
-          '<div style="font-size:12px;font-weight:700;">Total Pre-Tax</div>'+
-          '<div style="font-size:13px;font-weight:700;color:#ef4444;">-'+fmt$(p.totalPreTax)+'</div>'+
-        '</div>';
+  const cph=S.settings.cph||66.50;
+  const ordGross=80*cph;
+  html+=payRow('Ord Time (80h guaranteed)','80.00','100%',fmt$(ordGross),'');
+  if(p.blpHrs>0) html+=payRow('BLP/SLP Wrkd 175%',p.blpHrs.toFixed(2),'175%',fmt$(p.blpGross),'var(--early)');
+  if(p.satHrs>0) html+=payRow('Wknd Pnlty TC SAT',p.satHrs.toFixed(2),'50%',fmt$(p.satGross),'var(--early)');
+  if(p.sunHrs>0) html+=payRow('Wknd Pnlty TC SUN',p.sunHrs.toFixed(2),'100%',fmt$(p.sunGross),'var(--early)');
+  if(p.phHrs>0) html+=payRow('Public Holiday Wrkd',p.phHrs.toFixed(2),'50%',fmt$(p.phGross),'var(--early)');
+  if(p.alWkndHrs>0) html+=payRow('AL Wknd Penalty',p.alWkndHrs.toFixed(2),'50%',fmt$(p.alWkndGross),'var(--early)');
+
+  html+='<div style="display:flex;justify-content:space-between;padding:8px 0;margin-bottom:8px;">'+
+    '<div style="font-size:13px;font-weight:800;">Total Gross</div>'+
+    '<div style="font-size:16px;font-weight:900;color:var(--accent);">'+fmt$(p.totalGross)+'</div>'+
+  '</div>';
+
+  // Pre-tax deductions — only show if > 0
+  html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;margin-top:8px;">Pre-Tax Deductions</div>';
+  const deductions=[
+    {label:'SG Fleet Pre (Car)',val:p.fleetPre,sub:'Novated lease'},
+    {label:'Salary Sacrifice %',val:p.salarySac,sub:'AP Vol SS %'},
+    {label:'Voluntary Super',val:p.volSuper,sub:'AP Vol SS AMT'},
+  ];
+  const activeDeductions=deductions.filter(function(d){ return d.val>0; });
+  if(activeDeductions.length===0){
+    html+='<div style="font-size:12px;color:var(--muted);padding:4px 0;">No pre-tax deductions</div>';
+  } else {
+    activeDeductions.forEach(function(d){
+      html+=row(d.label,'-'+fmt$(d.val),d.sub,'#ef4444');
+    });
+  }
+  html+='<div style="display:flex;justify-content:space-between;padding:6px 0;margin-bottom:8px;">'+
+    '<div style="font-size:12px;font-weight:700;">Total Pre-Tax</div>'+
+    '<div style="font-size:13px;font-weight:700;color:#ef4444;">-'+fmt$(p.totalPreTax)+'</div>'+
+  '</div>';
 
   // Tax
   html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Tax</div>';
   html+=row('Taxable Income',fmt$(p.taxableIncome),'After pre-tax deductions','')+
         row('Income Tax','-'+fmt$(p.fnTax),'ATO 2025-26 brackets','#ef4444')+
-        row('Medicare Levy (2%)','-'+fmt$(p.mediLevy),'','#ef4444')+
         row('Q.R.I.','-'+fmt$(p.qri),'Post-tax insurance','#ef4444')+
         '<div style="display:flex;justify-content:space-between;padding:6px 0;margin-bottom:8px;">'+
           '<div style="font-size:12px;font-weight:700;">Total Tax & Deductions</div>'+
