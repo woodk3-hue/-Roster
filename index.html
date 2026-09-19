@@ -593,7 +593,10 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
   <!-- Planned Leave -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
     <div class="section-label" style="margin:0;">Planned Leave</div>
-    <button class="btn btn-sm btn-accent" onclick="openLeaveModal()">+ Add Leave</button>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-sm" onclick="importLeaveFromCalendar()">⬆ Import from Calendar</button>
+      <button class="btn btn-sm btn-accent" onclick="openLeaveModal()">+ Add Leave</button>
+    </div>
   </div>
   <div id="planned-leave-list"></div>
 
@@ -3995,6 +3998,55 @@ function renderLeaveAdjHistory(){
       '<button class="btn btn-sm btn-danger" data-adjid="'+a.id+'" onclick="deleteLeaveAdj(this.getAttribute('+"'data-adjid'"+'\))">Delete</button>';
     el.appendChild(div);
   });
+}
+
+function importLeaveFromCalendar(){
+  // Scan S.days for AL/LSL/SL entries and group consecutive days into ranges
+  const leaveTypes=['al','lsl','sl','sick'];
+  const typeMap={'al':'al','lsl':'lsl','sl':'sl','sick':'sl'};
+
+  // Collect all leave days from S.days sorted by date
+  const leaveDays=[];
+  Object.keys(S.days).sort().forEach(function(ds){
+    const ov=S.days[ds];
+    if(ov&&leaveTypes.includes(ov.type)){
+      leaveDays.push({ds:ds,type:typeMap[ov.type]||ov.type});
+    }
+  });
+
+  if(!leaveDays.length){ toast('No leave found in calendar'); return; }
+
+  // Group consecutive days of same type into ranges
+  const ranges=[];
+  let cur=null;
+  leaveDays.forEach(function(day){
+    if(!cur||cur.type!==day.type||daysDiff(cur.end,day.ds)>3){
+      // New range (gap > 3 days = weekend/BLP gap is ok, > 3 = new block)
+      if(cur) ranges.push(cur);
+      cur={type:day.type,start:day.ds,end:day.ds};
+    } else {
+      cur.end=day.ds;
+    }
+  });
+  if(cur) ranges.push(cur);
+
+  // Skip ranges already in S.plannedLeave (same start date)
+  const existingStarts=(S.plannedLeave||[]).map(function(lv){ return lv.start; });
+  let added=0;
+  ranges.forEach(function(r){
+    if(!existingStarts.includes(r.start)){
+      S.plannedLeave.push({id:uid(),type:r.type,start:r.start,end:r.end,notes:'Imported from calendar'});
+      added++;
+    }
+  });
+
+  if(added===0){ toast('All calendar leave already in list'); return; }
+  saveState(); renderPay();
+  toast(added+' leave period'+(added>1?'s':'')+' imported');
+}
+
+function daysDiff(ds1,ds2){
+  return Math.abs((parseDate(ds2)-parseDate(ds1))/(24*60*60*1000));
 }
 
 function renderPlannedLeave(){
