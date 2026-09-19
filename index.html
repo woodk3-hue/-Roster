@@ -601,18 +601,68 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
   <div class="section-label">Balance Adjustment History</div>
   <div id="leave-adj-list"></div>
 
-  <!-- Pay estimates -->
-  <div class="section-label">Pay</div>
-  <div class="pay-grid">
-    <div class="pay-card">
-      <div class="pay-lbl">Hourly Rate</div>
-      <div class="pay-val" id="pay-cph">$66.50</div>
-      <div class="pay-sub">CPH certified</div>
-    </div>
-    <div class="pay-card">
-      <div class="pay-lbl">Est. Fortnightly</div>
-      <div class="pay-val" id="pay-fn-gross">—</div>
-      <div class="pay-sub" id="pay-fn-sub">—</div>
+  <!-- Projected Fortnightly Pay -->
+  <div class="section-label">Projected Fortnightly Pay</div>
+  <div id="pay-projection-card" class="card" style="margin-bottom:12px;"></div>
+
+  <!-- Pay settings quick edit -->
+  <div class="section-label">Pay Deduction Settings</div>
+  <div class="card" style="margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <div class="pay-lbl">SG Fleet Pre (Car)</div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span style="color:var(--muted);">$</span>
+          <input type="number" id="pay-fleet" step="0.01" min="0"
+            style="background:none;border:none;border-bottom:1px dashed var(--border);width:70px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
+            onchange="savePaySetting('fleetPre',this.value)">
+        </div>
+      </div>
+      <div>
+        <div class="pay-lbl">Salary Sacrifice %</div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span style="color:var(--muted);">$</span>
+          <input type="number" id="pay-ss-pct" step="0.01" min="0"
+            style="background:none;border:none;border-bottom:1px dashed var(--border);width:70px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
+            onchange="savePaySetting('salarySacPct',this.value)">
+        </div>
+      </div>
+      <div>
+        <div class="pay-lbl">Voluntary Super</div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span style="color:var(--muted);">$</span>
+          <input type="number" id="pay-vol-super" step="0.01" min="0"
+            style="background:none;border:none;border-bottom:1px dashed var(--border);width:70px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
+            onchange="savePaySetting('voluntarySuper',this.value)">
+        </div>
+      </div>
+      <div>
+        <div class="pay-lbl">Q.R.I.</div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span style="color:var(--muted);">$</span>
+          <input type="number" id="pay-qri" step="0.01" min="0"
+            style="background:none;border:none;border-bottom:1px dashed var(--border);width:50px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
+            onchange="savePaySetting('qri',this.value)">
+        </div>
+      </div>
+      <div>
+        <div class="pay-lbl">Super Rate %</div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number" id="pay-super-rate" step="0.1" min="0" max="20"
+            style="background:none;border:none;border-bottom:1px dashed var(--border);width:40px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
+            onchange="savePaySetting('superRate',this.value)">
+          <span style="color:var(--muted);">%</span>
+        </div>
+      </div>
+      <div>
+        <div class="pay-lbl">CPH Rate</div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span style="color:var(--muted);">$</span>
+          <input type="number" id="pay-cph" step="0.01" min="0"
+            style="background:none;border:none;border-bottom:1px dashed var(--border);width:60px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
+            onchange="savePaySetting('cph',this.value)">
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -3463,6 +3513,7 @@ function renderPay(){
 
   renderPlannedLeave();
   renderLeaveAdjHistory();
+  renderPayProjection();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3606,6 +3657,206 @@ function setLamHours(val){
 function clampLamHours(){
   const el=document.getElementById('lam-hours');
   if(parseFloat(el.value)<0) el.value='0';
+}
+
+// ── PAY CALCULATION ─────────────────────────────────────
+
+function savePaySetting(key, val){
+  const v=parseFloat(val);
+  if(isNaN(v)) return;
+  S.settings[key]=v;
+  saveState();
+  renderPayProjection();
+}
+
+function calcAnnualTax(annualIncome){
+  // ATO 2025-26 tax brackets
+  if(annualIncome<=18200) return 0;
+  if(annualIncome<=45000) return (annualIncome-18200)*0.19;
+  if(annualIncome<=120000) return 5092+(annualIncome-45000)*0.325;
+  if(annualIncome<=180000) return 29467+(annualIncome-120000)*0.37;
+  return 51667+(annualIncome-180000)*0.45;
+}
+
+function getFortnightDates(){
+  // Current fortnight: from last even Monday (pay period is 2 weeks)
+  const now=today();
+  const mon=getMonday(now);
+  // Work out which fortnight we're in based on anchor
+  if(!S.anchorDate) return {start:mon, end:addDays(mon,13)};
+  const anchor=parseDate(S.anchorDate);
+  const anchorMon=getMonday(anchor);
+  const weeksDiff=Math.round((mon-anchorMon)/(7*24*60*60*1000));
+  const fnStart=weeksDiff%2===0?mon:addDays(mon,-7);
+  return {start:fnStart, end:addDays(fnStart,13)};
+}
+
+function calcPayProjection(){
+  const cph=S.settings.cph||66.50;
+  const fn=getFortnightDates();
+  const start=fn.start, end=fn.end;
+
+  // Scan every day in the fortnight
+  let blpHrs=0, satHrs=0, sunHrs=0, phHrs=0, alWkndHrs=0;
+
+  let cur=new Date(start);
+  while(cur<=end){
+    const ds=fmtDate(cur);
+    const dow=cur.getDay(); // 0=Sun,6=Sat
+    const ov=S.days[ds];
+    const isPH=QLD_PH.has(ds);
+    const sh=getEffectiveShift(ds);
+
+    // Hours worked this day (from override if set)
+    let hrs=0;
+    if(ov&&ov.start&&ov.end){
+      const h=calcHrs(ov.start,ov.end);
+      if(h) hrs=h;
+    }
+
+    if(ov&&(ov.type==='blp_worked'||ov.type==='slp_worked')&&hrs>0){
+      blpHrs+=hrs;
+    } else if(isPH&&hrs>0){
+      phHrs+=hrs;
+    } else if(dow===6&&hrs>0){ // Saturday
+      satHrs+=hrs;
+    } else if(dow===0&&hrs>0){ // Sunday
+      sunHrs+=hrs;
+    } else if(hrs>0){
+      // Check if AL on rostered weekend day
+      const lv=(S.plannedLeave||[]).find(function(l){ return l.type==='al'&&ds>=l.start&&ds<=(l.end||l.start); });
+      if(lv&&(dow===6||dow===0)){
+        alWkndHrs+=hrs;
+      }
+    }
+    cur=addDays(cur,1);
+  }
+
+  // ── GROSS EARNINGS ──
+  const baseGross=80*cph;                          // guaranteed 80h
+  const blpGross=blpHrs*cph*(175/100-1);          // 75% extra on BLP hrs (175% total, base counted in 80h)
+  const satGross=satHrs*cph*0.50;                 // 50% extra
+  const sunGross=sunHrs*cph*1.00;                 // 100% extra
+  const phGross=phHrs*cph*0.50;                   // 50% extra when worked
+  const alWkndGross=alWkndHrs*cph*0.50;           // AL on rostered weekend
+  const totalGross=baseGross+blpGross+satGross+sunGross+phGross+alWkndGross;
+
+  // ── PRE-TAX DEDUCTIONS ──
+  const fleetPre=S.settings.fleetPre||715.50;
+  const salarySac=S.settings.salarySacPct||199.21;
+  const volSuper=S.settings.voluntarySuper||200.00;
+  const qri=S.settings.qri||7.50;
+  const totalPreTax=fleetPre+salarySac+volSuper;   // QRI is post-tax
+
+  // ── TAX ──
+  const taxableIncome=totalGross-totalPreTax;
+  const annualTaxable=taxableIncome*26;             // 26 fortnights/year
+  const annualTax=calcAnnualTax(annualTaxable);
+  const fnTax=annualTax/26;
+  const mediLevy=annualTaxable*0.02/26;             // 2% Medicare levy
+  const totalTax=fnTax+mediLevy;
+
+  // ── SUPER ──
+  const superRate=(S.settings.superRate||12)/100;
+  const sgSuper=baseGross*superRate;               // SG on ordinary time only
+  const resc=salarySac+volSuper;                   // Reportable employer super contributions
+  const totalSuper=sgSuper+volSuper;
+
+  // ── NET ──
+  const netPay=totalGross-totalPreTax-totalTax-qri;
+
+  return {
+    baseGross,blpHrs,blpGross,satHrs,satGross,sunHrs,sunGross,
+    phHrs,phGross,alWkndHrs,alWkndGross,totalGross,
+    fleetPre,salarySac,volSuper,qri,totalPreTax,
+    fnTax,mediLevy,totalTax,
+    sgSuper,resc,totalSuper,
+    netPay,taxableIncome,
+    fn
+  };
+}
+
+function fmt$(n){ return '$'+n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+
+function renderPayProjection(){
+  const el=document.getElementById('pay-projection-card');
+  if(!el) return;
+  const p=calcPayProjection();
+  const fnLabel=fmtDDMM(p.fn.start)+' – '+fmtDDMM(p.fn.end);
+
+  const row=(label,val,sub,colour)=>
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--border);">'+
+      '<div>'+
+        '<div style="font-size:12px;color:var(--text);">'+label+'</div>'+
+        (sub?'<div style="font-size:10px;color:var(--muted);">'+sub+'</div>':'')+
+      '</div>'+
+      '<div style="font-size:13px;font-weight:700;color:'+(colour||'var(--text)')+';">'+val+'</div>'+
+    '</div>';
+
+  let html='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Fortnight: '+fnLabel+'</div>';
+
+  // Gross
+  html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Gross Earnings</div>';
+  html+=row('Ordinary Time (80h guaranteed)','80h × '+fmt$(S.settings.cph),'','')+
+        (p.blpHrs>0?row('BLP/SLP Worked',fmt$(p.blpGross),p.blpHrs.toFixed(1)+'h × 175%','var(--early)'):'')+
+        (p.satHrs>0?row('Saturday Penalty',fmt$(p.satGross),p.satHrs.toFixed(1)+'h × 50% extra','var(--early)'):'')+
+        (p.sunHrs>0?row('Sunday Penalty',fmt$(p.sunGross),p.sunHrs.toFixed(1)+'h × 100% extra','var(--early)'):'')+
+        (p.phHrs>0?row('Public Holiday Worked',fmt$(p.phGross),p.phHrs.toFixed(1)+'h × 50% extra','var(--early)'):'')+
+        (p.alWkndHrs>0?row('AL (rostered weekend)',fmt$(p.alWkndGross),p.alWkndHrs.toFixed(1)+'h × 50% extra','var(--early)'):'')+
+        '<div style="display:flex;justify-content:space-between;padding:6px 0;margin-bottom:8px;">'+
+          '<div style="font-size:13px;font-weight:800;">Total Gross</div>'+
+          '<div style="font-size:15px;font-weight:900;color:var(--accent);">'+fmt$(p.totalGross)+'</div>'+
+        '</div>';
+
+  // Pre-tax deductions
+  html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Pre-Tax Deductions</div>';
+  html+=row('SG Fleet Pre (Car)','-'+fmt$(p.fleetPre),'Novated lease','#ef4444')+
+        row('Salary Sacrifice %','-'+fmt$(p.salarySac),'AP Vol SS %','#ef4444')+
+        row('Voluntary Super','-'+fmt$(p.volSuper),'AP Vol SS AMT','#ef4444')+
+        '<div style="display:flex;justify-content:space-between;padding:6px 0;margin-bottom:8px;">'+
+          '<div style="font-size:12px;font-weight:700;">Total Pre-Tax</div>'+
+          '<div style="font-size:13px;font-weight:700;color:#ef4444;">-'+fmt$(p.totalPreTax)+'</div>'+
+        '</div>';
+
+  // Tax
+  html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Tax</div>';
+  html+=row('Taxable Income',fmt$(p.taxableIncome),'After pre-tax deductions','')+
+        row('Income Tax','-'+fmt$(p.fnTax),'ATO 2025-26 brackets','#ef4444')+
+        row('Medicare Levy (2%)','-'+fmt$(p.mediLevy),'','#ef4444')+
+        row('Q.R.I.','-'+fmt$(p.qri),'Post-tax insurance','#ef4444')+
+        '<div style="display:flex;justify-content:space-between;padding:6px 0;margin-bottom:8px;">'+
+          '<div style="font-size:12px;font-weight:700;">Total Tax & Deductions</div>'+
+          '<div style="font-size:13px;font-weight:700;color:#ef4444;">-'+fmt$(p.totalTax+p.qri)+'</div>'+
+        '</div>';
+
+  // Super
+  html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Superannuation</div>';
+  html+=row('SG Super ('+S.settings.superRate+'%)',fmt$(p.sgSuper),'Employer — on ordinary time','#0d9488')+
+        row('Voluntary Super',fmt$(p.volSuper),'Your contribution','#0d9488')+
+        row('RESC',fmt$(p.resc),'Reportable employer super','var(--muted)')+
+        '<div style="display:flex;justify-content:space-between;padding:6px 0;margin-bottom:8px;">'+
+          '<div style="font-size:12px;font-weight:700;">Total Super</div>'+
+          '<div style="font-size:13px;font-weight:700;color:#0d9488;">'+fmt$(p.totalSuper)+'</div>'+
+        '</div>';
+
+  // Net
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-top:4px;">'+
+    '<div style="font-size:14px;font-weight:800;">Projected Net Pay</div>'+
+    '<div style="font-size:22px;font-weight:900;color:var(--early);">'+fmt$(p.netPay)+'</div>'+
+  '</div>';
+
+  el.innerHTML=html;
+
+  // Update editable fields
+  const fields={
+    'pay-fleet':'fleetPre','pay-ss-pct':'salarySacPct',
+    'pay-vol-super':'voluntarySuper','pay-qri':'qri',
+    'pay-super-rate':'superRate','pay-cph':'cph'
+  };
+  Object.entries(fields).forEach(function(kv){
+    const el2=document.getElementById(kv[0]);
+    if(el2&&document.activeElement!==el2) el2.value=(S.settings[kv[1]]||0).toFixed(kv[0]==='pay-super-rate'?1:2);
+  });
 }
 
 function saveLeaveBalanceInline(type, val){
