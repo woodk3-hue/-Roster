@@ -608,64 +608,14 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
   <div class="section-label">Projected Fortnightly Pay</div>
   <div id="pay-projection-card" class="card" style="margin-bottom:12px;"></div>
 
-  <!-- Pay settings quick edit -->
-  <div class="section-label">Pay Deduction Settings</div>
-  <div class="card" style="margin-bottom:12px;">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div>
-        <div class="pay-lbl">SG Fleet Pre (Car)</div>
-        <div style="display:flex;align-items:center;gap:4px;">
-          <span style="color:var(--muted);">$</span>
-          <input type="number" id="pay-fleet" step="0.01" min="0"
-            style="background:none;border:none;border-bottom:1px dashed var(--border);width:70px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
-            onchange="savePaySetting('fleetPre',this.value)">
-        </div>
-      </div>
-      <div>
-        <div class="pay-lbl">Salary Sacrifice %</div>
-        <div style="display:flex;align-items:center;gap:4px;">
-          <span style="color:var(--muted);">$</span>
-          <input type="number" id="pay-ss-pct" step="0.01" min="0"
-            style="background:none;border:none;border-bottom:1px dashed var(--border);width:70px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
-            onchange="savePaySetting('salarySacPct',this.value)">
-        </div>
-      </div>
-      <div>
-        <div class="pay-lbl">Voluntary Super</div>
-        <div style="display:flex;align-items:center;gap:4px;">
-          <span style="color:var(--muted);">$</span>
-          <input type="number" id="pay-vol-super" step="0.01" min="0"
-            style="background:none;border:none;border-bottom:1px dashed var(--border);width:70px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
-            onchange="savePaySetting('voluntarySuper',this.value)">
-        </div>
-      </div>
-      <div>
-        <div class="pay-lbl">Q.R.I.</div>
-        <div style="display:flex;align-items:center;gap:4px;">
-          <span style="color:var(--muted);">$</span>
-          <input type="number" id="pay-qri" step="0.01" min="0"
-            style="background:none;border:none;border-bottom:1px dashed var(--border);width:50px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
-            onchange="savePaySetting('qri',this.value)">
-        </div>
-      </div>
-      <div>
-        <div class="pay-lbl">Super Rate %</div>
-        <div style="display:flex;align-items:center;gap:4px;">
-          <input type="number" id="pay-super-rate" step="0.1" min="0" max="20"
-            style="background:none;border:none;border-bottom:1px dashed var(--border);width:40px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
-            onchange="savePaySetting('superRate',this.value)">
-          <span style="color:var(--muted);">%</span>
-        </div>
-      </div>
-      <div>
-        <div class="pay-lbl">CPH Rate</div>
-        <div style="display:flex;align-items:center;gap:4px;">
-          <span style="color:var(--muted);">$</span>
-          <input type="number" id="pay-cph" step="0.01" min="0"
-            style="background:none;border:none;border-bottom:1px dashed var(--border);width:60px;color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;"
-            onchange="savePaySetting('cph',this.value)">
-        </div>
-      </div>
+  <!-- CPH Rate only -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+    <div class="pay-lbl" style="margin:0;">CPH Rate:</div>
+    <div style="display:flex;align-items:center;gap:4px;">
+      <span style="color:var(--muted);">$</span>
+      <input type="number" id="pay-cph" step="0.01" min="0"
+        style="background:none;border:none;border-bottom:1px dashed var(--border);width:65px;color:var(--text);font-size:15px;font-weight:800;padding:0;outline:none;"
+        onchange="savePaySetting('cph',this.value)">
     </div>
   </div>
 </div>
@@ -2193,12 +2143,27 @@ function renderDayPanel(ds){
 
   if(['blp','slp'].includes(sh.typeKey)){
     html='<div class="cal-badge '+(sh.typeKey==='blp'?'b-blp':'b-slp')+'" style="font-size:13px;padding:4px 10px;">'+(sh.typeKey==='blp'?'Block Leisure Period':'Single Leisure Period')+'</div>';
-  } else if(sh.typeKey==='al'){
-    html='<div class="cal-badge b-al" style="font-size:13px;padding:4px 10px;">Annual Leave</div>';
-  } else if(sh.typeKey==='lsl'){
-    html='<div class="cal-badge b-lsl" style="font-size:13px;padding:4px 10px;">Long Service Leave</div>';
-  } else if(sh.typeKey==='sl'){
-    html='<div class="cal-badge b-sl" style="font-size:13px;padding:4px 10px;">Sick Leave</div>';
+  } else if(['al','lsl','sl'].includes(sh.typeKey)){
+    const leaveLabels={al:'Annual Leave',lsl:'Long Service Leave',sl:'Sick Leave'};
+    const leaveBadgeCls={al:'b-al',lsl:'b-lsl',sl:'b-sl'};
+    const leaveLabel=leaveLabels[sh.typeKey];
+    const leaveBadge=leaveBadgeCls[sh.typeKey];
+    // Find the planned leave entry for notes
+    const lv=(S.plannedLeave||[]).find(function(lv){
+      return lv.type===(sh.typeKey==='sl'?'sl':sh.typeKey)&&ds>=lv.start&&ds<=(lv.end||lv.start);
+    });
+    html='<div class="cal-badge '+leaveBadge+'" style="font-size:13px;padding:4px 10px;margin-bottom:6px;">'+leaveLabel+'</div>';
+    if(lv&&lv.notes) html+='<div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-style:italic;">'+lv.notes+'</div>';
+    // Show original rostered shift smaller
+    const origRaw=getRaw(getLinkForWeek(getMonday(parseDate(ds))),dayIdx(parseDate(ds)));
+    const origSh=parseShift(origRaw);
+    if(origSh.time||origSh.code){
+      html+='<div style="margin-top:6px;padding:6px 8px;background:var(--surface2);border-radius:6px;">'+
+        '<div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Rostered shift</div>'+
+        (origSh.time?'<div style="font-size:14px;font-weight:800;color:var(--muted);">'+origSh.time+'</div>':'')+
+        '<div style="font-size:11px;color:var(--muted);">'+origSh.code+'</div>'+
+      '</div>';
+    }
   } else if(sh.typeKey==='swap'){
     // Find the swap record for this week
     const d2=parseDate(ds);
@@ -3843,24 +3808,35 @@ function renderPayProjection(){
     '<div style="font-size:16px;font-weight:900;color:var(--accent);">'+fmt$(p.totalGross)+'</div>'+
   '</div>';
 
-  // Pre-tax deductions — only show if > 0
+  // Pre-tax deductions — inline editable
   html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;margin-top:8px;">Pre-Tax Deductions</div>';
-  const deductions=[
-    {label:'SG Fleet Pre (Car)',val:p.fleetPre,sub:'Novated lease'},
-    {label:'Salary Sacrifice %',val:p.salarySac,sub:'AP Vol SS %'},
-    {label:'Voluntary Super',val:p.volSuper,sub:'AP Vol SS AMT'},
+  const deductionFields=[
+    {label:'SG Fleet Pre (Car)',key:'fleetPre',sub:'Novated lease / car'},
+    {label:'Salary Sacrifice %',key:'salarySacPct',sub:'AP Vol SS %'},
+    {label:'Voluntary Super',key:'voluntarySuper',sub:'AP Vol SS AMT'},
+    {label:'Q.R.I.',key:'qri',sub:'Insurance (post-tax)'},
   ];
-  const activeDeductions=deductions.filter(function(d){ return d.val>0; });
-  if(activeDeductions.length===0){
-    html+='<div style="font-size:12px;color:var(--muted);padding:4px 0;">No pre-tax deductions</div>';
-  } else {
-    activeDeductions.forEach(function(d){
-      html+=row(d.label,'-'+fmt$(d.val),d.sub,'#ef4444');
-    });
-  }
+  deductionFields.forEach(function(d){
+    const val=S.settings[d.key]||0;
+    html+=
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)33;">'+
+        '<div>'+
+          '<div style="font-size:12px;">'+d.label+'</div>'+
+          '<div style="font-size:10px;color:var(--muted);">'+d.sub+'</div>'+
+        '</div>'+
+        '<div style="display:flex;align-items:center;gap:4px;">'+
+          '<span style="font-size:12px;color:#ef4444;">-$</span>'+
+          '<input type="number" step="0.01" min="0" value="'+val.toFixed(2)+'" '+
+            'data-key="'+d.key+'" '+
+            'onchange="savePaySetting(this.getAttribute(\'data-key\'),this.value)" '+
+            'style="width:70px;background:none;border:none;border-bottom:1px dashed #ef444488;color:#ef4444;font-size:13px;font-weight:700;text-align:right;padding:0;outline:none;">'+
+        '</div>'+
+      '</div>';
+  });
+  const totalPreTaxAll=p.totalPreTax+(S.settings.qri||0);
   html+='<div style="display:flex;justify-content:space-between;padding:6px 0;margin-bottom:8px;">'+
-    '<div style="font-size:12px;font-weight:700;">Total Pre-Tax</div>'+
-    '<div style="font-size:13px;font-weight:700;color:#ef4444;">-'+fmt$(p.totalPreTax)+'</div>'+
+    '<div style="font-size:12px;font-weight:700;">Total Deductions</div>'+
+    '<div style="font-size:13px;font-weight:700;color:#ef4444;">-'+fmt$(totalPreTaxAll)+'</div>'+
   '</div>';
 
   // Tax
@@ -3892,15 +3868,9 @@ function renderPayProjection(){
   el.innerHTML=html;
 
   // Update editable fields
-  const fields={
-    'pay-fleet':'fleetPre','pay-ss-pct':'salarySacPct',
-    'pay-vol-super':'voluntarySuper','pay-qri':'qri',
-    'pay-super-rate':'superRate','pay-cph':'cph'
-  };
-  Object.entries(fields).forEach(function(kv){
-    const el2=document.getElementById(kv[0]);
-    if(el2&&document.activeElement!==el2) el2.value=(S.settings[kv[1]]||0).toFixed(kv[0]==='pay-super-rate'?1:2);
-  });
+  // Update CPH input
+  const cphEl=document.getElementById('pay-cph');
+  if(cphEl&&document.activeElement!==cphEl) cphEl.value=(S.settings.cph||66.50).toFixed(2);
 }
 
 function saveLeaveBalanceInline(type, val){
