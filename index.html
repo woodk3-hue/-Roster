@@ -1388,19 +1388,24 @@ function startSync(){
     if(isSyncPushing) return;
     const data=snap.val();
     if(!data) return;
-    // Both Owner and Partner receive all roster data from Firebase
-    // (Partner just can't write roster data back)
+    // Safety: only apply if data has actual content (not empty push)
+    // and only apply non-empty values — never overwrite local data with nulls/empty
     if(data.anchorLink!=null) S.anchorLink=data.anchorLink;
     if(data.anchorDate!=null) S.anchorDate=data.anchorDate;
-    if(data.days) S.days=data.days;
-    if(data.swaps) S.swaps=data.swaps;
-    if(data.claims) S.claims=data.claims;
-    if(data.contacts) S.contacts=data.contacts;
-    if(data.leave) Object.assign(S.leave,data.leave);
+    if(data.days&&Object.keys(data.days).length>0) S.days=data.days;
+    if(data.swaps&&data.swaps.length>0) S.swaps=data.swaps;
+    if(data.claims&&data.claims.length>=0) S.claims=data.claims;
+    if(data.contacts&&data.contacts.length>=0) S.contacts=data.contacts;
+    // Leave balances — only apply if values are non-zero (never wipe with zeros)
+    if(data.leave){
+      if(data.leave.al>0) S.leave.al=data.leave.al;
+      if(data.leave.lsl>0) S.leave.lsl=data.leave.lsl;
+      if(data.leave.pc>=0) S.leave.pc=data.leave.pc;
+    }
     if(data.plannedLeave) S.plannedLeave=data.plannedLeave;
     if(data.swapEmailSent) S.swapEmailSent=data.swapEmailSent;
     if(data.leaveAdj) S.leaveAdj=data.leaveAdj;
-    if(data.settings) Object.assign(S.settings,data.settings);
+    if(data.settings&&data.settings.cph>0) Object.assign(S.settings,data.settings);
     if(data.appointments) S.appointments=data.appointments;
     localStorage.setItem(STATE_KEY,JSON.stringify(S));
     refreshAllScreens();
@@ -1410,6 +1415,8 @@ function startSync(){
 
 function pushSync(){
   if(!syncEnabled||!fbDb||!syncPin) return;
+  // Safety: only push if we have real data (anchorLink set = app is configured)
+  if(!S.anchorLink) return;
   isSyncPushing=true;
   const ref=fbDb.ref('roster/'+syncPin);
   const payload={
