@@ -773,6 +773,27 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
   </div>
 
   <div class="settings-section">
+    <div class="settings-section-title">Family Sync</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Share your roster with your partner in real time.</div>
+    <div class="form-group">
+      <label class="form-label">My Role</label>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="btn" id="role-owner-btn" onclick="setRole('owner')" style="flex:1;">👑 Owner (Kim)</button>
+        <button class="btn" id="role-partner-btn" onclick="setRole('partner')" style="flex:1;">👀 Partner</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Sync PIN <span style="font-size:10px;color:var(--muted);">(share with partner)</span></label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" class="form-input" id="sync-pin" placeholder="e.g. KIM2026" style="flex:1;font-weight:700;letter-spacing:2px;text-transform:uppercase;">
+        <button class="btn btn-accent" onclick="enableSync()">Connect</button>
+      </div>
+    </div>
+    <div id="sync-info" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+    <button class="btn btn-danger btn-sm" id="sync-disconnect-btn" style="display:none;margin-top:8px;width:100%;" onclick="disableSync()">Disconnect Sync</button>
+  </div>
+
+  <div class="settings-section">
     <div class="settings-section-title">Danger Zone</div>
     <button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
   </div>
