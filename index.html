@@ -1248,8 +1248,9 @@ let syncEnabled=false, syncRole='owner', syncPin='';
 
 function initFirebase(){
   try{
+    if(typeof firebase==='undefined'){ console.warn('Firebase not loaded yet'); return false; }
     if(!firebase.apps.length) fbApp=firebase.initializeApp(FB_CONFIG);
-    else fbApp=firebase.app();
+    else fbApp=firebase.apps[0];
     fbDb=firebase.database(fbApp);
     return true;
   }catch(e){ console.error('Firebase init failed:',e); return false; }
@@ -1390,9 +1391,16 @@ function loadSyncPrefs(){
   syncPin=localStorage.getItem('syncPin')||'';
   syncRole=localStorage.getItem('syncRole')||'owner';
   if(syncEnabled&&syncPin){
-    initFirebase();
-    startSync();
+    if(initFirebase()){
+      startSync();
+      // Owner pushes current state on reconnect so partner gets latest data
+      if(syncRole==='owner') setTimeout(pushSync, 2000);
+    } else {
+      // Firebase not ready — retry in 2 seconds
+      setTimeout(loadSyncPrefs, 2000);
+    }
   }
+  updateSyncUI();
 }
 
 function loadState(){
@@ -1579,7 +1587,7 @@ function showScreen(name){
   if(name==='pay') renderPay();
   if(name==='contacts') renderContacts();
   if(name==='stats') renderStats();
-  if(name==='settings') loadSettingsUI();
+  if(name==='settings'){ loadSettingsUI(); updateSyncUI(); }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4292,6 +4300,12 @@ function hideInstallBanner(){
 // ═══════════════════════════════════════════════════════════
 loadState();
 renderDash();
+
+// Init sync after a short delay to ensure Firebase scripts are loaded
+setTimeout(function(){
+  loadSyncPrefs();
+  updateSyncUI();
+}, 500);
 </script>
 </body>
 </html>
