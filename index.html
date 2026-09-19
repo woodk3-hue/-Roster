@@ -1272,10 +1272,13 @@ function enableSync(){
 
 function disableSync(){
   syncEnabled=false;
+  syncPin='';
   localStorage.removeItem('syncPin');
   localStorage.removeItem('syncEnabled');
-  if(fbListener) fbListener();
+  // Correctly remove Firebase listener
+  if(fbRef&&fbListener) fbRef.off('value',fbListener);
   fbListener=null;
+  fbRef=null;
   updateSyncUI();
   toast('Sync disconnected');
 }
@@ -1315,18 +1318,17 @@ function updateSyncUI(){
 }
 
 let isSyncPushing=false;
+let fbRef=null;
 function startSync(){
   if(!fbDb||!syncPin) return;
-  const ref=fbDb.ref('roster/'+syncPin);
-  // Listen for remote changes
-  if(fbListener) fbListener();
-  fbListener=ref.on('value',function(snap){
-    if(isSyncPushing) return; // ignore echo of our own push
+  fbRef=fbDb.ref('roster/'+syncPin);
+  // Remove any existing listener first
+  if(fbListener&&fbRef) fbRef.off('value',fbListener);
+  fbListener=function(snap){
+    if(isSyncPushing) return;
     const data=snap.val();
     if(!data) return;
-    // Merge remote data into S
     if(syncRole==='owner'){
-      // Owner gets everything from remote
       if(data.days) S.days=data.days;
       if(data.swaps) S.swaps=data.swaps;
       if(data.claims) S.claims=data.claims;
@@ -1337,11 +1339,11 @@ function startSync(){
       if(data.leaveAdj) S.leaveAdj=data.leaveAdj;
       if(data.settings) Object.assign(S.settings,data.settings);
     }
-    // Both roles get appointments
     if(data.appointments) S.appointments=data.appointments;
     localStorage.setItem(STATE_KEY,JSON.stringify(S));
     refreshAllScreens();
-  });
+  };
+  fbRef.on('value',fbListener);
 }
 
 function pushSync(){
@@ -4299,13 +4301,24 @@ function hideInstallBanner(){
 // INIT
 // ═══════════════════════════════════════════════════════════
 loadState();
+// Load sync prefs immediately from localStorage (fast, no Firebase needed yet)
+syncEnabled=localStorage.getItem('syncEnabled')==='1';
+syncPin=localStorage.getItem('syncPin')||'';
+syncRole=localStorage.getItem('syncRole')||'owner';
 renderDash();
 
-// Init sync after a short delay to ensure Firebase scripts are loaded
+// Start Firebase sync after scripts have loaded
 setTimeout(function(){
-  loadSyncPrefs();
+  if(syncEnabled&&syncPin){
+    if(initFirebase()){
+      startSync();
+      if(syncRole==='owner') setTimeout(pushSync,2000);
+    } else {
+      setTimeout(loadSyncPrefs,2000);
+    }
+  }
   updateSyncUI();
-}, 500);
+},800);
 </script>
 </body>
 </html>
