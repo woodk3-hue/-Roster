@@ -263,6 +263,8 @@ body.day-mode .b-blp,.day-mode .b-slp{background:rgba(79,70,229,.2);color:#3730a
 .toggle-pill button.active{background:var(--accent);color:#000;}
 /* ── CAL GUARD QUICK VIEW ── */
 .cal-guard{font-size:11px;color:var(--accent2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;font-weight:700;}
+.b-cbo{background:#ea580c;color:#fff;}
+.b-mbo{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
 .cal-appt{font-size:9px;color:#fff;background:#1d4ed8;border-radius:10px;padding:2px 6px;margin-top:3px;display:block;overflow:hidden;font-weight:600;max-width:100%;word-break:break-word;line-height:1.3;}
 .appt-item{background:var(--surface2);border-left:3px solid #ef4444;border-radius:6px;padding:8px 10px;margin-top:8px;}
 .appt-item-title{font-size:13px;font-weight:700;color:#ef4444;}
@@ -486,6 +488,7 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
       <div class="form-label">Which Day?</div>
       <select class="form-select" id="sw-day"></select>
     </div>
+
 
     <!-- Comparison grid (shown when other link entered) -->
     <div id="sw-compare-wrap" style="display:none;">
@@ -850,6 +853,8 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
         <option value="repro">Reproductive Leave</option>
         <option value="lwop">Leave Without Pay</option>
         <option value="single_day_swap">Single Day Swap</option>
+        <option value="mbo">MBO (Mandatory Book Off)</option>
+        <option value="cbo">CBO (Compulsory Book Off)</option>
       </select>
     </div>
     <div id="sm-single-day-swap-fields" style="display:none;">
@@ -898,6 +903,9 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
       <button class="btn btn-danger btn-sm" onclick="resetShift()">Reset</button>
       <button class="btn" onclick="openClaimFromShift()">📄 Add Claim</button>
       <button class="btn btn-accent" style="flex:1;" onclick="saveShift()">Save</button>
+    </div>
+    <div id="sm-keep-blp-row" style="display:none;margin-top:8px;">
+      <button class="btn btn-sm" style="width:100%;background:#312e81;color:#c7d2fe;border:none;" onclick="keepDayAsBLP()">🔵 Keep This Day as BLP</button>
     </div>
   </div>
 </div>
@@ -1523,13 +1531,16 @@ function getEffectiveShift(dateStr){
     const effectiveLink=weekSwap?weekSwap.linkReceived:link;
     const raw=getRaw(effectiveLink,idx);
     const sh=parseShift(raw);
-    const result={...sh,link,idx,ov:ov||null};
+    const result={...sh,link:effectiveLink,idx,ov:ov||null};
     if(ov&&ov.start) result.time=ov.start;
     if(ov&&ov.job) result.code=ov.job;
     result.origTime=sh.time; result.origCode=sh.code;
     result.timeChanged=!!(ov&&ov.start&&ov.start!==sh.time);
     result.endTime=ov?ov.end:null;
     result.guards=ov?ov.guards:'';
+    // Keep track of original link for BLP mismatch handling
+    result.originalLink=link;
+    result.weekSwap=weekSwap||null;
     // Mark as swap for border/background purposes
     if(weekSwap) result.typeKey='swap';
     return result;
@@ -1543,6 +1554,9 @@ if(t==='sick')    return {code:'SL',time:null,typeKey:'sl',link,idx,ov,guards:ov
   if(t==='lwop')    return {code:'LWOP',time:null,typeKey:'lwop',link,idx,ov,guards:ov.guards||''};
   if(t==='rdo')     return {code:'RDO',time:null,typeKey:'blp',link,idx,ov,guards:ov.guards||''};
   if(t==='blp_worked') return {code:'BLP✓',time:ov.start,typeKey:'blp_worked',link,idx,ov,endTime:ov.end,guards:ov.guards||''};
+  if(t==='blp_kept')   return {code:'BLP',time:null,typeKey:'blp',link,idx,ov,guards:ov.guards||''};
+  if(t==='mbo')        return {code:'MBO',time:null,typeKey:'mbo',link,idx,ov,guards:ov.guards||''};
+  if(t==='cbo')        return {code:'CBO',time:null,typeKey:'cbo',link,idx,ov,guards:ov.guards||''};
   if(t==='slp_worked') return {code:'SLP✓',time:ov.start,typeKey:'slp_worked',link,idx,ov,endTime:ov.end,guards:ov.guards||''};
   if(t==='ot')      return {code:'OT',time:ov.start,typeKey:'ot',link,idx,ov,endTime:ov.end,guards:ov.guards||''};
   if(t==='swap'){
@@ -1682,6 +1696,26 @@ function renderDash(){
   });
 
   if(openClaims>0) alerts.push({dot:'dot-red',msg:openClaims+' unsubmitted claim'+(openClaims>1?'s':'')+' pending.',pri:3});
+
+  // CBO alert — check consecutive working days
+  (function(){
+    const BREAK_TYPES=['blp','slp','al','lsl','sl','sick','lwop','cbo','mbo','blp_kept'];
+    let streak=0; let maxStreak=0; let streakStart=null; let maxStart=null;
+    for(var i=0;i<30;i++){
+      const ds=fmtDate(addDays(now,-i));
+      const sh=getEffectiveShift(ds);
+      const ov=S.days[ds];
+      const tk=sh.typeKey;
+      const isBreak=BREAK_TYPES.includes(tk)||(!ov&&(tk==='blp'||tk==='slp'));
+      if(!isBreak&&sh.time){
+        streak++;
+        if(streak>maxStreak){ maxStreak=streak; maxStart=ds; }
+      } else { streak=0; }
+    }
+    if(maxStreak>=9){
+      alerts.push({dot:'dot-orange',msg:'⚠ '+maxStreak+' consecutive working days — CBO may be required.',pri:1,key:'cbo-streak'});
+    }
+  })();
   S.swaps.forEach(function(sw){
     const wcDate=parseDate(sw.wc);
     const sent=S.swapEmailSent&&S.swapEmailSent[sw.id];
@@ -2023,9 +2057,9 @@ function renderCalCell(d, otherMonth){
     // Show badge first so BLP/SLP stays visible
     inner+='<div class="cal-badge '+(tk==='blp_worked'?'b-blp':'b-slp')+'" style="margin-bottom:2px;">'+(tk==='blp_worked'?'BLP':'SLP')+'</div>';
     inner+='<div class="cal-time" style="color:var(--early);">'+sh.time+'</div>';
-  } else if(['al','lsl','afp','afa','blp','slp','sl','repro','lwop','blp_worked','slp_worked'].includes(tk)){
-    const labels={al:'AL',lsl:'LSL',afp:'AFP',afa:'AFA',blp:'BLP',slp:'SLP',sl:'SL',repro:'Repo Leave',lwop:'LWOP',blp_worked:'BLP✓',slp_worked:'SLP✓'};
-    const bcls={al:'b-al',lsl:'b-lsl',afp:'b-afp',afa:'b-afa',blp:'b-blp',slp:'b-slp',sl:'b-sl',repro:'b-sl',lwop:'b-al',blp_worked:'b-am1',slp_worked:'b-slp'};
+  } else if(['al','lsl','afp','afa','blp','slp','sl','repro','lwop','blp_worked','slp_worked','mbo','cbo'].includes(tk)){
+    const labels={al:'AL',lsl:'LSL',afp:'AFP',afa:'AFA',blp:'BLP',slp:'SLP',sl:'SL',repro:'Repo Leave',lwop:'LWOP',blp_worked:'BLP✓',slp_worked:'SLP✓',mbo:'MBO',cbo:'CBO'};
+    const bcls={al:'b-al',lsl:'b-lsl',afp:'b-afp',afa:'b-afa',blp:'b-blp',slp:'b-slp',sl:'b-sl',repro:'b-sl',lwop:'b-al',blp_worked:'b-am1',slp_worked:'b-slp',mbo:'b-mbo',cbo:'b-cbo'};
     inner+='<div class="cal-badge '+bcls[tk]+'">'+labels[tk]+'</div>';
   } else if(tk==='swap'){
     const swapInner=sh.swapInnerType||'normal';
@@ -2341,6 +2375,19 @@ function openShiftModal(ds){
 
   onShiftTypeChange();
   updateShiftDuration();
+  // Show "Keep as BLP" button if: day is in a swapped week AND original roster day is BLP
+  const blpRow=document.getElementById('sm-keep-blp-row');
+  if(blpRow){
+    const mon2=getMonday(parseDate(ds));
+    const wkSwap=S.swaps.find(function(sw){ return sw.wc===fmtDate(mon2)&&sw.scope==='week'; });
+    if(wkSwap){
+      const origRaw=getRaw(wkSwap.linkGiven,dayIdx(parseDate(ds)));
+      const origSh=parseShift(origRaw);
+      blpRow.style.display=(origSh.typeKey==='blp'||origSh.typeKey==='slp')?'block':'none';
+    } else {
+      blpRow.style.display='none';
+    }
+  }
   document.getElementById('shift-modal').classList.add('open');
 }
 function closeShiftModal(){ document.getElementById('shift-modal').classList.remove('open'); }
@@ -2414,6 +2461,18 @@ function saveShift(){
   if(currentScreen==='dash') renderDash();
   toast('Saved');
 }
+function keepDayAsBLP(){
+  const ds=shiftModalDate;
+  if(!ds) return;
+  // Save override as BLP — preserves swap week but marks this specific day as BLP
+  if(!S.days[ds]) S.days[ds]={};
+  S.days[ds]={type:'blp_kept',start:'',end:'',job:'',guards:'',notes:'Kept as BLP (swap week)'};
+  saveState();
+  closeShiftModal();
+  if(currentScreen==='cal'){ renderCal(); closeDayPanel(); }
+  toast('Day kept as BLP');
+}
+
 function resetShift(){
   const ds=shiftModalDate;
   if(S.days[ds]){
@@ -2563,6 +2622,49 @@ function generateSwapEmail(sw){
   document.body.removeChild(ta);
   if(!ok&&navigator.clipboard){ navigator.clipboard.writeText(text).catch(()=>{}); ok=true; }
   toast(ok?'Email copied to clipboard':'Copy failed — check clipboard');
+}
+
+function renderBlpSwapEmailCards(){
+  const el=document.getElementById('blp-swap-email-cards');
+  if(!el) return;
+  const now=today();
+  const DAY3N=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const pending=S.swaps.filter(function(sw){
+    return sw.scope==='blp'&&parseDate(sw.wc)>now;
+  });
+  if(!pending.length){
+    el.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">No pending BLP swap emails.</div>';
+    return;
+  }
+  el.innerHTML='';
+  pending.forEach(function(sw){
+    const sent=S.swapEmailSent&&S.swapEmailSent[sw.id];
+    if(sent) return;
+    const wcDate=parseDate(sw.wc);
+    const card=document.createElement('div');
+    card.className='swap-email-card';
+    const myNewBlp=(sw.blpRecvIdxs||[]).map(function(i){ return DAY3N[i]; }).join('/');
+    const theirNewBlp=(sw.blpGiveIdxs||[]).map(function(i){ return DAY3N[i]; }).join('/');
+    card.innerHTML=
+      '<div style="font-size:12px;font-weight:800;">W/C '+fmtDDMM(wcDate)+
+        ' &nbsp;<span style="color:#6366f1;font-weight:700;">BLP Swap</span>'+
+        (sw.driver?' &nbsp;<span style="color:var(--muted);font-weight:400;">'+sw.driver+'</span>':'')+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+
+        (S.myName||'Kim')+' BLP: '+myNewBlp+' &nbsp;·&nbsp; '+
+        (sw.driver||'Them')+' BLP: '+theirNewBlp+
+      '</div>'+
+      '<div style="display:flex;gap:6px;margin-top:6px;">'+
+        '<button class="btn btn-sm btn-accent" style="flex:1;" data-blpid="'+sw.id+'" onclick="generateBlpSwapEmailById(this.getAttribute('+"'data-blpid'"+'\))">📧 Generate Email</button>'+
+        '<button class="btn btn-sm" data-swapid="'+sw.id+'" onclick="markSwapEmailSentById(this)">Mark Sent</button>'+
+      '</div>';
+    el.appendChild(card);
+  });
+}
+
+function generateBlpSwapEmailById(id){
+  const sw=S.swaps.find(function(s){ return s.id===id; });
+  if(sw) generateBlpSwapEmail(sw);
 }
 
 function renderSwapLog(){
@@ -2862,17 +2964,19 @@ function saveSwapInline(){
   const given=getLinkForWeek(mon)||HOME_LINK;
   const myBlp=countBlpSlp(given);
   const theirBlp=countBlpSlp(received);
-  const swapRec={id:uid(),wc:monStr,linkGiven:given,linkReceived:received,driver,scope:swapInlineScope,myBlp:myBlp,theirBlp:theirBlp,blpDiff:theirBlp-myBlp};
-  S.swaps.push(swapRec);
-  if(swapInlineScope==='week'){
-    for(let i=0;i<7;i++){
-      const ds=fmtDate(addDays(mon,i));
+  {
+    const swapRec={id:uid(),wc:monStr,linkGiven:given,linkReceived:received,driver,scope:swapInlineScope,myBlp:myBlp,theirBlp:theirBlp,blpDiff:theirBlp-myBlp};
+    S.swaps.push(swapRec);
+    if(swapInlineScope==='week'){
+      for(let i=0;i<7;i++){
+        const ds=fmtDate(addDays(mon,i));
+        S.days[ds]={type:'swap',swapFrom:given,swapTo:received,swapPartner:driver,start:'',end:'',job:'',guards:'',notes:''};
+      }
+    } else {
+      const idx=parseInt(document.getElementById('sw-day').value||'0');
+      const ds=fmtDate(addDays(mon,idx));
       S.days[ds]={type:'swap',swapFrom:given,swapTo:received,swapPartner:driver,start:'',end:'',job:'',guards:'',notes:''};
     }
-  } else {
-    const idx=parseInt(document.getElementById('sw-day').value||'0');
-    const ds=fmtDate(addDays(mon,idx));
-    S.days[ds]={type:'swap',swapFrom:given,swapTo:received,swapPartner:driver,start:'',end:'',job:'',guards:'',notes:''};
   }
   saveState();
   // Reset form
@@ -4159,8 +4263,12 @@ function renderPlannedLeave(){
     });
   }
   const now=today();
-  const list=(S.plannedLeave||[]).sort(function(a,b){ return a.start.localeCompare(b.start); });
-  if(!list.length){ el.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">No planned leave recorded.</div>'; return; }
+  const todayStr=fmtDate(now);
+  // Only show upcoming/active leave — hide past (end date before today)
+  const list=(S.plannedLeave||[])
+    .filter(function(lv){ return (lv.end||lv.start)>=todayStr; })
+    .sort(function(a,b){ return a.start.localeCompare(b.start); });
+  if(!list.length){ el.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">No upcoming leave recorded.</div>'; return; }
   const typeLabels={al:'Annual Leave',sl:'Sick Leave',lsl:'Long Service Leave'};
   const typeCls={al:'leave-type-al',sl:'leave-type-sl',lsl:'leave-type-lsl'};
   el.innerHTML=list.map(function(lv){
