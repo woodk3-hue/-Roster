@@ -593,6 +593,66 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
 
   <hr class="divider">
 
+  <!-- ── BLP SWAP SECTION ── -->
+  <div class="card" style="margin-bottom:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleBlpSwapSection()">
+      <div class="card-title" style="margin:0;">BLP Swap</div>
+      <span id="blp-swap-arrow" style="color:var(--muted);font-size:16px;">▸</span>
+    </div>
+    <div id="blp-swap-body" style="display:none;margin-top:12px;">
+    <div class="form-group">
+      <label class="form-label">W/C Date (Monday)</label>
+      <input type="date" class="form-input" id="blps-wc" onchange="onBlpSwapWCChange()">
+    </div>
+    <!-- My BLP days for that week — auto populated -->
+    <div class="form-label">Your BLP Days This Week</div>
+    <div id="blps-my-blp-days" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;margin-top:4px;">
+      <div style="font-size:12px;color:var(--muted);">Enter a W/C date to see your BLP days</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Other Driver Name</label>
+      <input type="text" class="form-input" id="blps-driver" placeholder="Driver name">
+    </div>
+    <!-- Day receiving from other driver -->
+    <div class="form-label">Day You're Receiving (their BLP → your day off)</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;margin-bottom:12px;" id="blps-recv-days">
+      <button class="btn btn-sm" data-day="0" onclick="toggleBlpRecv(this)">Mon</button>
+      <button class="btn btn-sm" data-day="1" onclick="toggleBlpRecv(this)">Tue</button>
+      <button class="btn btn-sm" data-day="2" onclick="toggleBlpRecv(this)">Wed</button>
+      <button class="btn btn-sm" data-day="3" onclick="toggleBlpRecv(this)">Thu</button>
+      <button class="btn btn-sm" data-day="4" onclick="toggleBlpRecv(this)">Fri</button>
+      <button class="btn btn-sm" data-day="5" onclick="toggleBlpRecv(this)">Sat</button>
+      <button class="btn btn-sm" data-day="6" onclick="toggleBlpRecv(this)">Sun</button>
+    </div>
+    <!-- Optional: what shift are they giving you -->
+    <div class="form-group" id="blps-recv-shift-group" style="display:none;">
+      <label class="form-label">Their Shift on That Day (optional)</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="time" class="form-input" id="blps-recv-time" style="flex:1;min-width:100px;" placeholder="Time">
+        <select class="form-select" id="blps-recv-code" style="flex:1;min-width:100px;">
+          <option value="">— or spare code —</option>
+          <option value="AM1">AM1</option>
+          <option value="AM2">AM2</option>
+          <option value="AM3">AM3</option>
+          <option value="PM1">PM1</option>
+          <option value="PM2">PM2</option>
+          <option value="PM3">PM3</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-accent btn-full" style="margin-top:4px;" onclick="saveBlpSwap()">Record BLP Swap</button>
+    </div>
+  </div>
+
+  <!-- ── BLP SWAP EMAIL DUE ── -->
+  <div id="blp-email-due-section" style="display:none;">
+    <div class="section-label">BLP Swap Email Due</div>
+    <div id="blp-swap-email-cards" style="margin-bottom:12px;"></div>
+    <hr class="divider">
+  </div>
+
+  <hr class="divider">
+
   <!-- ── PM FINDER ── -->
   <div class="section-label">PM Finder</div>
   <div style="margin-bottom:8px;">
@@ -1478,6 +1538,7 @@ function pushSyncAppointments(){
 }
 
 function refreshAllScreens(){
+  if(typeof showScreen==='undefined') return; // app not ready yet
   renderDash();
   if(currentScreen==='cal') renderCal();
   if(currentScreen==='swaps') renderSwaps();
@@ -1649,7 +1710,8 @@ if(t==='sick')    return {code:'SL',time:null,typeKey:'sl',link,idx,ov,guards:ov
   if(t==='lwop')    return {code:'LWOP',time:null,typeKey:'lwop',link,idx,ov,guards:ov.guards||''};
   if(t==='rdo')     return {code:'RDO',time:null,typeKey:'blp',link,idx,ov,guards:ov.guards||''};
   if(t==='blp_worked') return {code:'BLP✓',time:ov.start,typeKey:'blp_worked',link,idx,ov,endTime:ov.end,guards:ov.guards||''};
-  if(t==='blp_kept')   return {code:'BLP',time:null,typeKey:'blp',link,idx,ov,guards:ov.guards||''};
+  if(t==='blp_kept')   return {code:ov.job?ov.job:'BLP',time:ov.start||null,typeKey:'blp_kept',link,idx,ov,guards:ov.guards||''};
+  if(t==='blp_given')   return {code:'Working',time:ov.start||null,endTime:ov.end||null,typeKey:'blp_given',link,idx,ov,guards:ov.guards||''};
   if(t==='mbo')        return {code:'MBO',time:null,typeKey:'mbo',link,idx,ov,guards:ov.guards||''};
   if(t==='cbo')        return {code:'CBO',time:null,typeKey:'cbo',link,idx,ov,guards:ov.guards||''};
   if(t==='slp_worked') return {code:'SLP✓',time:ov.start,typeKey:'slp_worked',link,idx,ov,endTime:ov.end,guards:ov.guards||''};
@@ -2103,7 +2165,8 @@ function renderCalCell(d, otherMonth){
   if(otherMonth) cls+=' other-month';
   if(isSwapOv||weekHasSwap) cls+=' modified';
   // Keep swap background on all days in a swapped week
-  if(weekHasSwap&&!['al','lsl','sl','blp','slp','c-ph'].some(function(c){ return cls.includes(c); })){
+  if(tk==='blp_kept') cls+=' c-blp';
+  if(weekHasSwap&&!['al','lsl','sl','blp','slp','c-ph','blp_kept'].some(function(c){ return cls.includes(c); })){
     cls+=' c-swap';
   }
   if(isPH) cls+=' c-ph';
@@ -2161,6 +2224,16 @@ function renderCalCell(d, otherMonth){
     // Show badge first so BLP/SLP stays visible
     inner+='<div class="cal-badge '+(tk==='blp_worked'?'b-blp':'b-slp')+'" style="margin-bottom:2px;">'+(tk==='blp_worked'?'BLP':'SLP')+'</div>';
     inner+='<div class="cal-time" style="color:var(--early);">'+sh.time+'</div>';
+  } else if(tk==='blp_given'){
+    // Given-away BLP day — green dot, working day
+    inner+='<div style="width:8px;height:8px;border-radius:50%;background:#16a34a;margin-bottom:3px;"></div>';
+    if(sh.time) inner+='<div class="cal-time" style="'+timeColor(sh.time)+';">'+sh.time+'</div>';
+    else inner+='<div style="font-size:9px;color:#16a34a;font-weight:700;">Working</div>';
+  } else if(tk==='blp_kept'){
+    // Received BLP day — show BLP badge + optional shift
+    inner+='<div class="cal-badge b-blp" style="margin-bottom:2px;">BLP</div>';
+    if(sh.time) inner+='<div class="cal-time" style="'+timeColor(sh.time)+';">'+sh.time+'</div>';
+    else if(sh.code&&sh.code!=='BLP') inner+='<div class="cal-badge b-am1" style="font-size:9px;">'+sh.code+'</div>';
   } else if(['al','lsl','afp','afa','blp','slp','sl','repro','lwop','blp_worked','slp_worked','mbo','cbo'].includes(tk)){
     const labels={al:'AL',lsl:'LSL',afp:'AFP',afa:'AFA',blp:'BLP',slp:'SLP',sl:'SL',repro:'Repo Leave',lwop:'LWOP',blp_worked:'BLP✓',slp_worked:'SLP✓',mbo:'MBO',cbo:'CBO'};
     const bcls={al:'b-al',lsl:'b-lsl',afp:'b-afp',afa:'b-afa',blp:'b-blp',slp:'b-slp',sl:'b-sl',repro:'b-sl',lwop:'b-al',blp_worked:'b-am1',slp_worked:'b-slp',mbo:'b-mbo',cbo:'b-cbo'};
@@ -2771,6 +2844,206 @@ function generateBlpSwapEmailById(id){
   if(sw) generateBlpSwapEmail(sw);
 }
 
+// ── BLP SWAP ────────────────────────────────────────────
+let blpSwapGiveDays=[];  // indices of days being given away
+let blpSwapRecvDay=null; // index of day being received
+
+function toggleBlpSwapSection(){
+  const body=document.getElementById('blp-swap-body');
+  const arrow=document.getElementById('blp-swap-arrow');
+  if(!body) return;
+  const open=body.style.display==='block';
+  body.style.display=open?'none':'block';
+  if(arrow) arrow.textContent=open?'▸':'▾';
+}
+
+function onBlpSwapWCChange(){
+  const wc=document.getElementById('blps-wc').value;
+  const container=document.getElementById('blps-my-blp-days');
+  if(!wc||!S.anchorLink){ container.innerHTML='<div style="font-size:12px;color:var(--muted);">Set your anchor link in Settings first</div>'; return; }
+  const mon=getMonday(parseDate(wc));
+  const link=getLinkForWeek(mon);
+  if(!link){ container.innerHTML='<div style="font-size:12px;color:var(--muted);">No roster link found for this week</div>'; return; }
+  // Find BLP days for this link this week
+  const DAY3N=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  blpSwapGiveDays=[];
+  let html='';
+  for(let i=0;i<7;i++){
+    const raw=getRaw(link,i);
+    const sh=parseShift(raw);
+    if(sh.typeKey==='blp'||sh.typeKey==='slp'){
+      html+='<button class="btn btn-sm" data-day="'+i+'" onclick="toggleBlpGive(this)" style="background:#312e81;color:#c7d2fe;">'+DAY3N[i]+'</button>';
+    }
+  }
+  container.innerHTML=html||'<div style="font-size:12px;color:var(--muted);">No BLP/SLP days found this week</div>';
+}
+
+function toggleBlpGive(btn){
+  const day=parseInt(btn.getAttribute('data-day'));
+  const idx=blpSwapGiveDays.indexOf(day);
+  if(idx>-1){
+    blpSwapGiveDays.splice(idx,1);
+    btn.style.background='#312e81';
+    btn.style.color='#c7d2fe';
+    btn.style.opacity='0.6';
+  } else {
+    blpSwapGiveDays.push(day);
+    btn.style.background='var(--accent)';
+    btn.style.color='#000';
+    btn.style.opacity='1';
+  }
+}
+
+function toggleBlpRecv(btn){
+  const day=parseInt(btn.getAttribute('data-day'));
+  // Deselect previous
+  document.querySelectorAll('#blps-recv-days button').forEach(function(b){
+    b.style.background=''; b.style.color=''; b.classList.remove('btn-accent');
+  });
+  if(blpSwapRecvDay===day){
+    blpSwapRecvDay=null;
+    document.getElementById('blps-recv-shift-group').style.display='none';
+  } else {
+    blpSwapRecvDay=day;
+    btn.style.background='#16a34a';
+    btn.style.color='#fff';
+    document.getElementById('blps-recv-shift-group').style.display='block';
+  }
+}
+
+function saveBlpSwap(){
+  const wc=document.getElementById('blps-wc').value;
+  const driver=document.getElementById('blps-driver').value.trim();
+  if(!wc){ toast('Enter a W/C date'); return; }
+  if(!driver){ toast('Enter the other driver name'); return; }
+  if(!blpSwapGiveDays.length){ toast('Select at least one BLP day to give away'); return; }
+  if(blpSwapRecvDay===null){ toast('Select the day you are receiving'); return; }
+
+  const mon=getMonday(parseDate(wc));
+  const monStr=fmtDate(mon);
+  const link=getLinkForWeek(mon);
+  const DAY3N=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  // Their shift on received day (optional)
+  const recvTime=document.getElementById('blps-recv-time').value;
+  const recvCode=document.getElementById('blps-recv-code').value;
+
+  // Save swap record
+  const swapRec={
+    id:uid(), wc:monStr, driver:driver, scope:'blp',
+    linkGiven:link, linkReceived:null,
+    blpGiveIdxs:[...blpSwapGiveDays],
+    blpRecvIdx:blpSwapRecvDay,
+    recvTime:recvTime||'',
+    recvCode:recvCode||''
+  };
+  S.swaps.push(swapRec);
+
+  // Stamp calendar
+  // Given days → clear to normal working day (green dot)
+  blpSwapGiveDays.forEach(function(i){
+    const ds=fmtDate(addDays(mon,i));
+    S.days[ds]={type:'blp_given',swapPartner:driver,start:'',end:'',job:'',guards:'',notes:'BLP given to '+driver+' (BLP swap)'};
+  });
+
+  // Received day → BLP (with optional shift info)
+  const recvDs=fmtDate(addDays(mon,blpSwapRecvDay));
+  S.days[recvDs]={
+    type:'blp_kept',
+    swapPartner:driver,
+    start:recvTime||'',
+    end:'',
+    job:recvCode||'',
+    guards:'',
+    notes:'BLP received from '+driver+(recvTime?' · '+recvTime:recvCode?' · '+recvCode:'')
+  };
+
+  // Capture for toast before reset
+  const gaveStr=blpSwapGiveDays.map(function(i){ return ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]; }).join('/');
+  const gotStr=blpSwapRecvDay!=null?['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][blpSwapRecvDay]:'—';
+
+  saveState();
+
+  // Reset form
+  blpSwapGiveDays=[];
+  blpSwapRecvDay=null;
+  document.getElementById('blps-wc').value='';
+  document.getElementById('blps-driver').value='';
+  document.getElementById('blps-recv-time').value='';
+  document.getElementById('blps-recv-code').value='';
+  document.getElementById('blps-my-blp-days').innerHTML='<div style="font-size:12px;color:var(--muted);">Enter a W/C date to see your BLP days</div>';
+  document.getElementById('blps-recv-shift-group').style.display='none';
+  document.querySelectorAll('#blps-recv-days button').forEach(function(b){ b.style.background=''; b.style.color=''; });
+
+  renderSwaps(); renderCal();
+  toast('BLP swap recorded ✓ · Gave: '+gaveStr+' · Got: '+gotStr);
+}
+
+// ═══════════════════════════════════════════════════════════
+// BLP SWAP EMAIL CARDS
+// ═══════════════════════════════════════════════════════════
+function renderBlpEmailCards(){
+  try{
+  const section=document.getElementById('blp-email-due-section');
+  const el=document.getElementById('blp-swap-email-cards');
+  if(!section||!el) return;  const now=today();
+  const DAY3N=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const pending=S.swaps.filter(function(sw){
+    return sw.scope==='blp'&&parseDate(sw.wc)>now&&!(S.swapEmailSent&&S.swapEmailSent[sw.id]);
+  });
+  section.style.display=pending.length?'block':'none';
+  el.innerHTML='';
+  pending.forEach(function(sw){
+    const card=document.createElement('div');
+    card.className='swap-email-card';
+    const gaveStr=(sw.blpGiveIdxs||[]).map(function(i){ return DAY3N[i]; }).join('/');
+    const gotStr=sw.blpRecvIdx!=null?DAY3N[sw.blpRecvIdx]:'—';
+    card.innerHTML=
+      '<div style="font-size:12px;font-weight:800;">W/C '+fmtDDMM(parseDate(sw.wc))+
+        ' &nbsp;<span style="color:#6366f1;font-weight:700;">BLP Swap</span>'+
+        ' &nbsp;<span style="color:var(--muted);font-weight:400;">'+sw.driver+'</span></div>'+
+      '<div style="font-size:11px;color:var(--muted);margin-top:2px;">Gave: '+gaveStr+' &nbsp;·&nbsp; Got: '+gotStr+'</div>'+
+      '<div style="display:flex;gap:6px;margin-top:6px;">'+
+        '<button class="btn btn-sm btn-accent" style="flex:1;" data-blpid="'+sw.id+'" onclick="generateBlpEmail(this)">Generate Email</button>'+
+        '<button class="btn btn-sm" data-swapid="'+sw.id+'" onclick="markSwapEmailSentById(this)">Mark Sent</button>'+
+      '</div>';
+    el.appendChild(card);
+  });
+  } catch(e){ console.error('renderBlpEmailCards error:',e); }
+}
+
+function generateBlpEmail(btn){
+  const id=btn.getAttribute('data-blpid');
+  const sw=S.swaps.find(function(s){ return s.id===id; });
+  if(!sw) return;
+  const myName=S.myName||'Driver';
+  const DAY3N=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const wcStr=fmtDDMM(parseDate(sw.wc));
+  // My NEW BLP days = original BLP days minus given, plus received
+  const mon=getMonday(parseDate(sw.wc));
+  const link=getLinkForWeek(mon);
+  const origBlpIdxs=[];
+  for(let i=0;i<7;i++){
+    const sh=parseShift(getRaw(link,i));
+    if(sh.typeKey==='blp'||sh.typeKey==='slp') origBlpIdxs.push(i);
+  }
+  const myNewBlp=origBlpIdxs
+    .filter(function(i){ return !(sw.blpGiveIdxs||[]).includes(i); })
+    .concat(sw.blpRecvIdx!=null?[sw.blpRecvIdx]:[])
+    .map(function(i){ return DAY3N[i]; }).join('/');
+  const theirNewBlp=(sw.blpGiveIdxs||[]).map(function(i){ return DAY3N[i]; }).join('/');
+
+  const text='Hi ROSTER\n\nCould I please request a BLP swap between myself and '+sw.driver+'\nfor the week commencing '+wcStr+'.\n\n'+myName+' - BLP now '+myNewBlp+'\n'+sw.driver+' - BLP now '+theirNewBlp+'\n\nThanks for your help in advance.\n\nRegards,\n'+myName;
+  const ta=document.createElement('textarea');
+  ta.value=text; ta.setAttribute('readonly','');
+  ta.style.cssText='position:fixed;top:0;left:0;width:2em;height:2em;opacity:0;';
+  document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0,99999);
+  let ok=false; try{ ok=document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+  if(!ok&&navigator.clipboard){ navigator.clipboard.writeText(text).catch(function(){}); ok=true; }
+  toast(ok?'BLP swap email copied ✓':'Copy failed');
+}
+
 function renderSwapLog(){
   const el=document.getElementById('swap-log');
   if(!S.swaps.length){ el.innerHTML='<div class="empty-state">No swaps recorded yet.</div>'; return; }
@@ -2796,10 +3069,18 @@ function renderSwapLog(){
     div.className='swap-log-item';
     div.innerHTML=
       '<span style="font-size:11px;font-weight:800;color:'+(isPast?'var(--muted)':'var(--accent)')+';">WC '+dd+'</span>'+
-      '<span style="font-size:11px;color:var(--muted);">Link '+sw.linkGiven+'</span>'+
-      '<span style="color:var(--accent2);">⇄</span>'+
-      '<span style="font-size:12px;font-weight:700;">Link '+sw.linkReceived+'</span>'+
-      (sw.driver?'<span style="font-size:11px;color:var(--muted);">· '+sw.driver+'</span>':'')+
+      (sw.scope==='blp'
+        ?'<span style="color:#6366f1;font-weight:700;font-size:12px;">BLP Swap</span>'+
+          '<span style="font-size:11px;color:var(--muted);">· '+sw.driver+'</span>'+
+          '<div style="font-size:10px;color:var(--muted);margin-top:2px;">'+
+            'Gave: '+((sw.blpGiveIdxs||[]).map(function(i){ return ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]; }).join('/'))+
+            ' &nbsp;·&nbsp; Got: '+(sw.blpRecvIdx!=null?['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][sw.blpRecvIdx]:'—')+
+          '</div>'
+        :'<span style="font-size:11px;color:var(--muted);">Link '+sw.linkGiven+'</span>'+
+          '<span style="color:var(--accent2);">⇄</span>'+
+          '<span style="font-size:12px;font-weight:700;">Link '+sw.linkReceived+'</span>'+
+          (sw.driver?'<span style="font-size:11px;color:var(--muted);">· '+sw.driver+'</span>':'')
+      )+
       '<span class="swap-pill '+(isPast?'pill-past':'pill-upcoming')+'" style="margin-left:auto;">'+(isPast?'Past':'Upcoming')+'</span>';
     // Email status badge
     const emailSent=S.swapEmailSent&&S.swapEmailSent[sw.id];
