@@ -656,6 +656,8 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
 ════════════════════════════════════════ -->
 <div id="screen-stats" class="screen">
   <div class="screen-header"><div class="screen-title">Statistics</div></div>
+  <div class="section-label">Pay History</div>
+  <div id="pay-history-list" style="margin-bottom:16px;"></div>
   <div class="tab-row">
     <button class="tab-btn active" id="stats-year-btn" onclick="setStatsView('year',this)">This Year</button>
     <button class="tab-btn" onclick="setStatsView('lifetime',this)">Lifetime</button>
@@ -1195,6 +1197,7 @@ let S = {
   swapEmailSent: {},
   leaveAdj: [],
   customDeductions: [],
+  payHistory: [],
   appointments: []   // [{id,leaveType,type,dir,hours,date,reason}]
 };
 
@@ -1430,6 +1433,7 @@ function loadState(){
       if(p.swapEmailSent) S.swapEmailSent = p.swapEmailSent;
       if(p.leaveAdj) S.leaveAdj = p.leaveAdj;
       if(p.customDeductions) S.customDeductions = p.customDeductions;
+      if(p.payHistory) S.payHistory = p.payHistory;
       if(p.appointments) S.appointments = p.appointments;
       if(p.leaveAdjBase) S.leaveAdjBase = p.leaveAdjBase;
     }
@@ -1607,7 +1611,7 @@ function showScreen(name){
   if(name==='claims') renderClaims();
   if(name==='pay') renderPay();
   if(name==='contacts') renderContacts();
-  if(name==='stats') renderStats();
+  if(name==='stats'){ renderStats(); renderPayHistory(); }
   if(name==='settings'){ loadSettingsUI(); updateSyncUI(); }
 }
 
@@ -2477,7 +2481,7 @@ function resetShift(){
   const ds=shiftModalDate;
   if(S.days[ds]){
     S.bin.push({id:uid(),kind:'shift',data:{date:ds,...S.days[ds]},deletedAt:new Date().toISOString()});
-    // If day belongs to a week swap, restore clean swap state not Kim's original roster
+    // If day belongs to a week swap, restore clean swap state not original roster
     const mon=getMonday(parseDate(ds));
     const weekSwap=S.swaps.find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
     if(weekSwap){
@@ -2651,7 +2655,7 @@ function renderBlpSwapEmailCards(){
         (sw.driver?' &nbsp;<span style="color:var(--muted);font-weight:400;">'+sw.driver+'</span>':'')+
       '</div>'+
       '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+
-        (S.myName||'Kim')+' BLP: '+myNewBlp+' &nbsp;·&nbsp; '+
+        (S.myName||'Driver')+' BLP: '+myNewBlp+' &nbsp;·&nbsp; '+
         (sw.driver||'Them')+' BLP: '+theirNewBlp+
       '</div>'+
       '<div style="display:flex;gap:6px;margin-top:6px;">'+
@@ -3949,6 +3953,55 @@ function calcPayProjection(){
   };
 }
 
+function saveActualPay(){
+  const input=document.getElementById('actual-pay-input');
+  if(!input) return;
+  const val=parseFloat(input.value);
+  if(isNaN(val)||val<=0){ toast('Enter a valid amount'); return; }
+  const p=calcPayProjection();
+  const fnKey=fmtDate(p.fn.start);
+  if(!S.payHistory) S.payHistory=[];
+  const idx=S.payHistory.findIndex(function(ph){ return ph.fnStart===fnKey; });
+  const record={
+    fnStart:fnKey,fnEnd:fmtDate(p.fn.end),
+    actualPay:val,
+    projection:p,
+    customDeductions:[...(S.customDeductions||[])],
+    savedAt:new Date().toISOString()
+  };
+  if(idx>-1) S.payHistory[idx]=record;
+  else S.payHistory.unshift(record);
+  saveState();
+  renderPayProjection();
+  toast('Actual pay saved ✓');
+}
+
+function autoSavePreviousFortnight(currentP){
+  // Check if the previous fortnight's projection has been saved
+  const prevStart=addDays(currentP.fn.start,-14);
+  const prevEnd=addDays(currentP.fn.start,-1);
+  const prevKey=fmtDate(prevStart);
+  if(!S.payHistory) S.payHistory=[];
+  const already=S.payHistory.find(function(ph){ return ph.fnStart===prevKey; });
+  if(!already){
+    // Save previous fortnight projection (no actual pay yet)
+    // Temporarily shift dates to calculate previous fortnight
+    const origAnchor=S.anchorDate;
+    // We can compute prev projection by using the prev fortnight dates
+    const prevRecord={
+      fnStart:prevKey,fnEnd:fmtDate(prevEnd),
+      actualPay:null,
+      projectedNet:null, // will be null as we can't easily recalc past
+      savedAt:new Date().toISOString(),
+      note:'Auto-saved (no projection available for past fortnight)'
+    };
+    S.payHistory.unshift(prevRecord);
+    // Keep only last 26 fortnights (1 year)
+    if(S.payHistory.length>26) S.payHistory=S.payHistory.slice(0,26);
+    saveState();
+  }
+}
+
 function fmt$(n){ return '$'+n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
 
 function renderPayProjection(){
@@ -4067,7 +4120,28 @@ function renderPayProjection(){
     '<div style="font-size:22px;font-weight:900;color:var(--early);">'+fmt$(p.netPay)+'</div>'+
   '</div>';
 
+  // Actual pay input
+  const fnKey=fmtDate(p.fn.start);
+  const existing=(S.payHistory||[]).find(function(ph){ return ph.fnStart===fnKey; });
+  const actualVal=existing?existing.actualPay:0;
+  const diff=existing&&existing.actualPay?existing.actualPay-p.netPay:null;
+  const diffColour=diff===null?'var(--muted)':diff>=0?'#16a34a':'#ef4444';
+  const diffStr=diff===null?'—':(diff>=0?'+':'')+fmt$(diff);
+  html+='<div style="margin-top:12px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">'+
+    '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Actual Pay Received</div>'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'+
+      '<span style="color:var(--muted);font-size:14px;">$</span>'+
+      '<input type="number" id="actual-pay-input" step="0.01" min="0" value="'+(actualVal||'')+'" placeholder="Enter actual net pay" '+
+        'style="flex:1;background:none;border:none;border-bottom:1px dashed var(--border);color:var(--text);font-size:18px;font-weight:800;padding:0;outline:none;">'+
+      '<button onclick="saveActualPay()" class="btn btn-sm btn-accent">Save</button>'+
+    '</div>'+
+    (diff!==null?'<div style="font-size:12px;color:'+diffColour+';">Difference: '+diffStr+' vs projection</div>':'')+
+  '</div>';
+
   el.innerHTML=html;
+
+  // Auto-save previous fortnight projection if not already saved
+  autoSavePreviousFortnight(p);
 
   // Update editable fields
 
@@ -4537,6 +4611,117 @@ function updateStatsForDay(ds, ov){
   if(!S.stats[yr]) S.stats[yr]={hrsWorked:0,shifts:0,blpWorked:0,slpWorked:0,afpDays:0,afaDays:0,alDays:0,slDays:0,claims:0,swaps:0,links:new Set()};
 }
 
+function renderPayHistory(){
+  const el=document.getElementById('pay-history-list');
+  if(!el) return;
+  const history=(S.payHistory||[]).filter(function(ph){ return ph.actualPay||ph.projection; });
+  if(!history.length){
+    el.innerHTML='<div style="font-size:12px;color:var(--muted);">No pay history yet. Actual pay will appear here once saved from the Pay tab.</div>';
+    return;
+  }
+  el.innerHTML='';
+  history.forEach(function(ph,i){
+    const card=document.createElement('div');
+    card.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden;';
+
+    const projNet=ph.projection?ph.projection.netPay:null;
+    const actualPay=ph.actualPay;
+    const diff=projNet&&actualPay?actualPay-projNet:null;
+    const diffStr=diff!==null?(diff>=0?'+':'')+fmt$(diff):'—';
+    const diffColour=diff===null?'var(--muted)':diff>=0?'#16a34a':'#ef4444';
+
+    // Header row — clickable to expand
+    const header=document.createElement('div');
+    header.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:10px 12px;cursor:pointer;';
+    header.innerHTML=
+      '<div>'+
+        '<div style="font-size:12px;font-weight:800;">'+fmtDDMM(parseDate(ph.fnStart))+' – '+fmtDDMM(parseDate(ph.fnEnd))+'</div>'+
+        '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+
+          (actualPay?'Actual: <span style="color:var(--early);font-weight:700;">'+fmt$(actualPay)+'</span>':'No actual pay entered')+
+          (projNet?' &nbsp;·&nbsp; Projected: '+fmt$(projNet):'')+
+          (diff!==null?' &nbsp;·&nbsp; <span style="color:'+diffColour+';">'+diffStr+'</span>':'')+
+        '</div>'+
+      '</div>'+
+      '<span class="ph-arrow" style="color:var(--muted);font-size:14px;">▸</span>';
+
+    // Detail section — hidden by default
+    const detail=document.createElement('div');
+    detail.style.cssText='display:none;padding:0 12px 12px;border-top:1px solid var(--border);';
+
+    if(ph.projection){
+      const p=ph.projection;
+      const deds=ph.customDeductions||[];
+      const preDeds=deds.filter(function(d){ return d.taxType==='pre'; });
+      const postDeds=deds.filter(function(d){ return d.taxType==='post'; });
+      const totalPre=preDeds.reduce(function(s,d){ return s+d.amount; },0);
+      const totalPost=postDeds.reduce(function(s,d){ return s+d.amount; },0);
+
+      function drow(label,val,sub,col){
+        return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)22;">'+
+          '<div><div style="font-size:11px;">'+label+'</div>'+(sub?'<div style="font-size:9px;color:var(--muted);">'+sub+'</div>':'')+
+          '</div><div style="font-size:12px;font-weight:700;color:'+(col||'var(--text)')+';">'+val+'</div></div>';
+      }
+
+      let dhtml='<div style="margin-top:10px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Gross Earnings</div>';
+      dhtml+=drow('Ordinary Time (80h)',''+fmt$(p.baseGross),'','');
+      if(p.blpHrs>0) dhtml+=drow('BLP/SLP Wrkd 175%',fmt$(p.blpGross),p.blpHrs.toFixed(2)+'h','var(--early)');
+      if(p.satHrs>0) dhtml+=drow('Wknd Pnlty SAT',fmt$(p.satGross),p.satHrs.toFixed(2)+'h','var(--early)');
+      if(p.sunHrs>0) dhtml+=drow('Wknd Pnlty SUN',fmt$(p.sunGross),p.sunHrs.toFixed(2)+'h','var(--early)');
+      if(p.phHrs>0) dhtml+=drow('Public Holiday',fmt$(p.phGross),p.phHrs.toFixed(2)+'h','var(--early)');
+      dhtml+=drow('Total Gross',fmt$(p.totalGross),'','var(--accent)');
+
+      dhtml+='<div style="margin-top:8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Deductions</div>';
+      preDeds.forEach(function(d){ dhtml+=drow(d.name||'Pre-Tax','-'+fmt$(d.amount),'Pre-tax','#ef4444'); });
+      postDeds.forEach(function(d){ dhtml+=drow(d.name||'Post-Tax','-'+fmt$(d.amount),'Post-tax','#ef4444'); });
+      dhtml+=drow('Income Tax','-'+fmt$(p.fnTax),'ATO brackets','#ef4444');
+      dhtml+='<div style="margin-top:8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Super</div>';
+      dhtml+=drow('SG Super',fmt$(p.sgSuper),'Employer 12%','#0d9488');
+      dhtml+='<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:4px;">'+
+        '<div style="font-size:12px;font-weight:800;">Projected Net</div>'+
+        '<div style="font-size:14px;font-weight:900;color:var(--early);">'+fmt$(p.netPay)+'</div></div>';
+
+      if(actualPay){
+        dhtml+='<div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--surface2);border-radius:6px;margin-top:4px;">'+
+          '<div style="font-size:12px;font-weight:800;">Actual Net Pay</div>'+
+          '<div style="font-size:14px;font-weight:900;color:#16a34a;">'+fmt$(actualPay)+'</div></div>';
+        if(diff!==null){
+          dhtml+='<div style="text-align:right;font-size:12px;color:'+diffColour+';margin-top:4px;">Difference: '+diffStr+'</div>';
+        }
+      } else {
+        // Allow entering actual pay from history
+        dhtml+='<div style="margin-top:8px;display:flex;gap:8px;align-items:center;">'+
+          '<input type="number" step="0.01" min="0" placeholder="Enter actual pay" data-fnkey="'+ph.fnStart+'" '+
+          'style="flex:1;background:none;border:none;border-bottom:1px dashed var(--border);color:var(--text);font-size:14px;font-weight:700;padding:0;outline:none;">'+
+          '<button data-fnkey="'+ph.fnStart+'" onclick="saveActualPayForFn(this)" class="btn btn-sm btn-accent">Save</button></div>';
+      }
+      detail.innerHTML=dhtml;
+    } else {
+      detail.innerHTML='<div style="font-size:11px;color:var(--muted);padding:8px 0;">Projection data not available for this period.</div>';
+    }
+
+    let open=false;
+    header.onclick=function(){
+      open=!open;
+      detail.style.display=open?'block':'none';
+      header.querySelector('.ph-arrow').textContent=open?'▾':'▸';
+    };
+
+    card.appendChild(header);
+    card.appendChild(detail);
+    el.appendChild(card);
+  });
+}
+
+function saveActualPayForFn(btn){
+  const fnKey=btn.getAttribute('data-fnkey');
+  const input=btn.previousElementSibling;
+  const val=parseFloat(input.value);
+  if(isNaN(val)||val<=0){ toast('Enter a valid amount'); return; }
+  if(!S.payHistory) S.payHistory=[];
+  const idx=S.payHistory.findIndex(function(ph){ return ph.fnStart===fnKey; });
+  if(idx>-1){ S.payHistory[idx].actualPay=val; saveState(); renderPayHistory(); toast('Saved ✓'); }
+}
+
 function renderStats(){
   const yr=new Date().getFullYear().toString();
   const yrs=Object.keys(S.stats).sort((a,b)=>b-a);
@@ -4586,6 +4771,7 @@ function renderStats(){
   el.innerHTML='<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">'+
     rows.map(([name,val])=>'<div class="stat-row"><div class="stat-name">'+name+'</div><div class="stat-val">'+val+'</div></div>').join('')+
   '</div>';
+  renderPayHistory();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4660,7 +4846,7 @@ function exportBackup(){
   const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='qr_roster_backup_'+fmtDate(today())+'.json';
+  a.download='shift_roster_backup_'+fmtDate(today())+'.json';
   a.click(); toast('Backup exported');
 }
 function importBackup(input){
