@@ -104,7 +104,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 #screen-cal{padding-left:0;padding-right:0;}
 .cal-cell{border-radius:0;padding:6px 4px;min-height:92px;cursor:pointer;position:relative;overflow:hidden;border:1px solid var(--border);transition:border-color .1s;}
 .cal-cell:active{opacity:.7;}
-.cal-cell.today{border-color:#f59e0b;border-width:2px;background:rgba(245,158,11,0.22);}
+.cal-cell.today,.cal-cell.today.modified{border-color:#f59e0b !important;border-width:2px !important;background:rgba(245,158,11,0.22);}
 .cal-cell.other-month{opacity:.3;}
 .cal-cell.modified{border-color:var(--accent2);}
 .cal-cell.c-al{background:rgba(220,38,38,.18);}
@@ -4359,27 +4359,27 @@ function saveActualPay(){
 }
 
 function autoSavePreviousFortnight(currentP){
-  // Check if the previous fortnight has been saved
   const prevFn=getFortnightDates(-1);
   const prevKey=fmtDate(prevFn.start);
   if(!S.payHistory) S.payHistory=[];
-  const already=S.payHistory.find(function(ph){ return ph.fnStart===prevKey; });
-  if(!already){
-    // Calculate projection for previous fortnight using calendar data
-    const prevP=calcPayProjection(-1);
-    const prevRecord={
-      fnStart:prevKey,
-      fnEnd:fmtDate(prevFn.end),
-      actualPay:null,
-      projection:prevP,
-      customDeductions:[...(S.customDeductions||[])],
-      savedAt:new Date().toISOString()
-    };
-    S.payHistory.unshift(prevRecord);
-    // Keep only last 26 fortnights (1 year)
-    if(S.payHistory.length>26) S.payHistory=S.payHistory.slice(0,26);
-    saveState();
-  }
+  const idx=S.payHistory.findIndex(function(ph){ return ph.fnStart===prevKey; });
+  const already=idx>-1?S.payHistory[idx]:null;
+  // Skip if already saved WITH a real projection
+  if(already&&already.projection&&already.projection.netPay!=null) return;
+  // Calculate projection for previous fortnight using calendar data
+  const prevP=calcPayProjection(-1);
+  const prevRecord={
+    fnStart:prevKey,
+    fnEnd:fmtDate(prevFn.end),
+    actualPay:already?already.actualPay:null, // preserve any actual pay already entered
+    projection:prevP,
+    customDeductions:[...(S.customDeductions||[])],
+    savedAt:new Date().toISOString()
+  };
+  if(idx>-1) S.payHistory[idx]=prevRecord;
+  else S.payHistory.unshift(prevRecord);
+  if(S.payHistory.length>26) S.payHistory=S.payHistory.slice(0,26);
+  saveState();
 }
 
 function fmt$(n){ return '$'+n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
