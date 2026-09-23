@@ -1338,7 +1338,7 @@ let S = {
   contacts: [],   // [{id,section,name,phone}]
   bin: [],        // [{id,kind,data,deletedAt}]
   settings: {
-    cph:66.50, otMult:1.5, guarHrs:80, cycleHrs:80.43,
+    cph:66.5040, otMult:1.5, guarHrs:80, cycleHrs:80.43,
     satLoad:150, sunLoad:200, blpRate:175, taxRate:32
   },
   leave: { al:227.51, lsl:460.67, pc:12.36 },
@@ -4219,13 +4219,33 @@ function savePaySetting(key, val){
   renderPayProjection();
 }
 
-function calcAnnualTax(annualIncome){
-  // ATO 2025-26 tax brackets
-  if(annualIncome<=18200) return 0;
-  if(annualIncome<=45000) return (annualIncome-18200)*0.19;
-  if(annualIncome<=120000) return 5092+(annualIncome-45000)*0.325;
-  if(annualIncome<=180000) return 29467+(annualIncome-120000)*0.37;
-  return 51667+(annualIncome-180000)*0.45;
+function calcAnnualTax(fnTaxable){
+  // ATO Schedule 1 Scale 2 (tax-free threshold claimed) 2024-2026
+  // Formula: y = a(x+1) - b where x = weekly equivalent earnings + 0.99
+  // Fortnightly withholding = round(weekly tax × 2)
+  const scale2=[
+    [361,      null,   null    ],  // no withholding below $361/week
+    [500,      0.1600, 57.8462 ],
+    [625,      0.2600, 107.8462],
+    [721,      0.1800, 57.8462 ],
+    [865,      0.1890, 64.3365 ],
+    [1282,     0.3227, 180.0385],
+    [2596,     0.3200, 176.5769],
+    [3653,     0.3900, 358.3077],
+    [Infinity, 0.4700, 650.6154]
+  ];
+  // Step 1: weekly equivalent — ignore cents, add 99c
+  const weekly=Math.floor(fnTaxable/2)+0.99;
+  // Step 2: find bracket and calculate weekly withholding
+  let y=0;
+  for(const [limit,a,b] of scale2){
+    if(weekly<limit){
+      if(a!==null) y=a*(weekly+1)-b;
+      break;
+    }
+  }
+  // Step 3: fortnightly = weekly × 2, round to nearest dollar
+  return Math.round(Math.max(0,y)*2);
 }
 
 function getFortnightDates(offsetFortnights){
@@ -4307,13 +4327,11 @@ function calcPayProjection(offsetFortnights){
   const totalPostTax=postDeds.reduce(function(s,d){ return s+d.amount; },0);
   const fleetPre=0;const salarySac=0;const volSuper=S.settings.voluntarySuper||200;const qri=totalPostTax;
 
-  // ── TAX ──
+  // ── TAX — ATO Schedule 1 Scale 2 (tax-free threshold) ──
   const taxableIncome=totalGross-totalPreTax;
-  const annualTaxable=taxableIncome*26;             // 26 fortnights/year
-  const annualTax=calcAnnualTax(annualTaxable);
-  const fnTax=annualTax/26;
-  const mediLevy=0; // Medicare levy settled at tax time, not deducted fortnightly
-  const totalTax=fnTax+mediLevy;
+  const fnTax=calcAnnualTax(taxableIncome); // returns fortnightly tax directly
+  const mediLevy=0;
+  const totalTax=fnTax;
 
   // ── SUPER ──
   const superRate=(S.settings.superRate||12)/100;
