@@ -25,7 +25,7 @@
 :root{
   --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--border:#2e3350;
   --accent:#f59e0b;--accent2:#3b82f6;--text:#e8eaf0;--muted:#8892b0;
-  --early:#10b981;--mid:#f59e0b;--late:#ef4444;
+  --early:#059669;--mid:#f59e0b;--late:#ef4444;
   --al:#dc2626;--lsl:#0d9488;--afp:#7c3aed;--blp:#4f46e5;--slp:#4f46e5;
   --swap:#1d4ed8;--sl:#0369a1;
 }
@@ -104,7 +104,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 #screen-cal{padding-left:0;padding-right:0;}
 .cal-cell{border-radius:0;padding:6px 4px;min-height:92px;cursor:pointer;position:relative;overflow:hidden;border:1px solid var(--border);transition:border-color .1s;}
 .cal-cell:active{opacity:.7;}
-.cal-cell.today{border-color:var(--accent);}
+.cal-cell.today{border-color:#f59e0b;border-width:2px;background:rgba(245,158,11,0.22);}
 .cal-cell.other-month{opacity:.3;}
 .cal-cell.modified{border-color:var(--accent2);}
 .cal-cell.c-al{background:rgba(220,38,38,.18);}
@@ -117,7 +117,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 .cal-cell.c-sl{background:rgba(3,105,161,.12);}
 .cal-cell.c-ph{border-color:#f59e0b44;}
 .cal-day-num{font-size:13px;font-weight:800;color:var(--muted);line-height:1;margin-bottom:3px;}
-.today .cal-day-num{color:var(--accent);}
+.today .cal-day-num{color:#000;background:var(--accent);border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;margin-bottom:3px;}
 .cal-time{font-size:13px;font-weight:800;line-height:1.1;margin-top:2px;font-variant-numeric:tabular-nums;}
 .cal-code{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
 .cal-badge{font-size:11px;font-weight:800;padding:2px 4px;border-radius:4px;display:inline-block;margin-top:2px;}
@@ -129,7 +129,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 .b-swap{background:rgba(29,78,216,.4);color:#93c5fd;}
 .b-sl{background:rgba(3,105,161,.4);color:#7dd3fc;}
 .b-lsl2{background:rgba(13,148,136,.4);color:#99f6e4;}
-.b-am1,.b-am2,.b-am3{background:rgba(16,185,129,.25);color:#6ee7b7;}
+.b-am1,.b-am2,.b-am3{background:#15803d;color:#fff;}
 .b-pm1,.b-pm2,.b-pm3{background:rgba(245,158,11,.25);color:#fcd34d;}
 .cal-mod-dot{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--accent2);}
 .orig-strike{font-size:10px;color:var(--muted);text-decoration:line-through;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -151,7 +151,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 .dp-normal{background:#1a2744;color:#93c5fd;}
 .dp-blp{background:#1f2937;color:var(--muted);}
 .dp-slp{background:#1e1b4b;color:#a5b4fc;}
-.dp-spare{background:#064e3b;color:#6ee7b7;}
+.dp-spare{background:#065f46;color:#fff;}
 .dp-pm{background:#78350f;color:#fcd34d;}
 
 /* ── SWAP GRID ── */
@@ -265,7 +265,7 @@ body.day-mode .b-blp,.day-mode .b-slp{background:rgba(79,70,229,.2);color:#3730a
 .cal-guard{font-size:11px;color:var(--accent2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;font-weight:700;}
 .b-cbo{background:#ea580c;color:#fff;}
 .b-mbo{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
-.cal-appt{font-size:9px;color:#fff;background:#1d4ed8;border-radius:10px;padding:2px 6px;margin-top:3px;display:block;overflow:hidden;font-weight:600;max-width:100%;word-break:break-word;line-height:1.3;}
+.cal-appt{font-size:9px;color:#fff;background:#1d4ed8;border-radius:10px;padding:2px 5px;margin-top:3px;display:block;overflow:hidden;font-weight:600;max-width:100%;white-space:nowrap;text-overflow:ellipsis;line-height:1.4;}
 .appt-item{background:var(--surface2);border-left:3px solid #ef4444;border-radius:6px;padding:8px 10px;margin-top:8px;}
 .appt-item-title{font-size:13px;font-weight:700;color:#ef4444;}
 .appt-item-meta{font-size:11px;color:var(--muted);margin-top:2px;}
@@ -421,6 +421,97 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
     <div class="cal-dow" style="color:#ef4444;">Sat</div><div class="cal-dow" style="color:#ef4444;">Sun</div>
   </div>
   <div class="cal-grid" id="cal-grid"></div>
+
+  <!-- Calendar Legend -->
+  <div style="margin-top:8px;border-top:1px solid var(--border);">
+    <div onclick="toggleLegend()" style="display:flex;align-items:center;justify-content:space-between;padding:8px 8px;cursor:pointer;">
+      <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Legend</span>
+      <span id="legend-arrow" style="color:var(--muted);font-size:14px;">▸</span>
+    </div>
+    <div id="cal-legend" style="display:none;padding:0 8px 10px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;">
+
+      <!-- Cell backgrounds -->
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:18px;height:14px;border-radius:3px;background:rgba(99,102,241,.35);flex-shrink:0;"></div>
+        <span style="font-size:10px;color:var(--muted);">BLP / SLP day</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:18px;height:14px;border-radius:3px;background:rgba(220,38,38,.25);flex-shrink:0;"></div>
+        <span style="font-size:10px;color:var(--muted);">Annual Leave</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:18px;height:14px;border-radius:3px;background:rgba(13,148,136,.25);flex-shrink:0;"></div>
+        <span style="font-size:10px;color:var(--muted);">Long Service Leave</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:18px;height:14px;border-radius:3px;background:rgba(3,105,161,.2);flex-shrink:0;"></div>
+        <span style="font-size:10px;color:var(--muted);">Sick Leave</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:18px;height:14px;border-radius:3px;background:rgba(29,78,216,.18);flex-shrink:0;"></div>
+        <span style="font-size:10px;color:var(--muted);">Swapped week</span>
+      </div>
+
+      <!-- Borders -->
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:18px;height:14px;border-radius:3px;border:2px solid var(--accent2);flex-shrink:0;"></div>
+        <span style="font-size:10px;color:var(--muted);">Week swap border</span>
+      </div>
+
+      <!-- Dots -->
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:var(--accent2);flex-shrink:0;margin-left:5px;"></div>
+        <span style="font-size:10px;color:var(--muted);">Shift edited</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:#16a34a;flex-shrink:0;margin-left:5px;"></div>
+        <span style="font-size:10px;color:var(--muted);">BLP swap given</span>
+      </div>
+
+      <!-- Badges -->
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;background:rgba(99,102,241,.35);color:#a5b4fc;">BLP</span>
+        <span style="font-size:10px;color:var(--muted);">Block Leisure Period</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;background:rgba(99,102,241,.35);color:#a5b4fc;">SLP</span>
+        <span style="font-size:10px;color:var(--muted);">Single Leisure Period</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;background:#064e3b;color:#6ee7b7;">AM1–3</span>
+        <span style="font-size:10px;color:var(--muted);">AM spare shift</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;background:#78350f;color:#fcd34d;">PM1–3</span>
+        <span style="font-size:10px;color:var(--muted);">PM spare shift</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;background:rgba(234,88,12,.25);color:#fb923c;">CBO</span>
+        <span style="font-size:10px;color:var(--muted);">Compulsory Book Off</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);">MBO</span>
+        <span style="font-size:10px;color:var(--muted);">Mandatory Book Off</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;background:#7c3aed22;color:#a78bfa;">⇄ Day</span>
+        <span style="font-size:10px;color:var(--muted);">Single day swap</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;background:#b45309;color:#fde68a;">PH</span>
+        <span style="font-size:10px;color:var(--muted);">Public Holiday</span>
+      </div>
+
+      <!-- Pill -->
+      <div style="display:flex;align-items:center;gap:6px;grid-column:span 2;">
+        <span style="font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;background:#1d4ed8;color:#fff;">Event</span>
+        <span style="font-size:10px;color:var(--muted);">Personal event / appointment</span>
+      </div>
+
+    </div>
+  </div>
+</div>
 
   <!-- Day detail panel -->
   <div id="day-panel" class="day-panel" style="display:none;">
@@ -1907,6 +1998,15 @@ function setCalTheme(mode){
   }
 }
 function calNav(d){ calMonthOffset+=d; closeDayPanel(); renderCal(); }
+function toggleLegend(){
+  const el=document.getElementById('cal-legend');
+  const arrow=document.getElementById('legend-arrow');
+  if(!el) return;
+  const open=el.style.display==='block';
+  el.style.display=open?'none':'block';
+  if(arrow) arrow.textContent=open?'▸':'▾';
+}
+
 function calToday(){ calMonthOffset=0; renderCal(); }
 
 function renderCal(){
@@ -3847,7 +3947,7 @@ function calcAnnualTax(annualIncome){
   return 51667+(annualIncome-180000)*0.45;
 }
 
-function getFortnightDates(){
+function getFortnightDates(offsetFortnights){
   // Current fortnight: from last even Monday (pay period is 2 weeks)
   const now=today();
   const mon=getMonday(now);
@@ -3857,12 +3957,13 @@ function getFortnightDates(){
   const anchorMon=getMonday(anchor);
   const weeksDiff=Math.round((mon-anchorMon)/(7*24*60*60*1000));
   const fnStart=weeksDiff%2===0?mon:addDays(mon,-7);
-  return {start:fnStart, end:addDays(fnStart,13)};
+  const offset=(offsetFortnights||0)*14;
+  return {start:addDays(fnStart,offset), end:addDays(fnStart,offset+13)};
 }
 
-function calcPayProjection(){
+function calcPayProjection(offsetFortnights){
   const cph=S.settings.cph||66.50;
-  const fn=getFortnightDates();
+  const fn=getFortnightDates(offsetFortnights||0);
   const start=fn.start, end=fn.end;
 
   // Scan every day in the fortnight
@@ -3977,23 +4078,21 @@ function saveActualPay(){
 }
 
 function autoSavePreviousFortnight(currentP){
-  // Check if the previous fortnight's projection has been saved
-  const prevStart=addDays(currentP.fn.start,-14);
-  const prevEnd=addDays(currentP.fn.start,-1);
-  const prevKey=fmtDate(prevStart);
+  // Check if the previous fortnight has been saved
+  const prevFn=getFortnightDates(-1);
+  const prevKey=fmtDate(prevFn.start);
   if(!S.payHistory) S.payHistory=[];
   const already=S.payHistory.find(function(ph){ return ph.fnStart===prevKey; });
   if(!already){
-    // Save previous fortnight projection (no actual pay yet)
-    // Temporarily shift dates to calculate previous fortnight
-    const origAnchor=S.anchorDate;
-    // We can compute prev projection by using the prev fortnight dates
+    // Calculate projection for previous fortnight using calendar data
+    const prevP=calcPayProjection(-1);
     const prevRecord={
-      fnStart:prevKey,fnEnd:fmtDate(prevEnd),
+      fnStart:prevKey,
+      fnEnd:fmtDate(prevFn.end),
       actualPay:null,
-      projectedNet:null, // will be null as we can't easily recalc past
-      savedAt:new Date().toISOString(),
-      note:'Auto-saved (no projection available for past fortnight)'
+      projection:prevP,
+      customDeductions:[...(S.customDeductions||[])],
+      savedAt:new Date().toISOString()
     };
     S.payHistory.unshift(prevRecord);
     // Keep only last 26 fortnights (1 year)
