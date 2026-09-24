@@ -1335,7 +1335,10 @@ async function importRosterPDF(input){
     const parsed=parseRosterText(text);
     const count=Object.keys(parsed).length;
     if(count===0){ 
-      if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">Could not parse roster — check PDF format</span>';
+      // Show first 200 chars of extracted text for debugging
+      const preview=text.substring(0,300).replace(/\n/g,' ');
+      console.log('PDF text preview:',preview);
+      if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">Could not parse roster — extracted text: '+preview.substring(0,100)+'...</span>';
       return;
     }
     ROSTER=parsed;
@@ -2218,15 +2221,7 @@ function toggleLegend(){
 function calToday(){ calMonthOffset=0; renderCal(); }
 
 function renderCal(){
-  if(!ROSTER||Object.keys(ROSTER).length===0){
-    const grid=document.getElementById('cal-grid');
-    if(grid) grid.innerHTML='<div style="grid-column:span 7;padding:24px 16px;text-align:center;color:var(--muted);font-size:13px;">'+
-      '<div style="font-size:32px;margin-bottom:8px;">📄</div>'+
-      '<div style="font-weight:700;margin-bottom:4px;">No roster loaded</div>'+
-      '<div>Go to Settings → Import Roster PDF</div>'+
-      '</div>';
-    return;
-  }
+  const noRoster=!ROSTER||Object.keys(ROSTER).length===0;
   const now=today();
   const ref=new Date(now.getFullYear(), now.getMonth()+calMonthOffset, 1);
   const yr=ref.getFullYear(), mo=ref.getMonth();
