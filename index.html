@@ -1437,41 +1437,7 @@ function parseRosterText(text){
   return roster;
 }
 
-    // Check if line starts with a link number
-    const linkMatch=line.match(/^(\d{1,3})\s+/);
-    if(linkMatch){
-      // Save previous link if complete
-      if(currentLink!==null&&currentShifts.length>=DAY_COUNT){
-        roster[String(currentLink)]=currentShifts.slice(0,DAY_COUNT);
-      }
-      currentLink=parseInt(linkMatch[1]);
-      currentShifts=[];
-      // Extract shifts from this line
-      const shifts=line.match(SHIFT_RE)||[];
-      currentShifts=currentShifts.concat(shifts);
-    } else if(currentLink!==null){
-      // Continuation line — extract any shift values (ignore job codes)
-      const shifts=line.match(SHIFT_RE)||[];
-      // Only add shifts we still need (up to 7 total)
-      for(let s of shifts){
-        if(currentShifts.length<DAY_COUNT){
-          currentShifts.push(s);
-        }
-      }
-    }
 
-    // If we have 7 shifts for current link, save it
-    if(currentLink!==null&&currentShifts.length>=DAY_COUNT){
-      roster[String(currentLink)]=currentShifts.slice(0,DAY_COUNT);
-    }
-  }
-  // Save last link
-  if(currentLink!==null&&currentShifts.length>=DAY_COUNT){
-    roster[String(currentLink)]=currentShifts.slice(0,DAY_COUNT);
-  }
-
-  return roster;
-}
 
 function loadRoster(){
   try{
@@ -1942,11 +1908,23 @@ function showScreen(name){
 function renderDash(){
   const now=today();
   const mon=getMonday(now);
-  const link=getLinkForWeek(mon);
+  const link=(!ROSTER||Object.keys(ROSTER).length===0)?null:getLinkForWeek(mon);
   const hrsPerDay=(S.settings.cycleHrs||80.43)/10;
 
   document.getElementById('dash-date-sub').textContent=now.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.getElementById('dash-wc-label').textContent='WC '+fmtDDMM(mon);
+
+  // Show no-roster banner if needed
+  let noRosterBanner=document.getElementById('no-roster-banner');
+  if(!noRosterBanner){
+    noRosterBanner=document.createElement('div');
+    noRosterBanner.id='no-roster-banner';
+    noRosterBanner.style.cssText='background:#78350f;color:#fde68a;padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:12px;display:none;';
+    noRosterBanner.innerHTML='📄 No roster loaded — <strong onclick="showScreen(\'settings\')" style="cursor:pointer;text-decoration:underline;">Go to Settings to import your roster PDF</strong>';
+    const dashContent=document.getElementById('dash-content')||document.querySelector('#screen-dash .screen-content');
+    if(dashContent) dashContent.insertBefore(noRosterBanner,dashContent.firstChild);
+  }
+  noRosterBanner.style.display=(!ROSTER||Object.keys(ROSTER).length===0)?'block':'none';
 
   // Current Link card — show worked link (swapped or rostered)
   const weekSwapRec=S.swaps.find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
