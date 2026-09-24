@@ -1412,8 +1412,8 @@ async function extractPDFText(buffer){
     const dec=await decompress(streamChunk);
 
     if(dec&&(dec.includes('BLP')||dec.includes('MONDAY'))){
-      // Extract lines from Tj operators — each line is one complete roster row
-      const tjRe=/\(([^)]{10,300})\)\s*Tj/g;
+      // Extract lines from Tj operators — handle escaped parens in names like \(907514 \)
+      const tjRe=/\(((?:[^)\\]|\\.)*)\)\s*Tj/g;
       let m;
       while((m=tjRe.exec(dec))!==null){
         const line=m[1].replace(/\\\(/g,'(').replace(/\\\)/g,')').replace(/\\\\/g,'\\');
