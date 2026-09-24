@@ -1503,6 +1503,7 @@ const STATE_KEY = 'qr_pwa_v2';
 let S = {
   anchorLink: null,
   anchorDate: null,
+  myName: '',
   days: {},       // dateStr → {type,job,start,end,guards,notes,swapFrom,swapTo,swapPartner,otJob}
   swaps: [],      // [{id,wc,linkGiven,linkReceived,driver,scope,dayIdx}]
   claims: [],     // [{id,type,date,job,incident,submitted,subDate}]
@@ -1745,6 +1746,7 @@ function loadState(){
       const p = JSON.parse(raw);
       if(p.anchorLink != null) S.anchorLink = p.anchorLink;
       if(p.anchorDate != null) S.anchorDate = p.anchorDate;
+      if(p.myName) S.myName = p.myName;
       if(p.days) S.days = p.days;
       if(p.swaps) S.swaps = p.swaps;
       if(p.claims) S.claims = p.claims;
@@ -1807,17 +1809,24 @@ function getLinkForWeek(mon){
 }
 function getRaw(link,idx){ return link&&ROSTER[String(link)]?ROSTER[String(link)][idx]:''; }
 function parseShift(raw){
-  if(!raw) return {code:'--',time:null,typeKey:'normal'};
+  if(!raw) return {code:'--',time:null,typeKey:'normal',job:''};
   const v=raw.trim(), u=v.toUpperCase();
-  if(['BLP','SLP','AFA','AFP'].includes(u)) return {code:u,time:null,typeKey:u.toLowerCase()};
-  if(/^(AM1|AM2|AM3|PM1|PM2|PM3)$/.test(u)) return {code:u,time:null,typeKey:u.toLowerCase()};
+  if(['BLP','SLP','AFA','AFP'].includes(u)) return {code:u,time:null,typeKey:u.toLowerCase(),job:''};
+  if(/^(AM1|AM2|AM3|PM1|PM2|PM3)$/.test(u)) return {code:u,time:null,typeKey:u.toLowerCase(),job:''};
+  // time|jobcode format from imported roster
+  const pipe=v.indexOf('|');
+  if(pipe>-1){
+    const t=v.slice(0,pipe).trim();
+    const j=v.slice(pipe+1).trim();
+    return {code:t,time:t,typeKey:'normal',job:j};
+  }
   // HH:MM followed by job code
   const m=v.match(/^(\d{1,2}:\d{2})\s+(.+)$/);
-  if(m) return {code:m[2].trim(),time:m[1].trim(),typeKey:'normal'};
-  // Plain HH:MM with no job code (from imported roster)
+  if(m) return {code:m[2].trim(),time:m[1].trim(),typeKey:'normal',job:m[2].trim()};
+  // Plain HH:MM
   const t=v.match(/^(\d{1,2}:\d{2})$/);
-  if(t) return {code:t[1],time:t[1],typeKey:'normal'};
-  return {code:v,time:null,typeKey:'normal'};
+  if(t) return {code:t[1],time:t[1],typeKey:'normal',job:''};
+  return {code:v,time:null,typeKey:'normal',job:''};
 }
 function parseTime(t){
   if(!t) return null;
@@ -2604,7 +2613,7 @@ function renderDayPanel(ds){
   } else if(sh.typeKey==='swap'){
     // Swap day — NO Undo Swap button here (use Swap History instead)
     html='<div class="cal-badge b-swap" style="font-size:12px;padding:3px 8px;margin-bottom:6px;">⇄ Swap · Link '+sh.swapTo+(sh.swapPartner?' · '+sh.swapPartner:'')+'</div>';
-    if(sh.time) html+='<div class="day-panel-time" style="'+timeColor(sh.time)+';">'+sh.time+'</div><div class="day-panel-code">'+sh.code+'</div>';
+    if(sh.time) html+='<div class="day-panel-time" style="'+timeColor(sh.time)+';">'+sh.time+'</div><div class="day-panel-code">'+sh.code+'</div>'+(sh.job&&sh.job!==sh.time?'<div style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.04em;">'+sh.job+'</div>':'');
   } else if(sh.typeKey==='single_day_swap'){
     html='<div class="cal-badge b-swap" style="font-size:12px;padding:3px 8px;margin-bottom:6px;">⇄ Single Day Swap</div>';
     if(ov&&ov.sdsDriver) html+='<div style="font-size:14px;color:var(--accent2);font-weight:700;margin-bottom:6px;">Driver: '+ov.sdsDriver+'</div>';
