@@ -1328,17 +1328,17 @@ async function importRosterPDF(input){
   if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Reading PDF...</span>';
 
   try{
-    // Read file as ArrayBuffer
     const buffer=await file.arrayBuffer();
-    // Extract text using PDF.js (loaded from CDN)
+    if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Decompressing streams...</span>';
     const text=await extractPDFText(buffer);
+    if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Extracted '+text.length+' chars, parsing...</span>';
     const parsed=parseRosterText(text);
     const count=Object.keys(parsed).length;
-    if(count===0){ 
-      // Show first 200 chars of extracted text for debugging
-      const preview=text.substring(0,300).replace(/\n/g,' ');
-      console.log('PDF text preview:',preview);
-      if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">Could not parse roster — extracted text: '+preview.substring(0,100)+'...</span>';
+    if(count===0){
+      const preview=text.substring(0,200).replace(/\n/g,' ');
+      if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">0 links found. First 200 chars: '+preview+'</span>';
+      return;
+    }
       return;
     }
     ROSTER=parsed;
