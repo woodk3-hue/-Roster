@@ -1339,8 +1339,6 @@ async function importRosterPDF(input){
       if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">0 links found. First 200 chars: '+preview+'</span>';
       return;
     }
-      return;
-    }
     ROSTER=parsed;
     localStorage.setItem('roster_data',JSON.stringify(ROSTER));
     if(statusEl) statusEl.innerHTML='<span style="color:#16a34a;">✓ '+count+' links imported successfully</span>';
