@@ -930,8 +930,8 @@ document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
     <div class="settings-section-title">Roster Data</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Import your depot's roster PDF to populate link data.</div>
     <div id="roster-import-status" style="font-size:12px;margin-bottom:8px;"></div>
-    <button class="btn btn-accent" style="width:100%;" onclick="document.getElementById('roster-pdf-input').click()">📄 Import Roster PDF</button>
-    <input type="file" id="roster-pdf-input" accept=".pdf" style="display:none;" onchange="importRosterPDF(this)">
+    <button class="btn btn-accent" style="width:100%;" onclick="document.getElementById('roster-pdf-input').click()">📄 Import Roster File (.txt or .pdf)</button>
+    <input type="file" id="roster-pdf-input" accept=".txt,.pdf" style="display:none;" onchange="importRosterPDF(this)">
   </div>
 
   <div class="settings-section">
@@ -1330,7 +1330,7 @@ async function importRosterPDF(input){
   try{
     const buffer=await file.arrayBuffer();
     if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Decompressing streams...</span>';
-    const text=await extractPDFText(buffer);
+    const text=await extractPDFText(buffer,file.name);
     if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Extracted '+text.length+' chars, parsing...</span>';
     const parsed=parseRosterText(text);
     const count=Object.keys(parsed).length;
@@ -1352,10 +1352,12 @@ async function importRosterPDF(input){
   input.value='';
 }
 
-async function extractPDFText(buffer){
-  const bytes=new Uint8Array(buffer);
-
-  // Load pako (zlib) - works on all browsers including Android
+async function extractPDFText(buffer,fileName){
+  // If it's a text file, just decode it directly
+  if(fileName&&fileName.toLowerCase().endsWith('.txt')){
+    return new TextDecoder('utf-8').decode(buffer);
+  }
+  // For PDF files, try pako decompression
   if(typeof pako==='undefined'){
     await new Promise(function(resolve,reject){
       const s=document.createElement('script');
@@ -1364,39 +1366,29 @@ async function extractPDFText(buffer){
       document.head.appendChild(s);
     });
   }
-
+  const bytes=new Uint8Array(buffer);
   let fullText='';
   let pos=0;
-
   while(pos<bytes.length-10){
-    // Find 'stream' marker
     let found=-1;
     for(let i=pos;i<bytes.length-6;i++){
       if(bytes[i]===115&&bytes[i+1]===116&&bytes[i+2]===114&&
-         bytes[i+3]===101&&bytes[i+4]===97&&bytes[i+5]===109){
-        found=i; break;
-      }
+         bytes[i+3]===101&&bytes[i+4]===97&&bytes[i+5]===109){found=i;break;}
     }
     if(found===-1) break;
     let start=found+6;
     if(bytes[start]===13) start++;
     if(bytes[start]===10) start++;
-
     let end=-1;
     for(let i=start;i<bytes.length-9;i++){
       if(bytes[i]===101&&bytes[i+1]===110&&bytes[i+2]===100&&
          bytes[i+3]===115&&bytes[i+4]===116&&bytes[i+5]===114&&
-         bytes[i+6]===101&&bytes[i+7]===97&&bytes[i+8]===109){
-        end=i; break;
-      }
+         bytes[i+6]===101&&bytes[i+7]===97&&bytes[i+8]===109){end=i;break;}
     }
     if(end===-1) break;
-
     const chunk=bytes.slice(start,end);
     let dec=null;
-    try{ dec=pako.inflate(chunk); }
-    catch(e){ try{ dec=pako.inflateRaw(chunk); }catch(e2){} }
-
+    try{dec=pako.inflate(chunk);}catch(e){try{dec=pako.inflateRaw(chunk);}catch(e2){}}
     if(dec){
       let s='';
       for(let i=0;i<dec.length;i++) s+=String.fromCharCode(dec[i]);
@@ -1404,12 +1396,10 @@ async function extractPDFText(buffer){
         const tjRe=/\(((?:[^)\\]|\\.)*?)\)\s*Tj/g;
         let m;
         while((m=tjRe.exec(s))!==null){
-          const line=m[1].replace(/\\\(/g,'(').replace(/\\\)/g,')');
-          fullText+=line+'\n';
+          fullText+=m[1].replace(/\\\(/g,'(').replace(/\\\)/g,')')+'\n';
         }
       }
     }
-    // Yield to browser to prevent freezing
     await new Promise(function(r){setTimeout(r,0);});
     pos=end+9;
   }
