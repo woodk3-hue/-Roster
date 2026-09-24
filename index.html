@@ -1423,7 +1423,23 @@ async function extractPDFText(buffer,fileName){
 
 function parseRosterText(text){
   const roster={};
-  // Column positions for Mon-Sun (from PDF header: MONDAY at col 55, each day +11)
+  const lines=text.split('\n');
+
+  // Check if tab-separated format (new format with job codes)
+  if(lines[0]&&lines[0].startsWith('LINK\t')){
+    for(let i=1;i<lines.length;i++){
+      const parts=lines[i].split('\t');
+      if(parts.length>=8){
+        const link=parseInt(parts[0]);
+        if(link>=1&&link<=440){
+          roster[String(link)]=parts.slice(1,8);
+        }
+      }
+    }
+    return roster;
+  }
+
+  // Legacy fixed-column format (old roster.txt without job codes)
   const COLS=[55,66,77,88,99,110,121];
   const COL_W=10;
   const SHIFT_RE=/^(\d{1,2}:\d{2}|BLP|SLP|AFA|AFP|EX|AM[123]|PM[123])/;
@@ -1435,27 +1451,23 @@ function parseRosterText(text){
     return m?m[1]:null;
   }
 
-  const pageLines=text.split('\n');
   let i=0;
-  while(i<pageLines.length){
-    const line=pageLines[i];
-    // Skip headers and separators
+  while(i<lines.length){
+    const line=lines[i];
     if(line.includes('MONDAY')||line.includes('----')||
        line.includes('PAGE')||line.includes('ROSCJS02')||
        line.includes('LINK TYPE')||/^\s*\d{2}\.\d{2}\.\d{4}/.test(line)){
       i++; continue;
     }
-    // Link line: number in first 5 chars, long enough to have shift data
     const lm=line.match(/^\s{0,4}(\d{1,3})\s/);
     if(lm&&line.length>54){
       const link=parseInt(lm[1]);
       const shifts=COLS.map(function(c){ return getShift(line,c)||''; });
-      // Fill EX or empty slots — skip separator and job-code-only lines
       let j=i+1;
-      while(j<pageLines.length&&j<i+10){
-        const nxt=pageLines[j];
-        if(nxt.match(/^\s{0,4}\d{1,3}\s/)&&nxt.length>54) break; // next link
-        if(!nxt.match(/^\s*-+\s*$/)){ // skip pure separator lines
+      while(j<lines.length&&j<i+10){
+        const nxt=lines[j];
+        if(nxt.match(/^\s{0,4}\d{1,3}\s/)&&nxt.length>54) break;
+        if(!nxt.match(/^\s*-+\s*$/)){
           COLS.forEach(function(col,di){
             if(!shifts[di]||shifts[di]==='EX'){
               const val=getShift(nxt,col);
@@ -2626,6 +2638,7 @@ function renderDayPanel(ds){
     const dispTime=(sh.timeChanged&&sh.endTime)?(sh.time+'–'+sh.endTime):sh.time;
     html='<div class="day-panel-time" style="'+timeColor(sh.time)+';">'+dispTime+'</div>';
     html+='<div class="day-panel-code">'+sh.code+'</div>';
+    if(sh.job&&sh.job!==sh.time&&sh.job!==sh.code) html+='<div style="font-size:12px;color:var(--muted);margin-top:3px;letter-spacing:.04em;">'+sh.job+'</div>';
     if(sh.link) html+='<div style="font-size:11px;color:var(--muted);margin-top:4px;">Link '+sh.link+'</div>';
     if(sh.timeChanged&&sh.origTime) html+='<div style="font-size:11px;color:var(--muted);text-decoration:line-through;opacity:.7;margin-top:3px;">Orig: '+sh.origTime+' '+sh.origCode+'</div>';
     if(ov&&ov.end&&ov.start){
