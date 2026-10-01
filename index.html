@@ -3708,14 +3708,29 @@ function renderShiftFinder(){
 function selectAllSFF(){ document.querySelectorAll('.pmf-select-cb').forEach(function(cb){ cb.checked=true; }); }
 function clearSFFSelection(){ document.querySelectorAll('.pmf-select-cb').forEach(function(cb){ cb.checked=false; }); }
 function copySelectedSFF(){
+  const DAY3=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const sel=[];
   document.querySelectorAll('.pmf-select-cb:checked').forEach(function(cb){
     const parts=cb.dataset.pmfid.split('|');
     const wc=parts[0]; const link=parts[1]||'';
-    sel.push('WC '+fmtDDMM(parseDate(wc))+(link?' Link '+link:''));
+    const header='WC '+fmtDDMM(parseDate(wc))+' Link '+link;
+    // Build week shift line
+    let dayParts=[];
+    if(link&&ROSTER[String(link)]){
+      const days=ROSTER[String(link)];
+      days.forEach(function(raw,di){
+        const sh=parseShift(raw);
+        // Check for override on that day
+        const ds=fmtDate(addDays(parseDate(wc),di));
+        const ov=S.days[ds];
+        const dispTime=(ov&&ov.start)?ov.start:(sh.time||sh.code||'—');
+        dayParts.push(DAY3[di]+' '+dispTime);
+      });
+    }
+    sel.push(header+(dayParts.length?'\n'+dayParts.join(' '):''));
   });
   if(!sel.length){ toast('Nothing selected'); return; }
-  const text=sel.join('\n');
+  const text=sel.join('\n\n');
   if(navigator.clipboard){ navigator.clipboard.writeText(text).then(function(){ toast('Copied '+sel.length+' weeks'); }); }
   else{ const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); toast('Copied '+sel.length+' weeks'); }
 }
