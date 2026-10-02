@@ -504,7 +504,7 @@ html,body{
 /* ── DAY PANEL ── */
 #day-panel{
   position:fixed;
-  bottom:calc(var(--nav-height) + 8px);
+  bottom:calc(82px + env(safe-area-inset-bottom,0px));
   left:12px;right:12px;
   background:rgba(15,22,41,0.96);
   border:1px solid var(--border2);
