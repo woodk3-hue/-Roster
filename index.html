@@ -873,6 +873,47 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 <body>
 
 <!-- ═══════════════════════════════════════
+     FIRST-OPEN SETUP
+════════════════════════════════════════ -->
+<div id="setup-screen" style="display:none;position:fixed;inset:0;z-index:9000;background:var(--bg);overflow-y:auto;padding:calc(24px + env(safe-area-inset-top,0px)) 20px 32px;">
+  <div style="max-width:420px;margin:0 auto;">
+    <div style="font-size:24px;font-weight:800;margin-bottom:4px;">🚂 Welcome to Shift Roster</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px;">A few details to get you set up. You can change these later in Settings.</div>
+    <div class="form-group">
+      <label class="form-label">I am a</label>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" style="flex:1;" id="setup-role-driver" onclick="setSetupRole('driver')">🚆 Driver</button>
+        <button class="btn" style="flex:1;" id="setup-role-guard" onclick="setSetupRole('guard')">🦺 Guard</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">My Name</label>
+      <input type="text" class="form-input" id="setup-name" placeholder="(your name)">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">My Link This Week</label>
+        <input type="number" class="form-input" id="setup-link" min="1" max="440" placeholder="e.g. 261">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Week Starting (Mon)</label>
+        <input type="date" class="form-input" id="setup-date">
+      </div>
+    </div>
+    <button class="btn btn-accent" style="width:100%;margin-top:6px;" onclick="finishSetup()">Get Started</button>
+    <div style="margin-top:28px;padding-top:16px;border-top:1px solid var(--border);">
+      <div style="font-size:13px;font-weight:700;">Already used the app?</div>
+      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Enter your backup code to bring your data back.</div>
+      <div style="display:flex;gap:8px;">
+        <input class="form-input" id="setup-restore-code" placeholder="Backup code" style="flex:1;text-transform:uppercase;">
+        <button class="btn" onclick="restoreOnlineBackup('setup-restore-code')">Restore</button>
+      </div>
+      <button class="btn btn-sm" style="margin-top:8px;" onclick="document.getElementById('import-file').click()">⬆ Restore from backup file</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
      ACCESS PIN
 ════════════════════════════════════════ -->
 <div id="pin-screen" style="display:none;position:fixed;inset:0;z-index:10000;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;">
@@ -1397,6 +1438,13 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="form-group">
         <label class="form-label">My Name</label>
         <input type="text" class="form-input" id="set-name" placeholder="(your name)">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">I am a</label>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" style="flex:1;" id="role-driver-btn" onclick="setMyRole('driver')">🚆 Driver</button>
+        <button class="btn" style="flex:1;" id="role-guard-btn" onclick="setMyRole('guard')">🦺 Guard</button>
       </div>
     </div>
     <div class="form-row">
@@ -2361,6 +2409,68 @@ function setMyRole(role){
   if(rdb){rdb.style.background=role==='driver'?'var(--accent)':'';rdb.style.color=role==='driver'?'#000':'';}
   if(rgb){rgb.style.background=role==='guard'?'var(--accent)':'';rgb.style.color=role==='guard'?'#000':'';}
   toast(role==='driver'?'Role set to Driver':'Role set to Guard');
+  applyRoleUI();
+  refreshAllScreens();
+}
+
+// Drivers record the guards they work with; guards record the drivers.
+function getCrewWord(plural){
+  const w=(S.myRole==='guard')?'Driver':'Guard';
+  return plural?w+'s':w;
+}
+
+// Updates labels and the People tab order to match the chosen role
+function applyRoleUI(){
+  const crewLbl=document.getElementById('sm-crew-label');
+  if(crewLbl) crewLbl.textContent=getCrewLabel();
+  const row=document.getElementById('contact-tab-row');
+  const g=document.getElementById('ctab-guards'), d=document.getElementById('ctab-drivers');
+  if(row&&g&&d){
+    const first=(S.myRole==='guard')?d:g, second=(first===d)?g:d;
+    row.insertBefore(second,row.firstChild);
+    row.insertBefore(first,second);
+    const firstTab=(first===d)?'drivers':'guards';
+    if(contactTab==='guards'||contactTab==='drivers'){
+      contactTab=firstTab;
+      g.classList.toggle('active',firstTab==='guards');
+      d.classList.toggle('active',firstTab==='drivers');
+    }
+  }
+}
+
+// ── FIRST-OPEN SETUP ──
+let setupRole='driver';
+function setSetupRole(role){
+  setupRole=role;
+  const d=document.getElementById('setup-role-driver'), g=document.getElementById('setup-role-guard');
+  if(d) d.className='btn'+(role==='driver'?' btn-accent':'');
+  if(g) g.className='btn'+(role==='guard'?' btn-accent':'');
+}
+function showSetupIfNeeded(){
+  const el=document.getElementById('setup-screen');
+  if(!el) return;
+  // Only for a fresh app: once a link is set (or data restored) it never shows again
+  if(S.anchorLink||localStorage.getItem('syncEnabled')==='1'){ el.style.display='none'; return; }
+  setSetupRole(S.myRole||'driver');
+  document.getElementById('setup-name').value=S.myName||'';
+  document.getElementById('setup-date').value=fmtDate(getMonday(today()));
+  el.style.display='block';
+}
+function finishSetup(){
+  const name=(document.getElementById('setup-name').value||'').trim();
+  const link=parseInt(document.getElementById('setup-link').value);
+  const dv=document.getElementById('setup-date').value;
+  if(!link||link<1||link>440||!dv){ toast('Enter your link this week'); return; }
+  const [y,m,d]=dv.split('-').map(Number);
+  S.myName=name;
+  S.myRole=setupRole;
+  S.anchorLink=link;
+  S.anchorDate=fmtDate(getMonday(new Date(y,m-1,d)));
+  saveState();
+  document.getElementById('setup-screen').style.display='none';
+  applyRoleUI();
+  refreshAllScreens();
+  toast('All set ✓');
 }
 
 function getCrewLabel(){
@@ -3426,7 +3536,7 @@ function renderDayPanel(ds){
   if(sh.guards&&sh.guards.trim()){
     const lines=sh.guards.trim().split('\n').filter(Boolean);
     html+='<div style="margin-top:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;">';
-    html+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Guard'+(lines.length>1?'s':'')+'</div>';
+    html+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">'+getCrewWord(lines.length>1)+'</div>';
     html+=lines.map(g=>'<div style="font-size:13px;">'+g+'</div>').join('');
     html+='</div>';
   }
@@ -6268,6 +6378,7 @@ function applyBackupData(p){
   catch(e){ alert('Your phone is not letting the app save data, so the backup cannot be kept. Check you are not in a private/incognito tab and that the browser is not set to clear site data.'); return false; }
   loadState();
   saveState(); loadSettingsUI(); refreshAllScreens();
+  applyRoleUI(); showSetupIfNeeded();
   return true;
 }
 
@@ -6324,8 +6435,8 @@ function copyBackupCode(){
   if(navigator.clipboard) navigator.clipboard.writeText(code).then(function(){ toast('Code copied'); }).catch(function(){ toast(code); });
   else toast(code);
 }
-function restoreOnlineBackup(){
-  const code=(document.getElementById('restore-code').value||'').trim().toUpperCase();
+function restoreOnlineBackup(inputId){
+  const code=(document.getElementById(inputId||'restore-code').value||'').trim().toUpperCase();
   if(!code){ toast('Enter your backup code'); return; }
   if(!initFirebase()){ toast('No connection — try again'); return; }
   fbDb.ref('roster/'+code).once('value').then(function(snap){
@@ -6536,6 +6647,8 @@ function initApp(){
   syncPin=localStorage.getItem('syncPin')||'';
   syncRole=localStorage.getItem('syncRole')||'owner';
   showScreen('dash');
+  applyRoleUI();
+  showSetupIfNeeded();
   setTimeout(function(){
     if(syncEnabled&&syncPin){
       if(initFirebase()){
