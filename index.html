@@ -935,6 +935,16 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
   </div>
 
+  <!-- Backup reminder (shown by updateBackupReminder) -->
+  <div id="backup-reminder" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
+    <div style="font-size:13px;font-weight:700;">💾 Time to back up</div>
+    <div id="backup-reminder-text" style="font-size:12px;color:var(--muted);margin:3px 0 10px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-accent btn-sm" style="flex:1;" onclick="exportBackup()">⬇ Back Up Now</button>
+      <button class="btn btn-sm" onclick="snoozeBackupReminder()">Later</button>
+    </div>
+  </div>
+
   <!-- Current Link Card (compact) -->
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
     <div>
@@ -2828,7 +2838,7 @@ function showScreen(name){
   const nb=document.getElementById('nav-'+name);
   if(nb) nb.classList.add('active');
   currentScreen=name;
-  if(name==='dash') renderDash();
+  if(name==='dash'){ renderDash(); updateBackupReminder(); }
   if(name==='cal') renderCal();
   if(name==='swaps') renderSwaps();
   if(name==='claims') renderClaims();
@@ -6449,16 +6459,26 @@ function updateBackupUI(){
     ex.textContent=le?'Last exported file: '+new Date(le).toLocaleDateString('en-AU'):'No backup file exported yet';
   }
 }
-// Gentle reminder (at most once a day) to export a backup file
-function maybeNudgeExport(){
-  if(!hasRealData()) return;
+// Reminder banner on the Dash: shows when no backup file has been exported for a week.
+// "Later" hides it until tomorrow; exporting hides it for another week.
+const BACKUP_REMIND_DAYS=7;
+function updateBackupReminder(){
+  const el=document.getElementById('backup-reminder');
+  if(!el) return;
   const le=parseInt(localStorage.getItem('last_export')||'0');
-  const days=(Date.now()-le)/86400000;
-  const todayStr=fmtDate(today());
-  if(days<7||localStorage.getItem('export_nudge_day')===todayStr) return;
-  try{ localStorage.setItem('export_nudge_day',todayStr); }catch(e){}
-  toast(le?'Tip: last backup file was '+Math.floor(days)+' days ago — Settings → Export Backup':'Tip: save a backup file — Settings → Export Backup');
+  const days=Math.floor((Date.now()-le)/86400000);
+  const snoozed=localStorage.getItem('export_snooze_day')===fmtDate(today());
+  const show=hasRealData()&&days>=BACKUP_REMIND_DAYS&&!snoozed;
+  el.style.display=show?'block':'none';
+  if(show) document.getElementById('backup-reminder-text').textContent=le
+    ?'Your last backup file was '+days+' days ago. Save a new one so you can get your data back if this phone is reset.'
+    :"You haven't saved a backup file yet. Save one so you can get your data back if this phone is reset.";
 }
+function snoozeBackupReminder(){
+  try{ localStorage.setItem('export_snooze_day',fmtDate(today())); }catch(e){}
+  updateBackupReminder();
+}
+
 // The earlier version kept a copy online; delete it and forget its code
 function removeLegacyOnlineBackup(){
   const code=localStorage.getItem('backup_code');
@@ -6478,6 +6498,7 @@ function exportBackup(){
   a.click(); toast('Backup exported');
   try{ localStorage.setItem('last_export',String(Date.now())); }catch(e){}
   updateBackupUI();
+  updateBackupReminder();
 }
 function importBackup(input){
   const file=input.files[0]; if(!file) return;
@@ -6670,7 +6691,7 @@ function initApp(){
   showSetupIfNeeded();
   restoreFromDeviceBackupIfEmpty().then(function(restored){
     if(!restored) scheduleAutoBackup();
-    setTimeout(maybeNudgeExport,3000);
+    updateBackupReminder();
   });
   setTimeout(removeLegacyOnlineBackup,1500);
   setTimeout(function(){
