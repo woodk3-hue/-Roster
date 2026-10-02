@@ -807,6 +807,9 @@ body.day-mode .toast{background:rgba(240,242,248,0.96);border-color:var(--border
 /* ── SAFE AREA ── */
 html{scroll-padding-top:env(safe-area-inset-top,0px);}
 
+/* Small, faint creator credit (Settings footer and welcome page) */
+.credit-mark{font-size:10px;color:var(--muted);opacity:.55;text-align:center;letter-spacing:.02em;margin-top:2px;}
+
 /* ── RESTORED: styles dropped in the redesign (swap grids, claims, leave, etc.) ── */
 .form-textarea{resize:vertical;min-height:64px;}
 .modal-footer{display:flex;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--border);}
@@ -909,6 +912,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Pick your exported backup file to bring your data back.</div>
       <button class="btn" onclick="document.getElementById('import-file').click()">⬆ Restore from backup file</button>
     </div>
+    <div class="credit-mark" style="margin-top:32px;">Made by K. Wood with Claude</div>
   </div>
 </div>
 
@@ -1606,6 +1610,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <!-- ADMIN SECTION — hidden tap trigger -->
   <div id="admin-trigger" onclick="handleAdminTap()" style="text-align:center;padding:8px;cursor:pointer;user-select:none;">
     <span style="font-size:10px;color:rgba(255,255,255,0.1);">v2.0</span>
+    <div class="credit-mark">Made by K. Wood with Claude</div>
   </div>
 
   <div id="admin-section" style="display:none;">
