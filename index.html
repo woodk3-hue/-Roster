@@ -1432,6 +1432,19 @@ html{scroll-padding-top:env(safe-area-inset-top,0px);}
       <button class="btn" onclick="document.getElementById('import-file').click()">⬆ Import Backup</button>
       <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(this)">
     </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+      <div style="font-size:13px;font-weight:700;">☁ Auto Online Backup</div>
+      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Every change is saved online automatically, replacing the previous copy. Write your backup code down — you need it to restore on a new or reset phone.</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="font-size:13px;">Your code: <b id="backup-code" style="letter-spacing:.05em;user-select:all;">—</b></div>
+        <button class="btn btn-sm" onclick="copyBackupCode()">📋 Copy</button>
+      </div>
+      <div id="backup-status" style="font-size:11px;color:var(--muted);margin-top:4px;">—</div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <input class="form-input" id="restore-code" placeholder="Enter backup code" style="flex:1;text-transform:uppercase;">
+        <button class="btn" onclick="restoreOnlineBackup()">Restore</button>
+      </div>
+    </div>
   </div>
 
   <div class="settings-section">
@@ -1878,6 +1891,7 @@ async function importRosterPDF(input){
     ROSTER=parsed;
     try{ localStorage.setItem('roster_data',JSON.stringify(ROSTER)); }
     catch(e){ alert('Warning: your phone is not letting the app save the roster. It will be lost on refresh.'); }
+    scheduleAutoBackup();
     if(statusEl) statusEl.innerHTML='<span style="color:#16a34a;">✓ '+count+' links imported successfully</span>';
     toast(count+' roster links imported ✓');
     renderDash();
@@ -2469,6 +2483,7 @@ function saveState(){
   catch(e){
     if(!saveFailWarned){ saveFailWarned=true; alert('Warning: your phone is not letting the app save data. Changes will be lost when the app is closed or refreshed. Check you are not in a private/incognito tab and that the browser is not set to clear site data.'); }
   }
+  scheduleAutoBackup();
   // Sync to Firebase
   if(syncEnabled){
     if(syncRole==='owner') pushSync();
@@ -6099,6 +6114,7 @@ function renderStats(){
 // SETTINGS
 // ═══════════════════════════════════════════════════════════
 function loadSettingsUI(){
+  updateBackupUI();
   const now=today(); const mon=getMonday(now); const thisLink=getLinkForWeek(mon);
   const nameEl=document.getElementById('set-name');
   if(nameEl) nameEl.value=S.myName||'';
@@ -6175,6 +6191,91 @@ function saveLeave(){
   saveState(); renderPay(); toast('Leave updated');
 }
 
+// Restores a backup object (from a file or the online copy). Returns true if saved.
+function applyBackupData(p){
+  if(!p||typeof p!=='object'){ toast('Invalid backup'); return false; }
+  if(p.roster&&Object.keys(p.roster).length){
+    ROSTER=p.roster;
+    try{ localStorage.setItem('roster_data',JSON.stringify(ROSTER)); }catch(e){}
+  }
+  delete p.roster;
+  // Restore every saved field (same rules as loadState)
+  try{ localStorage.setItem(STATE_KEY,JSON.stringify(p)); }
+  catch(e){ alert('Your phone is not letting the app save data, so the backup cannot be kept. Check you are not in a private/incognito tab and that the browser is not set to clear site data.'); return false; }
+  loadState();
+  saveState(); loadSettingsUI(); refreshAllScreens();
+  return true;
+}
+
+// ── AUTO ONLINE BACKUP ──
+// One copy per phone, stored under roster/<backup code> and overwritten on every change.
+let autoBackupTimer=null, backupError='';
+function getBackupCode(){
+  let c=localStorage.getItem('backup_code');
+  if(!c){
+    const chars='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const rnd=new Uint32Array(8); crypto.getRandomValues(rnd);
+    let k=''; rnd.forEach(function(n,i){ k+=chars[n%chars.length]+(i===3?'-':''); });
+    c='BK-'+k;
+    try{ localStorage.setItem('backup_code',c); }catch(e){}
+  }
+  return c;
+}
+function hasRealData(){
+  return !!(S.anchorLink||Object.keys(S.days||{}).length||(S.swaps||[]).length||Object.keys(ROSTER||{}).length);
+}
+function scheduleAutoBackup(){
+  clearTimeout(autoBackupTimer);
+  autoBackupTimer=setTimeout(runAutoBackup,3000);
+}
+function runAutoBackup(){
+  // Never back up an empty app — it would replace a good copy with nothing
+  if(!hasRealData()) return;
+  if(!initFirebase()){ backupError='Waiting for internet connection'; updateBackupUI(); return; }
+  const savedAt=Date.now();
+  const payload={savedAt:savedAt,json:JSON.stringify(Object.assign({},S,{roster:ROSTER}))};
+  fbDb.ref('roster/'+getBackupCode()).set(payload).then(function(){
+    backupError='';
+    try{ localStorage.setItem('backup_last',String(savedAt)); }catch(e){}
+    updateBackupUI();
+  }).catch(function(e){
+    backupError='Online backup failed: '+(e&&e.message||e);
+    updateBackupUI();
+  });
+}
+function updateBackupUI(){
+  const codeEl=document.getElementById('backup-code');
+  if(codeEl) codeEl.textContent=getBackupCode();
+  const st=document.getElementById('backup-status');
+  if(!st) return;
+  const last=parseInt(localStorage.getItem('backup_last')||'0');
+  if(backupError){ st.style.color='#ef4444'; st.textContent=backupError; }
+  else{
+    st.style.color='var(--muted)';
+    st.textContent=last?'Last backed up: '+new Date(last).toLocaleString('en-AU'):'Not backed up yet';
+  }
+}
+function copyBackupCode(){
+  const code=getBackupCode();
+  if(navigator.clipboard) navigator.clipboard.writeText(code).then(function(){ toast('Code copied'); }).catch(function(){ toast(code); });
+  else toast(code);
+}
+function restoreOnlineBackup(){
+  const code=(document.getElementById('restore-code').value||'').trim().toUpperCase();
+  if(!code){ toast('Enter your backup code'); return; }
+  if(!initFirebase()){ toast('No connection — try again'); return; }
+  fbDb.ref('roster/'+code).once('value').then(function(snap){
+    const v=snap.val();
+    if(!v||!v.json){ toast('No backup found for that code'); return; }
+    if(!confirm('Restore backup from '+new Date(v.savedAt).toLocaleString('en-AU')+'?\nThis replaces everything on this phone.')) return;
+    let p;
+    try{ p=JSON.parse(v.json); }catch(e){ toast('Backup is damaged'); return; }
+    // Keep backing up to the same code from now on
+    try{ localStorage.setItem('backup_code',code); }catch(e){}
+    if(applyBackupData(p)) toast('Backup restored ✓');
+  }).catch(function(e){ toast('Restore failed: '+(e&&e.message||e)); });
+}
+
 function exportBackup(){
   const backup=Object.assign({},S,{roster:ROSTER});
   const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
@@ -6187,20 +6288,9 @@ function importBackup(input){
   const file=input.files[0]; if(!file) return;
   const r=new FileReader();
   r.onload=e=>{
-    try{
-      const p=JSON.parse(e.target.result);
-      // Restore every saved field (same rules as loadState)
-      if(p.roster&&Object.keys(p.roster).length){
-        ROSTER=p.roster;
-        try{ localStorage.setItem('roster_data',JSON.stringify(ROSTER)); }catch(e2){}
-        delete p.roster;
-      }
-      try{ localStorage.setItem(STATE_KEY,JSON.stringify(p)); }
-      catch(e2){ alert('Your phone is not letting the app save data, so the backup cannot be kept. Check you are not in a private/incognito tab and that the browser is not set to clear site data.'); return; }
-      loadState();
-      saveState(); loadSettingsUI(); refreshAllScreens();
-      toast('Backup restored');
-    }catch(e){ toast('Invalid backup file'); }
+    let p;
+    try{ p=JSON.parse(e.target.result); }catch(err){ toast('Invalid backup file'); return; }
+    if(applyBackupData(p)) toast('Backup restored');
   };
   r.readAsText(file);
   input.value='';
@@ -6377,6 +6467,7 @@ function initApp(){
   if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(function(){});
   loadState();
   loadRoster();
+  scheduleAutoBackup();
   syncEnabled=localStorage.getItem('syncEnabled')==='1';
   syncPin=localStorage.getItem('syncPin')||'';
   syncRole=localStorage.getItem('syncRole')||'owner';
