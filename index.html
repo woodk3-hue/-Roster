@@ -821,6 +821,9 @@ body.day-mode .toast{background:rgba(240,242,248,0.96);border-color:var(--border
 /* ── SAFE AREA ── */
 html{scroll-padding-top:env(safe-area-inset-top,0px);}
 
+/* Person 2 (Family Sync partner) only sees the roster: hide the Owner's admin bits on the Dash */
+body.partner-view .owner-only{display:none !important;}
+
 /* Small, faint creator credit (Settings footer and welcome page) */
 .credit-mark{font-size:10px;color:var(--muted);opacity:.55;text-align:center;letter-spacing:.02em;margin-top:2px;}
 
@@ -961,7 +964,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- Backup reminder (shown by updateBackupReminder) -->
-  <div id="backup-reminder" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
+  <div id="backup-reminder" class="owner-only" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
     <div style="font-size:13px;font-weight:700;">💾 Time to back up</div>
     <div id="backup-reminder-text" style="font-size:12px;color:var(--muted);margin:3px 0 10px;"></div>
     <div style="display:flex;gap:8px;">
@@ -999,7 +1002,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- Quick stats -->
-  <div class="dash-grid">
+  <div class="dash-grid owner-only">
     <div class="dash-stat">
       <div class="dash-stat-val" id="dash-claims-open">0</div>
       <div class="dash-stat-lbl">Open Claims</div>
@@ -1007,11 +1010,13 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- Upcoming Swap Email Cards -->
-  <div id="dash-swap-emails"></div>
+  <div id="dash-swap-emails" class="owner-only"></div>
 
   <!-- Alerts -->
-  <div class="section-label">Alerts</div>
-  <div id="dash-alerts"><div class="empty-state" style="padding:16px;">No alerts — all good! 👍</div></div>
+  <div class="owner-only">
+    <div class="section-label">Alerts</div>
+    <div id="dash-alerts"><div class="empty-state" style="padding:16px;">No alerts — all good! 👍</div></div>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════
@@ -2720,6 +2725,7 @@ function updateSyncUI(){
   if(partnerBtn) partnerBtn.style.background=syncRole==='partner'?'var(--accent)':'';
   if(partnerBtn) partnerBtn.style.color=syncRole==='partner'?'#000':'';
   if(pinEl&&syncPin) pinEl.value=syncPin;
+  document.body.classList.toggle('partner-view',!!(syncEnabled&&syncRole==='partner'));
   // Show/hide tabs based on role
   const partnerHiddenTabs=['nav-swaps','nav-claims','nav-pay','nav-contacts','nav-stats'];
   partnerHiddenTabs.forEach(function(id){
