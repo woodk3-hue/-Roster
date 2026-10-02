@@ -912,6 +912,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Pick your exported backup file to bring your data back.</div>
       <button class="btn" onclick="document.getElementById('import-file').click()">⬆ Restore from backup file</button>
     </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+      <div style="font-size:13px;font-weight:700;">Viewing a partner's roster?</div>
+      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">If your partner uses Shift Roster with Family Sync, you only need their sync PIN — no roster PDF or link.</div>
+      <button class="btn" onclick="setupAsPartner()">👀 Connect as Person 2</button>
+    </div>
     <div class="credit-mark" style="margin-top:32px;">Made by K. Wood with Claude</div>
   </div>
 </div>
@@ -2042,6 +2047,7 @@ async function importRosterPDF(input){
     }
     const asAt=(text.match(/AS AT\s+(\d{2}\/\d{2}\/\d{4})/)||[])[1]||'';
     try{ localStorage.setItem('roster_asat',asAt); }catch(e){}
+    pushRosterTable();
     scheduleAutoBackup();
     let msg='✓ '+count+' links imported'+(asAt?' (roster as at '+asAt+')':'');
     if(hadRoster&&oldSize!==newSize) msg+='<br>Roster now has '+newSize+' links (was '+oldSize+').';
@@ -2408,6 +2414,7 @@ function disableSync(){
   if(syncRole==='owner'&&syncPin&&fbDb&&confirm('Also delete your shared roster from online?\n\nOK = delete it (your partner will stop seeing it)\nCancel = keep it online')){
     fbDb.ref('roster/'+syncPin).remove().then(function(){ toast('Online copy deleted'); }).catch(function(){ toast('Could not delete the online copy — check your connection'); });
   }
+  if(syncPin) localStorage.removeItem('roster_sent_'+syncPin);
   syncEnabled=false;
   syncPin='';
   localStorage.removeItem('syncPin');
@@ -2619,6 +2626,17 @@ function showSetupIfNeeded(){
   document.getElementById('setup-date').value=fmtDate(getMonday(today()));
   el.style.display='block';
 }
+// Person 2 skips setup: everything comes from the Owner over Family Sync
+function setupAsPartner(){
+  document.getElementById('setup-screen').style.display='none';
+  setRole('partner');
+  showScreen('settings');
+  setTimeout(function(){
+    const pin=document.getElementById('sync-pin');
+    if(pin){ pin.scrollIntoView({behavior:'smooth',block:'center'}); pin.focus(); }
+  },150);
+  toast('Enter your partner\'s sync PIN and tap Connect');
+}
 function finishSetup(){
   const name=(document.getElementById('setup-name').value||'').trim();
   const link=parseInt(document.getElementById('setup-link').value);
@@ -2714,10 +2732,39 @@ function startSync(){
     if(data.leaveAdj) S.leaveAdj=data.leaveAdj;
     if(data.settings&&data.settings.cph>0) Object.assign(S.settings,data.settings);
     if(data.appointments) S.appointments=data.appointments;
+    // Person 2 gets the Owner's imported roster, so they never need the PDF
+    if(syncRole!=='owner'&&data.rosterTable&&data.rosterTable.json&&data.rosterTable.sig!==localStorage.getItem('roster_sync_sig')){
+      try{
+        ROSTER=JSON.parse(data.rosterTable.json);
+        localStorage.setItem('roster_data',data.rosterTable.json);
+        localStorage.setItem('roster_sync_sig',data.rosterTable.sig);
+        if(data.rosterTable.asAt) localStorage.setItem('roster_asat',data.rosterTable.asAt);
+      }catch(e){ console.warn('Synced roster could not be read',e); }
+    }
     localStorage.setItem(STATE_KEY,JSON.stringify(S));
     refreshAllScreens();
   };
   fbRef.on('value',fbListener);
+  if(syncRole==='owner') pushRosterTable();
+}
+
+// Short fingerprint of a string (to tell whether the roster changed)
+function hashString(str){
+  let h=0x811c9dc5;
+  for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0; }
+  return h.toString(16)+'-'+str.length;
+}
+// Owner: share the imported roster table with Person 2. Only sent when it has changed,
+// as it is much bigger than the rest of the synced data.
+function pushRosterTable(){
+  if(!syncEnabled||syncRole!=='owner'||!fbDb||!syncPin) return;
+  if(!Object.keys(ROSTER||{}).length) return;
+  const json=JSON.stringify(ROSTER), sig=hashString(json);
+  const sentKey='roster_sent_'+syncPin;
+  if(localStorage.getItem(sentKey)===sig) return;
+  fbDb.ref('roster/'+syncPin+'/rosterTable').set({sig:sig,json:json,asAt:localStorage.getItem('roster_asat')||''})
+    .then(function(){ try{ localStorage.setItem(sentKey,sig); }catch(e){} })
+    .catch(function(e){ console.error('Roster share failed:',e); });
 }
 
 function pushSync(){
@@ -2742,7 +2789,7 @@ function pushSync(){
     lastUpdated:Date.now(),
     lastUpdatedBy:syncRole
   };
-  ref.set(payload).then(function(){
+  ref.update(JSON.parse(JSON.stringify(payload))).then(function(){
     setTimeout(function(){ isSyncPushing=false; },1000);
   }).catch(function(e){
     isSyncPushing=false;
