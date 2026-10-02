@@ -342,6 +342,37 @@ html,body{
   cursor:pointer;
 }
 .dash-link-sub{font-size:11px;color:var(--early);font-weight:600;}
+
+/* ── TODAY / NEXT SHIFT CARDS ── */
+.shift-preview-card{
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:16px;
+  padding:14px;
+  cursor:pointer;
+  box-shadow:var(--card-shadow);
+  transition:background 0.15s;
+}
+.shift-preview-card:active{background:var(--surface2);}
+#dash-today-shift{border-color:rgba(245,158,11,0.4);}
+#dash-next-shift{border-color:rgba(59,130,246,0.3);}
+
+/* ── OPEN CLAIMS CARD ── */
+.dash-grid{margin-bottom:10px;}
+.dash-stat{
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:16px;
+  padding:14px 16px;
+  box-shadow:var(--card-shadow);
+  display:flex;align-items:center;gap:12px;
+}
+.dash-stat-val{
+  font-size:28px;font-weight:900;
+  color:var(--accent);
+  line-height:1;
+}
+.dash-stat-lbl{font-size:12px;color:var(--muted);font-weight:600;}
 .dash-shift-card{
   background:var(--surface);
   border:1px solid var(--border2);
@@ -656,6 +687,17 @@ body.day-mode .toast{background:rgba(240,242,248,0.96);border-color:var(--border
 /* ── THEMED CHECKBOX ── */
 .themed-cb{accent-color:var(--accent);}
 
+/* ── PAY CARDS ── */
+.pay-card{
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:14px;
+  padding:12px 10px;
+  box-shadow:var(--card-shadow);
+}
+.pay-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;}
+.pay-sub{font-size:10px;color:var(--muted);margin-top:4px;}
+
 /* ── PAY TABLE ── */
 .pay-row{
   display:flex;justify-content:space-between;
@@ -677,6 +719,19 @@ body.day-mode .toast{background:rgba(240,242,248,0.96);border-color:var(--border
   margin-bottom:8px;
 }
 
+/* ── SEARCH BAR ── */
+.search-bar{
+  display:flex;align-items:center;gap:10px;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:12px;
+  padding:10px 14px;
+  margin-bottom:12px;
+}
+.search-bar svg{width:16px;height:16px;stroke:var(--muted);fill:none;stroke-width:2;flex-shrink:0;}
+.search-bar input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:14px;}
+.search-bar input::placeholder{color:var(--muted);}
+
 /* ── PEOPLE / CONTACTS ── */
 .contact-row{
   display:flex;align-items:center;gap:12px;
@@ -692,6 +747,16 @@ body.day-mode .toast{background:rgba(240,242,248,0.96);border-color:var(--border
   font-weight:700;font-size:14px;
   color:var(--accent);
   flex-shrink:0;
+}
+.contact-action-btn{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:5px 12px;border-radius:20px;
+  font-size:12px;font-weight:600;
+  text-decoration:none;
+  background:var(--surface2);
+  color:var(--accent2);
+  border:1px solid var(--border2);
+  margin-right:6px;margin-top:4px;
 }
 
 /* ── BLP/SLP TOGGLE ── */
@@ -942,18 +1007,19 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
   </div>
 </div>
 
-  <!-- Day detail panel -->
-  <div id="day-panel" class="day-panel">
-    <div class="day-panel-title">
-      <span id="day-panel-title-text">—</span>
-      <button class="btn btn-icon btn-sm" onclick="closeDayPanel()">✕</button>
-    </div>
-    <div id="day-panel-content"></div>
-    <div id="day-panel-appts"></div>
-    <div style="margin-top:10px;display:flex;gap:8px;">
-      <button class="btn btn-accent" style="flex:1;" id="day-panel-edit-btn">Edit Shift</button>
-      <button class="btn" onclick="openApptModal(dayPanelDate)">+ Event</button>
-    </div>
+</div>
+
+<!-- DAY PANEL — fixed at bottom, outside all screens -->
+<div id="day-panel" class="day-panel">
+  <div class="day-panel-title">
+    <span id="day-panel-title-text">—</span>
+    <button class="btn btn-icon btn-sm" onclick="closeDayPanel()">✕</button>
+  </div>
+  <div id="day-panel-content"></div>
+  <div id="day-panel-appts"></div>
+  <div style="margin-top:10px;display:flex;gap:8px;">
+    <button class="btn btn-accent" style="flex:1;" id="day-panel-edit-btn">Edit Shift</button>
+    <button class="btn" onclick="openApptModal(dayPanelDate)">+ Event</button>
   </div>
 </div>
 
@@ -1211,8 +1277,10 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
 <div id="screen-contacts" class="screen">
   <div class="screen-header">
     <div class="screen-title">Contacts</div>
-    <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
-    <button class="btn btn-sm btn-accent" onclick="openContactModal()">+ Add</button>
+    <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+      <button class="btn btn-sm btn-accent" onclick="openContactModal()">+ Add</button>
+      <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+    </div>
   </div>
 
   <!-- Three separate import buttons — each hardcoded to its tab -->
@@ -2723,7 +2791,7 @@ function renderDash(){
   if(visibleAlerts.length){
     alEl.innerHTML=visibleAlerts.map(function(a){
       const key=(a.key||a.msg).replace(/'/g,'');
-      return '<div class="alert-row"><div class="alert-dot '+a.dot+'"></div><div style="flex:1;">'+a.msg+'</div><button data-akey="'+key+'" onclick="dismissAlert(this.getAttribute(\'data-akey\'))" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;">×</button></div>';
+      return '<div class="alert-card"><div class="dot '+a.dot+'"></div><div style="flex:1;font-size:13px;">'+a.msg+'</div><button data-akey="'+key+'" onclick="dismissAlert(this.getAttribute(\'data-akey\'))" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;">×</button></div>';
     }).join('');
   } else {
     alEl.innerHTML='<div class="empty-state" style="padding:16px;">No alerts — all good! ✓</div>';
