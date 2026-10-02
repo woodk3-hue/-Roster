@@ -124,10 +124,10 @@ html,body{
 .screen{
   display:none;
   position:absolute;inset:0;
-  bottom:var(--nav-height);
+  bottom:0;
   overflow-y:auto;
   overflow-x:hidden;
-  padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 8px);
+  padding:16px 16px calc(var(--nav-height) + 8px);
   -webkit-overflow-scrolling:touch;
   opacity:0;
   transition:opacity 0.22s ease;
@@ -154,18 +154,21 @@ html,body{
 #screen-stats  { background:var(--grad-stats); }
 #screen-settings{ background:var(--grad-settings); }
 
-/* ── BOTTOM NAV ── */
+/* ── BOTTOM NAV — FLOATING PILL ── */
 #bottom-nav{
   position:fixed;
-  bottom:0;left:0;right:0;
-  height:calc(var(--nav-height) + env(safe-area-inset-bottom,0px));
-  padding-bottom:env(safe-area-inset-bottom,0px);
+  bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  left:12px;right:12px;
+  height:60px;
   background:var(--nav-bg);
-  border-top:1px solid var(--nav-border);
+  border:1px solid var(--nav-border);
+  border-radius:24px;
   display:flex;align-items:center;
-  backdrop-filter:blur(20px);
-  -webkit-backdrop-filter:blur(20px);
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
   z-index:100;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4),0 2px 8px rgba(0,0,0,0.2);
+  --nav-height:84px;
 }
 .nav-btn{
   flex:1;display:flex;flex-direction:column;
@@ -467,20 +470,22 @@ html,body{
 /* ── DAY PANEL ── */
 #day-panel{
   position:fixed;
-  bottom:var(--nav-height);
-  left:0;right:0;
-  background:var(--bg2);
-  border-top:1px solid var(--border2);
-  border-radius:20px 20px 0 0;
-  padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 16px);
-  z-index:50;
-  transform:translateY(100%);
-  transition:transform 0.28s cubic-bezier(0.34,1.2,0.64,1);
-  max-height:70vh;
+  bottom:calc(var(--nav-height) + 8px);
+  left:12px;right:12px;
+  background:rgba(15,22,41,0.96);
+  border:1px solid var(--border2);
+  border-radius:20px;
+  padding:14px 16px;
+  z-index:90;
+  display:none;
+  max-height:55vh;
   overflow-y:auto;
-  box-shadow:0 -8px 40px rgba(0,0,0,0.4);
+  box-shadow:0 4px 32px rgba(0,0,0,0.5);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
 }
-#day-panel.open{transform:translateY(0);}
+#day-panel.open{display:block;}
+body.day-mode #day-panel{background:rgba(240,242,248,0.97);}
 .day-panel-date{
   font-size:13px;font-weight:700;
   color:var(--muted);
@@ -1282,6 +1287,11 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
     </div>
     <div style="font-size:11px;color:var(--accent);min-height:16px;margin-bottom:10px;" id="set-link-preview"></div>
     <button class="btn btn-accent" onclick="saveRosterSettings()">Save Link</button>
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Import your depot's roster file to populate shift data.</div>
+    <div id="roster-import-status" style="font-size:12px;margin-bottom:8px;"></div>
+    <label for="roster-pdf-input" class="btn btn-accent" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">📄 Import Roster File (.txt or .pdf)</label>
+    <input type="file" id="roster-pdf-input" accept=".txt,.pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importRosterPDF(this)">
   </div>
 
   <div class="settings-section">
@@ -1365,20 +1375,6 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
   </div>
 
   <div class="settings-section">
-    <div class="settings-section-title">Recycle Bin</div>
-    <div id="bin-list"></div>
-    <div style="margin-top:8px;font-size:11px;color:var(--muted);">Items auto-deleted after 30 days.</div>
-  </div>
-
-  <div class="settings-section">
-    <div class="settings-section-title">Roster Data</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Import your depot's roster PDF to populate link data.</div>
-    <div id="roster-import-status" style="font-size:12px;margin-bottom:8px;"></div>
-    <label for="roster-pdf-input" class="btn btn-accent" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">📄 Import Roster File (.txt or .pdf)</label>
-    <input type="file" id="roster-pdf-input" accept=".txt,.pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importRosterPDF(this)">
-  </div>
-
-  <div class="settings-section">
     <div class="settings-section-title">Family Sync</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Share your roster with your partner in real time.</div>
     <div class="form-group">
@@ -1400,8 +1396,42 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
   </div>
 
   <div class="settings-section">
+    <div class="settings-section-title">Help</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Experiencing an issue? Send a report.</div>
+    <textarea class="form-textarea" id="report-text" placeholder="Describe the problem…" style="margin-bottom:8px;"></textarea>
+    <button class="btn btn-accent btn-sm" style="width:100%;" onclick="submitErrorReport()">📨 Send Report</button>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">Recycle Bin</div>
+    <div id="bin-list"></div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted);">Items auto-deleted after 30 days.</div>
+  </div>
+
+  <div class="settings-section">
     <div class="settings-section-title">Danger Zone</div>
     <button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
+  </div>
+
+  <!-- ADMIN SECTION — hidden tap trigger -->
+  <div id="admin-trigger" onclick="handleAdminTap()" style="text-align:center;padding:8px;cursor:pointer;user-select:none;">
+    <span style="font-size:10px;color:rgba(255,255,255,0.1);">v2.0</span>
+  </div>
+
+  <div id="admin-section" style="display:none;">
+    <div class="settings-section" style="border-color:rgba(245,158,11,0.4);">
+      <div class="settings-section-title" style="color:#f59e0b;">⚙ Admin Panel</div>
+      <div style="margin-bottom:12px;">
+        <div class="form-label">Change User Access PIN</div>
+        <div style="display:flex;gap:8px;">
+          <input type="password" class="form-input" id="admin-new-pin" placeholder="New PIN" style="flex:1;">
+          <button class="btn btn-accent btn-sm" onclick="adminChangePin()">Update</button>
+        </div>
+      </div>
+      <button class="btn btn-sm" style="width:100%;margin-bottom:8px;" onclick="adminShowUsers()">👥 View Users</button>
+      <button class="btn btn-sm" style="width:100%;margin-bottom:8px;" onclick="adminShowErrors()">🐛 View Error Reports</button>
+      <div id="admin-content" style="margin-top:12px;font-size:12px;"></div>
+    </div>
   </div>
 </div>
 
@@ -1445,7 +1475,7 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
 ════════════════════════════════════════ -->
 
 <!-- Edit Shift Modal -->
-<div class="modal-overlay" id="shift-modal">
+<div class="modal-overlay" id="shift-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title" id="shift-modal-title">Edit Shift</div>
@@ -1498,8 +1528,8 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
     </div>
     <div style="font-size:12px;color:var(--accent);min-height:18px;margin-bottom:8px;" id="sm-duration"></div>
     <div class="form-group">
-      <label class="form-label">Guard(s) Worked With</label>
-      <textarea class="form-textarea" id="sm-guards" placeholder="One per line&#10;e.g. Smith J&#10;Jones K (took over at Roma St)"></textarea>
+      <label class="form-label" id="sm-crew-label">Other Crew</label>
+      <textarea class="form-textarea" id="sm-guards" placeholder="One per line&#10;e.g. Smith J&#10;Jones K"></textarea>
     </div>
     <div class="form-group">
       <label class="form-label">Notes</label>
@@ -1518,7 +1548,7 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
 </div>
 
 <!-- Claim Modal -->
-<div class="modal-overlay" id="claim-modal">
+<div class="modal-overlay" id="claim-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title" id="claim-modal-title">New Claim</div>
@@ -1560,7 +1590,7 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
 </div>
 
 <!-- Contact Modal -->
-<div class="modal-overlay" id="contact-modal">
+<div class="modal-overlay" id="contact-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title" id="contact-modal-title">Add Contact</div>
@@ -1589,7 +1619,7 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
 </div>
 
 <!-- Swap Modal -->
-<div class="modal-overlay" id="swap-modal">
+<div class="modal-overlay" id="swap-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title">Record Swap</div>
@@ -1633,7 +1663,7 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
 </div>
 
 <!-- Leave Adjustment Modal -->
-<div class="modal-overlay" id="leave-adj-modal">
+<div class="modal-overlay" id="leave-adj-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title">Adjust Leave Balance</div>
@@ -1693,7 +1723,7 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
 </div>
 
 <!-- Leave Modal -->
-<div class="modal-overlay" id="leave-modal">
+<div class="modal-overlay" id="leave-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title" id="leave-modal-title">Add Planned Leave</div>
@@ -1728,7 +1758,7 @@ if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type
 </div>
 
 <!-- Appointment Modal -->
-<div class="modal-overlay" id="appt-modal">
+<div class="modal-overlay" id="appt-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title" id="appt-modal-title">Add Appointment</div>
@@ -1948,6 +1978,7 @@ let S = {
   anchorLink: null,
   anchorDate: null,
   myName: '',
+  myRole: 'driver',
   days: {},       // dateStr → {type,job,start,end,guards,notes,swapFrom,swapTo,swapPartner,otJob}
   swaps: [],      // [{id,wc,linkGiven,linkReceived,driver,scope,dayIdx}]
   claims: [],     // [{id,type,date,job,incident,submitted,subDate}]
@@ -2037,6 +2068,164 @@ function disableSync(){
   fbRef=null;
   updateSyncUI();
   toast('Sync disconnected');
+}
+
+// ═══════════════════════════════════════════════════
+// PIN & ADMIN
+// ═══════════════════════════════════════════════════
+const ADMIN_PIN='SHIFT2024ADMIN';
+let adminTapCount=0, adminTapTimer=null;
+
+function handleAdminTap(){
+  adminTapCount++;
+  clearTimeout(adminTapTimer);
+  adminTapTimer=setTimeout(function(){ adminTapCount=0; },1500);
+  if(adminTapCount>=5){
+    adminTapCount=0;
+    const entered=prompt('Admin PIN:');
+    if(entered===ADMIN_PIN){
+      const sec=document.getElementById('admin-section');
+      if(sec) sec.style.display=sec.style.display==='none'?'block':'none';
+    } else if(entered!==null){
+      alert('Incorrect admin PIN');
+    }
+  }
+}
+
+function getUserAccessPin(){ return localStorage.getItem('access_pin')||''; }
+
+function checkPin(){
+  const input=document.getElementById('pin-input');
+  const err=document.getElementById('pin-error');
+  const val=(input?input.value:'').trim();
+  const storedPin=getUserAccessPin();
+  if(!storedPin||val===storedPin){
+    localStorage.setItem('pin_verified','1');
+    const ps=document.getElementById('pin-screen');
+    if(ps) ps.style.display='none';
+    initApp();
+    registerUser();
+  } else {
+    if(err) err.style.display='block';
+    if(input){ input.value=''; input.style.border='1px solid #ef4444';
+      setTimeout(function(){ input.style.border='1px solid rgba(255,255,255,0.15)'; },600); }
+  }
+}
+
+function registerUser(){
+  try{
+    const db=firebase.database();
+    const deviceId=localStorage.getItem('device_id')||(function(){
+      const id='dev_'+Math.random().toString(36).substr(2,12);
+      localStorage.setItem('device_id',id); return id;
+    })();
+    const ua=navigator.userAgent;
+    const device=/iPhone|iPad/.test(ua)?'iPhone':/Android/.test(ua)?'Android':'Desktop';
+    const now=new Date().toISOString();
+    const ref=db.ref('users/'+deviceId);
+    ref.once('value',function(snap){
+      const data={name:S.myName||'Unknown',device:device,lastActive:now,role:S.myRole||'driver'};
+      if(!snap.exists()) data.firstSeen=now;
+      ref.update(data);
+    });
+  }catch(e){}
+}
+
+function adminChangePin(){
+  const input=document.getElementById('admin-new-pin');
+  const val=(input?input.value:'').trim();
+  if(!val){ toast('Enter a new PIN'); return; }
+  localStorage.setItem('access_pin',val);
+  if(input) input.value='';
+  toast('Access PIN updated ✓');
+}
+
+function adminShowUsers(){
+  const el=document.getElementById('admin-content');
+  if(!el) return;
+  el.innerHTML='<div style="color:var(--muted);">Loading...</div>';
+  try{
+    firebase.database().ref('users').once('value',function(snap){
+      const users=snap.val()||{};
+      const rows=Object.values(users).sort(function(a,b){ return (b.lastActive||'').localeCompare(a.lastActive||''); });
+      if(!rows.length){ el.innerHTML='<div style="color:var(--muted);">No users yet.</div>'; return; }
+      el.innerHTML='<div style="font-weight:700;margin-bottom:8px;">'+rows.length+' users</div>'+
+        rows.map(function(u){
+          return '<div style="padding:8px 0;border-bottom:1px solid var(--border);">'+
+            '<div style="font-weight:700;">'+(u.name||'Unknown')+'</div>'+
+            '<div style="font-size:11px;color:var(--muted);">'+(u.device||'?')+' · '+(u.role||'?')+
+            ' · Last: '+(u.lastActive?u.lastActive.slice(0,10):'?')+'</div></div>';
+        }).join('');
+    });
+  }catch(e){ el.innerHTML='<div style="color:#ef4444;">Firebase not connected</div>'; }
+}
+
+function adminShowErrors(){
+  const el=document.getElementById('admin-content');
+  if(!el) return;
+  el.innerHTML='<div style="color:var(--muted);">Loading...</div>';
+  try{
+    firebase.database().ref('errors').orderByChild('ts').limitToLast(20).once('value',function(snap){
+      const errs=snap.val()||{};
+      const rows=Object.entries(errs).map(function(e){ return Object.assign({id:e[0]},e[1]); })
+        .sort(function(a,b){ return (b.ts||'').localeCompare(a.ts||''); });
+      if(!rows.length){ el.innerHTML='<div style="color:var(--muted);">No errors reported.</div>'; return; }
+      el.innerHTML=rows.map(function(r){
+        return '<div style="padding:8px 0;border-bottom:1px solid var(--border);">'+
+          '<div style="font-weight:700;font-size:11px;color:#ef4444;">'+(r.type||'Error')+'</div>'+
+          '<div style="font-size:11px;">'+(r.msg||'').slice(0,100)+'</div>'+
+          '<div style="font-size:10px;color:var(--muted);">'+(r.user||'?')+' · '+(r.ts?r.ts.slice(0,16).replace('T',' '):'?')+'</div>'+
+          '<button data-errid="'+r.id+'" onclick="resolveError(this)" style="font-size:10px;padding:2px 8px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:pointer;margin-top:4px;">✓ Resolve</button>'+
+          '</div>';
+      }).join('');
+    });
+  }catch(e){ el.innerHTML='<div style="color:#ef4444;">Firebase not connected</div>'; }
+}
+
+function resolveError(btn){
+  const id=btn.getAttribute('data-errid');
+  try{ firebase.database().ref('errors/'+id).remove(); }catch(e){}
+  adminShowErrors(); toast('Error resolved ✓');
+}
+
+function submitErrorReport(){
+  const ta=document.getElementById('report-text');
+  const msg=(ta?ta.value:'').trim();
+  if(!msg){ toast('Enter a description'); return; }
+  try{
+    firebase.database().ref('errors').push({
+      type:'User Report',msg:msg,user:S.myName||'Unknown',
+      device:navigator.userAgent.slice(0,60),
+      ts:new Date().toISOString(),screen:currentScreen||'unknown'
+    }).then(function(){ toast('Report sent ✓'); if(ta) ta.value=''; });
+  }catch(e){ toast('Could not send — check connection'); }
+}
+
+function logError(err,context){
+  try{
+    firebase.database().ref('errors').push({
+      type:'Auto: '+(err.name||'Error'),msg:(err.message||'').slice(0,200),
+      user:S.myName||'Unknown',screen:context||currentScreen||'unknown',
+      device:navigator.userAgent.slice(0,60),ts:new Date().toISOString()
+    });
+  }catch(e){}
+}
+
+window.addEventListener('error',function(e){
+  if(e.error) logError(e.error,'global');
+});
+
+function setMyRole(role){
+  S.myRole=role; saveState();
+  const rdb=document.getElementById('role-driver-btn');
+  const rgb=document.getElementById('role-guard-btn');
+  if(rdb){rdb.style.background=role==='driver'?'var(--accent)':'';rdb.style.color=role==='driver'?'#000':'';}
+  if(rgb){rgb.style.background=role==='guard'?'var(--accent)':'';rgb.style.color=role==='guard'?'#000':'';}
+  toast(role==='driver'?'Role set to Driver':'Role set to Guard');
+}
+
+function getCrewLabel(){
+  return (S.myRole==='guard')?'Driver(s) Worked With':'Guard(s) Worked With';
 }
 
 function setRole(role){
@@ -2191,6 +2380,7 @@ function loadState(){
       if(p.anchorLink != null) S.anchorLink = p.anchorLink;
       if(p.anchorDate != null) S.anchorDate = p.anchorDate;
       if(p.myName) S.myName = p.myName;
+      if(p.myRole) S.myRole = p.myRole;
       if(p.days) S.days = p.days;
       if(p.swaps) S.swaps = p.swaps;
       if(p.claims) S.claims = p.claims;
@@ -3024,7 +3214,7 @@ function tapCalDay(ds){
     '<span style="margin-left:8px;font-size:11px;color:var(--muted);">W/C '+fmtDDMM(mon)+'</span>';
   document.getElementById('day-panel-edit-btn').onclick=function(){ openShiftModal(ds); };
   renderDayPanel(ds);
-  document.getElementById('day-panel').classList.add('open');
+  const dpEl=document.getElementById('day-panel'); if(dpEl){dpEl.style.display='block';dpEl.classList.add('open');}
   setTimeout(function(){ document.getElementById('day-panel').scrollIntoView({behavior:'smooth',block:'nearest'}); },50);
 }
 
@@ -3137,11 +3327,11 @@ function openApptModal(ds, editId){
   document.getElementById('appt-time').value=existing?existing.time||'':'';
   document.getElementById('appt-notes').value=existing?existing.notes||'':'';
   (function(){const _ge=document.getElementById('appt-delete-btn');if(_ge)_ge.style.display=editId?'':'none';})();
-  document.getElementById('appt-modal').classList.add('open');
+  (function(){const _m=document.getElementById('appt-modal');if(_m){_m.style.display='flex';_m.classList.add('open');}})();
 }
 
 function closeApptModal(){
-  document.getElementById('appt-modal').classList.remove('open');
+  (function(){const _m=document.getElementById('appt-modal');if(_m){_m.style.display='none';_m.classList.remove('open');}})();
 }
 
 function saveAppt(){
@@ -3173,7 +3363,8 @@ function deleteAppt(){
 
 function closeDayPanel(){
   dayPanelDate=null;
-  document.getElementById('day-panel').classList.remove('open');
+  const dpEl=document.getElementById('day-panel');
+  if(dpEl){dpEl.style.display='none';dpEl.classList.remove('open');}
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3218,9 +3409,9 @@ function openShiftModal(ds){
       blpRow.style.display='none';
     }
   }
-  document.getElementById('shift-modal').classList.add('open');
+  (function(){const _m=document.getElementById('shift-modal');if(_m){_m.style.display='flex';_m.classList.add('open');}})();
 }
-function closeShiftModal(){ document.getElementById('shift-modal').classList.remove('open'); }
+function closeShiftModal(){ (function(){const _m=document.getElementById('shift-modal');if(_m){_m.style.display='none';_m.classList.remove('open');}})(); }
 function onShiftTypeChange(){
   const t=document.getElementById('sm-type').value;
   (function(){const _ge=document.getElementById('sm-single-day-swap-fields');if(_ge)_ge.style.display=(t==='single_day_swap')?'block':'none';})();
@@ -3822,9 +4013,9 @@ function openSwapModal(){
   (function(){const _ge=document.getElementById('swm-preview');if(_ge)_ge.style.display='none';})();
   setSwapModalScope('week');
   populateSwapDaySelect(mon,link);
-  document.getElementById('swap-modal').classList.add('open');
+  (function(){const _m=document.getElementById('swap-modal');if(_m){_m.style.display='flex';_m.classList.add('open');}})();
 }
-function closeSwapModal(){ document.getElementById('swap-modal').classList.remove('open'); }
+function closeSwapModal(){ (function(){const _m=document.getElementById('swap-modal');if(_m){_m.style.display='none';_m.classList.remove('open');}})(); }
 
 function setSwapModalScope(s){
   swapModalScope=s;
@@ -4698,10 +4889,10 @@ function openClaimModal_real(id){
   onClaimTypeChange();
   toggleClaimSubDate();
   document.getElementById('cm-submitted').onchange=toggleClaimSubDate;
-  document.getElementById('claim-modal').classList.add('open');
+  (function(){const _m=document.getElementById('claim-modal');if(_m){_m.style.display='flex';_m.classList.add('open');}})();
 }
 function editClaim(id){ openClaimModal(id); }
-function closeClaimModal(){ document.getElementById('claim-modal').classList.remove('open'); }
+function closeClaimModal(){ (function(){const _m=document.getElementById('claim-modal');if(_m){_m.style.display='none';_m.classList.remove('open');}})(); }
 
 function onClaimTypeChange(){
   const t=document.getElementById('cm-type').value;
@@ -4808,9 +4999,9 @@ function openLeaveModal(id){
   document.getElementById('lm-end').value=(lv&&lv.end)||'';
   document.getElementById('lm-notes').value=(lv&&lv.notes)||'';
   (function(){const _ge=document.getElementById('lm-delete-btn');if(_ge)_ge.style.display=id?'':'none';})();
-  document.getElementById('leave-modal').classList.add('open');
+  (function(){const _m=document.getElementById('leave-modal');if(_m){_m.style.display='flex';_m.classList.add('open');}})();
 }
-function closeLeaveModal(){ document.getElementById('leave-modal').classList.remove('open'); }
+function closeLeaveModal(){ (function(){const _m=document.getElementById('leave-modal');if(_m){_m.style.display='none';_m.classList.remove('open');}})(); }
 
 function saveLeaveEntry(){
   const type=document.getElementById('lm-type').value;
@@ -5328,9 +5519,9 @@ function openLeaveAdjModal(){
   document.getElementById('lam-hours').value='';
   document.getElementById('lam-date').value=fmtDate(today());
   document.getElementById('lam-reason').value='';
-  document.getElementById('leave-adj-modal').classList.add('open');
+  (function(){const _m=document.getElementById('leave-adj-modal');if(_m){_m.style.display='flex';_m.classList.add('open');}})();
 }
-function closeLeaveAdjModal(){ document.getElementById('leave-adj-modal').classList.remove('open'); }
+function closeLeaveAdjModal(){ (function(){const _m=document.getElementById('leave-adj-modal');if(_m){_m.style.display='none';_m.classList.remove('open');}})(); }
 
 function saveLeaveAdj(){
   const leaveType=document.getElementById('lam-leave-type').value;
@@ -5684,9 +5875,9 @@ function openContactModal(id){
   document.getElementById('ctm-name').value=(c&&c.name)||'';
   document.getElementById('ctm-phone').value=(c&&c.phone)||'';
   (function(){const _ge=document.getElementById('ctm-delete-btn');if(_ge)_ge.style.display=id?'':'none';})();
-  document.getElementById('contact-modal').classList.add('open');
+  (function(){const _m=document.getElementById('contact-modal');if(_m){_m.style.display='flex';_m.classList.add('open');}})();
 }
-function closeContactModal(){ document.getElementById('contact-modal').classList.remove('open'); }
+function closeContactModal(){ (function(){const _m=document.getElementById('contact-modal');if(_m){_m.style.display='none';_m.classList.remove('open');}})(); }
 
 function saveContact(){
   const section=document.getElementById('ctm-section').value;
@@ -5937,6 +6128,12 @@ function loadSettingsUI(){
   document.getElementById('set-anchor-date').value=S.anchorDate||fmtDate(mon);
   document.getElementById('set-cph').value=S.settings.cph;
   if(document.getElementById('set-ph')) document.getElementById('set-ph').value=S.settings.phRate||150;
+  const rdb=document.getElementById('role-driver-btn');
+  const rgb=document.getElementById('role-guard-btn');
+  if(rdb) rdb.style.background=(S.myRole==='driver')?'var(--accent)':'';
+  if(rdb) rdb.style.color=(S.myRole==='driver')?'#000':'';
+  if(rgb) rgb.style.background=(S.myRole==='guard')?'var(--accent)':'';
+  if(rgb) rgb.style.color=(S.myRole==='guard')?'#000':'';
   document.getElementById('set-ot').value=S.settings.otMult;
   document.getElementById('set-guar').value=S.settings.guarHrs;
   document.getElementById('set-cycle').value=S.settings.cycleHrs;
@@ -5981,6 +6178,7 @@ function savePaySettings(){
   const f=(id,def)=>{const v=parseFloat(document.getElementById(id).value);return isNaN(v)?def:v;};
   S.settings.cph=f('set-cph',66.50);
   S.settings.phRate=f('set-ph',150);
+  // myRole saved via setMyRole() button
   S.settings.otMult=f('set-ot',1.5);
   S.settings.guarHrs=f('set-guar',80);
   S.settings.cycleHrs=f('set-cycle',80.43);
@@ -6107,7 +6305,7 @@ function toast(msg){
 // Modal close on backdrop tap
 ['shift-modal','claim-modal','contact-modal','swap-modal','leave-modal','leave-adj-modal','appt-modal'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){
-    if(e.target===this) this.classList.remove('open');
+    if(e.target===this){this.style.display='none';this.classList.remove('open');}
   });
 });
 
@@ -6195,26 +6393,43 @@ function hideInstallBanner(){
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
-loadState();
-loadRoster();
-// Load sync prefs immediately from localStorage (fast, no Firebase needed yet)
-syncEnabled=localStorage.getItem('syncEnabled')==='1';
-syncPin=localStorage.getItem('syncPin')||'';
-syncRole=localStorage.getItem('syncRole')||'owner';
-renderDash();
-
-// Start Firebase sync after scripts have loaded
-setTimeout(function(){
-  if(syncEnabled&&syncPin){
-    if(initFirebase()){
-      startSync();
-      if(syncRole==='owner') setTimeout(pushSync,2000);
-    } else {
-      setTimeout(loadSyncPrefs,2000);
+// PIN-AWARE INIT
+// ═══════════════════════════════════════════════════════════
+function initApp(){
+  loadState();
+  loadRoster();
+  syncEnabled=localStorage.getItem('syncEnabled')==='1';
+  syncPin=localStorage.getItem('syncPin')||'';
+  syncRole=localStorage.getItem('syncRole')||'owner';
+  showScreen('dash');
+  setTimeout(function(){
+    if(syncEnabled&&syncPin){
+      if(initFirebase()){
+        startSync();
+        if(syncRole==='owner') setTimeout(pushSync,2000);
+      } else {
+        setTimeout(loadSyncPrefs,2000);
+      }
     }
+    updateSyncUI();
+  },800);
+}
+
+// Show PIN screen or launch directly
+(function(){
+  const accessPin=localStorage.getItem('access_pin')||'';
+  const verified=localStorage.getItem('pin_verified')==='1';
+  const ps=document.getElementById('pin-screen');
+  if(accessPin&&!verified){
+    // Show PIN screen
+    if(ps) ps.style.display='flex';
+  } else {
+    // No PIN set or already verified — launch directly
+    if(ps) ps.style.display='none';
+    initApp();
+    if(accessPin) registerUser();
   }
-  updateSyncUI();
-},800);
+})();
 </script>
 </body>
 </html>
