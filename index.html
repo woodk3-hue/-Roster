@@ -1469,7 +1469,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div style="font-size:11px;color:var(--accent);min-height:16px;margin-bottom:10px;" id="set-link-preview"></div>
     <button class="btn btn-accent" onclick="saveRosterSettings()">Save Link</button>
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Import your depot's roster file to populate shift data.</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Import your depot's roster — the Link/Diagram PDF straight from the rostering system, or a roster.txt file.</div>
     <div id="roster-import-status" style="font-size:12px;margin-bottom:8px;"></div>
     <label for="roster-pdf-input" class="btn btn-accent" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">📄 Import Roster File (.txt or .pdf)</label>
     <input type="file" id="roster-pdf-input" accept=".txt,.pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importRosterPDF(this)">
@@ -1993,10 +1993,23 @@ async function importRosterPDF(input){
 
   try{
     const buffer=await file.arrayBuffer();
-    if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Decompressing streams...</span>';
-    const text=await extractPDFText(buffer,file.name);
-    if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Extracted '+text.length+' chars, parsing...</span>';
-    const parsed=parseRosterText(text);
+    let parsed=null, text='';
+    // QR "Link/Diagram" PDF straight from the rostering system
+    if(/\.pdf$/i.test(file.name)||file.type==='application/pdf'){
+      try{
+        text=await decodeLinkDiagramPDF(buffer.slice(0),function(n,total){
+          if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Reading page '+n+' of '+total+'...</span>';
+        });
+        parsed=parseLinkDiagram(text);
+      }catch(e){ console.warn('Link/Diagram reader:',e); parsed=null; }
+    }
+    // Otherwise the older roster.txt / PDF path
+    if(!parsed||!Object.keys(parsed).length){
+      if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Decompressing streams...</span>';
+      text=await extractPDFText(buffer,file.name);
+      if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Extracted '+text.length+' chars, parsing...</span>';
+      parsed=parseRosterText(text);
+    }
     const count=Object.keys(parsed).length;
     if(count===0){
       const preview=text.substring(0,200).replace(/\n/g,' ');
@@ -2072,6 +2085,122 @@ async function extractPDFText(buffer,fileName){
   return fullText;
 }
 
+
+// ── QR LINK/DIAGRAM PDF READER ───────────────────────────
+// The rostering system prints its PDFs with a "Type 3" font: every letter is a drawn
+// shape and the file has no readable text. Each shape is drawn identically in every PDF,
+// so we recognise characters by a fingerprint of the shape (GLYPH_CHARS), rebuild the
+// fixed-width printout line by line, then read the links out of it.
+const PDFJS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const GLYPH_CHARS={"2fd35099":"2","3196803b":".","a653d250":"0","1176105e":"8","828ba42d":"5","a218d59":"Q","278e5811":"U","1e030420":"E","b57637f3":"N","bd8ddc6":"S","7190eb51":"L","eecf3169":"A","3a5a9eb1":"D","5d043d82":"R","87130e9e":"I","4824d195":"P","9543f2b0":"G","5512be39":"1","96c7ff27":"4","607b22ba":":","25e414f0":"3","8f9f3646":"O","4eac003d":"C","747b5b77":"J","817ab463":"K","e0c16824":"/","c0fcab5a":"M","b4a8ef01":"F","12614c0e":"Y","ad9162ea":"T","97eef894":"(","c3936652":")","68a033c5":"B","bae2cf71":"9","85b770b":"-","329f1ee3":"W","9e8528e9":"H","88fbec13":"7","69a81e7f":"6","8fdedef2":"X","1350cbe9":" ","9641d7a8":"V","159838f0":"Z","ce2eeaa8":"'"};
+
+function loadPdfJs(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  return new Promise(function(resolve,reject){
+    const sc=document.createElement('script');
+    sc.src=PDFJS_URL;
+    sc.onload=function(){ window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER_URL; resolve(window.pdfjsLib); };
+    sc.onerror=function(){ reject(new Error('Could not load the PDF reader — check your internet connection')); };
+    document.head.appendChild(sc);
+  });
+}
+
+// FNV-1a fingerprint of a glyph's drawing instructions
+function glyphHash(opl){
+  const s=JSON.stringify(opl.fnArray)+JSON.stringify(opl.argsArray,function(k,v){ return typeof v==='number'?Math.round(v*1000):v; });
+  let h=0x811c9dc5;
+  for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0; }
+  return h.toString(16);
+}
+
+// Rebuilds the printout as plain fixed-width text lines
+async function decodeLinkDiagramPDF(buffer,onPage){
+  const pdfjsLib=await loadPdfJs();
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(buffer),disableFontFace:true}).promise;
+  const O=pdfjsLib.OPS, out=[];
+  let known=0, unknown=0;
+  for(let pn=1;pn<=doc.numPages;pn++){
+    if(onPage) onPage(pn,doc.numPages);
+    const page=await doc.getPage(pn);
+    const ops=await page.getOperatorList();
+    let font=null, fontObj=null, m=null, tx=0, ty=0, fontSize=1;
+    const cells=[], cache={};
+    for(let i=0;i<ops.fnArray.length;i++){
+      const fn=ops.fnArray[i], a=ops.argsArray[i];
+      if(fn===O.setFont){ font=a[0]; fontSize=a[1]||1; fontObj=page.commonObjs.has(font)?page.commonObjs.get(font):null; }
+      else if(fn===O.setTextMatrix){ m=a; tx=0; ty=0; }
+      else if(fn===O.setLeadingMoveText||fn===O.moveText){ tx+=a[0]; ty+=a[1]; }
+      else if(fn===O.showText&&m){
+        for(const g of a[0]){
+          if(!g||typeof g==='number') continue;
+          const key=font+'|'+g.operatorListId;
+          let ch=cache[key];
+          if(ch===undefined){
+            const opl=fontObj&&fontObj.charProcOperatorList&&fontObj.charProcOperatorList[g.operatorListId];
+            ch=opl?GLYPH_CHARS[glyphHash(opl)]:undefined;
+            if(ch===undefined) ch=(g.unicode&&/[ -~]/.test(g.unicode))?g.unicode:'?';
+            cache[key]=ch;
+          }
+          if(ch==='?') unknown++; else known++;
+          cells.push({line:m[4]+tx*m[0]+ty*m[2], along:m[5]+tx*m[1]+ty*m[3], ch:ch});
+        }
+      }
+    }
+    if(!cells.length) continue;
+    // Character pitch along the line = one move step in page units
+    const pitch=Math.hypot(m[0],m[1])*0.6*fontSize||1;
+    const minA=Math.min.apply(null,cells.map(function(c){ return c.along; }));
+    const rows={};
+    cells.forEach(function(c){ const k=Math.round(c.line*4)/4; (rows[k]=rows[k]||[]).push(c); });
+    Object.keys(rows).map(Number).sort(function(a,b){ return a-b; }).forEach(function(k){
+      const L=[];
+      rows[k].forEach(function(c){ L[Math.round((c.along-minA)/pitch)]=c.ch; });
+      out.push(Array.from(L,function(x){ return x||' '; }).join('').replace(/\s+$/,''));
+    });
+  }
+  if(known===0||unknown>known) throw new Error('This PDF is not a roster printout the app recognises');
+  return out.join('\n');
+}
+
+// Reads links from the decoded printout. Each day becomes "HH:MM|JOB", a code (BLP, AM1…),
+// or EX filled in from the extra rows printed under the link.
+function parseLinkDiagram(text){
+  const DAYN=['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
+  const isCode=function(t){ return /^(BLP|SLP|AFA|AFP|EX|AM[123]|PM[123])$/.test(t); };
+  const isTime=function(t){ return /^\d{1,2}:\d{2}$/.test(t); };
+  const toks={}; let dayCols=null, cur=null;
+  text.split('\n').forEach(function(line){
+    if(/MONDAY/.test(line)&&/SUNDAY/.test(line)){ dayCols=DAYN.map(function(d){ return line.indexOf(d); }); return; }
+    if(!dayCols||/^\s*-{10,}\s*$/.test(line)||/QUEENSLAND|PAGE\s+\d|PRINTED BY|^\s*-+(\s+-+)+\s*$/.test(line)) return;
+    const lm=line.match(/^\s{0,4}(\d{1,3})\s/);
+    if(lm){ cur=parseInt(lm[1]); if(!toks[cur]) toks[cur]=[[],[],[],[],[],[],[]]; }
+    if(cur==null) return;
+    const re=/\S+/g; let mt;
+    while((mt=re.exec(line))){
+      if(mt.index<dayCols[0]-2) continue; // occupant name columns
+      let d=0; for(let k=0;k<7;k++) if(mt.index>=dayCols[k]-2) d=k;
+      toks[cur][d].push(mt[0]);
+    }
+  });
+  const roster={};
+  Object.keys(toks).forEach(function(link){
+    if(link<1||link>440) return;
+    roster[link]=toks[link].map(function(list){
+      const entries=[];
+      list.forEach(function(t){
+        const last=entries[entries.length-1];
+        if(isTime(t)||isCode(t)) entries.push({v:t,job:''});
+        else if(last&&isTime(last.v)&&!last.job) last.job=t;
+        else entries.push({v:t,job:''});
+      });
+      let e=entries[0]||null;
+      if(e&&e.v==='EX'){ const later=entries.slice(1).find(function(x){ return x.v!=='EX'; }); if(later) e=later; }
+      return e?(e.job?e.v+'|'+e.job:e.v):'';
+    });
+  });
+  return roster;
+}
 
 function parseRosterText(text){
   const roster={};
