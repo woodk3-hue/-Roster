@@ -903,12 +903,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <button class="btn btn-accent" style="width:100%;margin-top:6px;" onclick="finishSetup()">Get Started</button>
     <div style="margin-top:28px;padding-top:16px;border-top:1px solid var(--border);">
       <div style="font-size:13px;font-weight:700;">Already used the app?</div>
-      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Enter your backup code to bring your data back.</div>
-      <div style="display:flex;gap:8px;">
-        <input class="form-input" id="setup-restore-code" placeholder="Backup code" style="flex:1;text-transform:uppercase;">
-        <button class="btn" onclick="restoreOnlineBackup('setup-restore-code')">Restore</button>
-      </div>
-      <button class="btn btn-sm" style="margin-top:8px;" onclick="document.getElementById('import-file').click()">⬆ Restore from backup file</button>
+      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Pick your exported backup file to bring your data back.</div>
+      <button class="btn" onclick="document.getElementById('import-file').click()">⬆ Restore from backup file</button>
     </div>
   </div>
 </div>
@@ -1545,17 +1541,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(this)">
     </div>
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
-      <div style="font-size:13px;font-weight:700;">☁ Auto Online Backup</div>
-      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Every change is saved online automatically, replacing the previous copy. Write your backup code down — you need it to restore on a new or reset phone.</div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div style="font-size:13px;">Your code: <b id="backup-code" style="letter-spacing:.05em;user-select:all;">—</b></div>
-        <button class="btn btn-sm" onclick="copyBackupCode()">📋 Copy</button>
-      </div>
-      <div id="backup-status" style="font-size:11px;color:var(--muted);margin-top:4px;">—</div>
-      <div style="display:flex;gap:8px;margin-top:10px;">
-        <input class="form-input" id="restore-code" placeholder="Enter backup code" style="flex:1;text-transform:uppercase;">
-        <button class="btn" onclick="restoreOnlineBackup()">Restore</button>
-      </div>
+      <div style="font-size:13px;font-weight:700;">📱 Automatic Device Backup</div>
+      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Every change is copied to a second spot on this phone, replacing the old copy. Nothing is sent online. If the app's saved data goes missing, it restores itself from this copy.</div>
+      <div id="backup-status" style="font-size:11px;color:var(--muted);">—</div>
+      <div id="export-status" style="font-size:11px;color:var(--muted);margin-top:2px;">—</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">Clearing the browser's data or deleting the app removes both copies — tap <b>Export Backup</b> now and then and keep the file safe.</div>
     </div>
   </div>
 
@@ -6382,73 +6372,98 @@ function applyBackupData(p){
   return true;
 }
 
-// ── AUTO ONLINE BACKUP ──
-// One copy per phone, stored under roster/<backup code> and overwritten on every change.
+// ── AUTOMATIC DEVICE BACKUP ──
+// A second copy of everything is kept in this phone's IndexedDB and overwritten on every
+// change. Nothing leaves the device. If localStorage comes back empty, initApp restores it.
+const BACKUP_DB='shift_roster_backup';
 let autoBackupTimer=null, backupError='';
-function getBackupCode(){
-  let c=localStorage.getItem('backup_code');
-  if(!c){
-    const chars='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-    const rnd=new Uint32Array(8); crypto.getRandomValues(rnd);
-    let k=''; rnd.forEach(function(n,i){ k+=chars[n%chars.length]+(i===3?'-':''); });
-    c='BK-'+k;
-    try{ localStorage.setItem('backup_code',c); }catch(e){}
-  }
-  return c;
+function openBackupDb(){
+  return new Promise(function(resolve,reject){
+    if(!window.indexedDB){ reject(new Error('Not supported')); return; }
+    const req=indexedDB.open(BACKUP_DB,1);
+    req.onupgradeneeded=function(){ req.result.createObjectStore('kv'); };
+    req.onsuccess=function(){ resolve(req.result); };
+    req.onerror=function(){ reject(req.error); };
+  });
+}
+function backupDbOp(mode,fn){
+  return openBackupDb().then(function(db){
+    return new Promise(function(resolve,reject){
+      const tx=db.transaction('kv',mode);
+      const r=fn(tx.objectStore('kv'));
+      tx.oncomplete=function(){ db.close(); resolve(r&&r.result); };
+      tx.onerror=function(){ db.close(); reject(tx.error); };
+    });
+  });
 }
 function hasRealData(){
   return !!(S.anchorLink||Object.keys(S.days||{}).length||(S.swaps||[]).length||Object.keys(ROSTER||{}).length);
 }
 function scheduleAutoBackup(){
   clearTimeout(autoBackupTimer);
-  autoBackupTimer=setTimeout(runAutoBackup,3000);
+  autoBackupTimer=setTimeout(runAutoBackup,1500);
 }
 function runAutoBackup(){
   // Never back up an empty app — it would replace a good copy with nothing
   if(!hasRealData()) return;
-  if(!initFirebase()){ backupError='Waiting for internet connection'; updateBackupUI(); return; }
   const savedAt=Date.now();
-  const payload={savedAt:savedAt,json:JSON.stringify(Object.assign({},S,{roster:ROSTER}))};
-  fbDb.ref('roster/'+getBackupCode()).set(payload).then(function(){
+  const copy={savedAt:savedAt,json:JSON.stringify(Object.assign({},S,{roster:ROSTER}))};
+  backupDbOp('readwrite',function(st){ return st.put(copy,'latest'); }).then(function(){
     backupError='';
     try{ localStorage.setItem('backup_last',String(savedAt)); }catch(e){}
     updateBackupUI();
   }).catch(function(e){
-    backupError='Online backup failed: '+(e&&e.message||e);
+    backupError='Device backup failed: '+(e&&e.message||e);
     updateBackupUI();
   });
 }
+// Called at start-up: if the app's data is gone but the device copy survived, bring it back
+function restoreFromDeviceBackupIfEmpty(){
+  if(hasRealData()) return Promise.resolve(false);
+  return backupDbOp('readonly',function(st){ return st.get('latest'); }).then(function(v){
+    if(!v||!v.json) return false;
+    const p=JSON.parse(v.json);
+    if(applyBackupData(p)){ toast('Your data was restored from the device backup ✓'); return true; }
+    return false;
+  }).catch(function(){ return false; });
+}
+function clearDeviceBackup(){
+  return backupDbOp('readwrite',function(st){ return st.delete('latest'); }).catch(function(){});
+}
 function updateBackupUI(){
-  const codeEl=document.getElementById('backup-code');
-  if(codeEl) codeEl.textContent=getBackupCode();
   const st=document.getElementById('backup-status');
-  if(!st) return;
-  const last=parseInt(localStorage.getItem('backup_last')||'0');
-  if(backupError){ st.style.color='#ef4444'; st.textContent=backupError; }
-  else{
-    st.style.color='var(--muted)';
-    st.textContent=last?'Last backed up: '+new Date(last).toLocaleString('en-AU'):'Not backed up yet';
+  if(st){
+    const last=parseInt(localStorage.getItem('backup_last')||'0');
+    if(backupError){ st.style.color='#ef4444'; st.textContent=backupError; }
+    else{
+      st.style.color='var(--muted)';
+      st.textContent=last?'Last device copy: '+new Date(last).toLocaleString('en-AU'):'No device copy yet';
+    }
+  }
+  const ex=document.getElementById('export-status');
+  if(ex){
+    const le=parseInt(localStorage.getItem('last_export')||'0');
+    ex.textContent=le?'Last exported file: '+new Date(le).toLocaleDateString('en-AU'):'No backup file exported yet';
   }
 }
-function copyBackupCode(){
-  const code=getBackupCode();
-  if(navigator.clipboard) navigator.clipboard.writeText(code).then(function(){ toast('Code copied'); }).catch(function(){ toast(code); });
-  else toast(code);
+// Gentle reminder (at most once a day) to export a backup file
+function maybeNudgeExport(){
+  if(!hasRealData()) return;
+  const le=parseInt(localStorage.getItem('last_export')||'0');
+  const days=(Date.now()-le)/86400000;
+  const todayStr=fmtDate(today());
+  if(days<7||localStorage.getItem('export_nudge_day')===todayStr) return;
+  try{ localStorage.setItem('export_nudge_day',todayStr); }catch(e){}
+  toast(le?'Tip: last backup file was '+Math.floor(days)+' days ago — Settings → Export Backup':'Tip: save a backup file — Settings → Export Backup');
 }
-function restoreOnlineBackup(inputId){
-  const code=(document.getElementById(inputId||'restore-code').value||'').trim().toUpperCase();
-  if(!code){ toast('Enter your backup code'); return; }
-  if(!initFirebase()){ toast('No connection — try again'); return; }
-  fbDb.ref('roster/'+code).once('value').then(function(snap){
-    const v=snap.val();
-    if(!v||!v.json){ toast('No backup found for that code'); return; }
-    if(!confirm('Restore backup from '+new Date(v.savedAt).toLocaleString('en-AU')+'?\nThis replaces everything on this phone.')) return;
-    let p;
-    try{ p=JSON.parse(v.json); }catch(e){ toast('Backup is damaged'); return; }
-    // Keep backing up to the same code from now on
-    try{ localStorage.setItem('backup_code',code); }catch(e){}
-    if(applyBackupData(p)) toast('Backup restored ✓');
-  }).catch(function(e){ toast('Restore failed: '+(e&&e.message||e)); });
+// The earlier version kept a copy online; delete it and forget its code
+function removeLegacyOnlineBackup(){
+  const code=localStorage.getItem('backup_code');
+  if(!code||code.indexOf('BK-')!==0) return;
+  if(!initFirebase()) return;
+  fbDb.ref('roster/'+code).remove().then(function(){
+    localStorage.removeItem('backup_code');
+  }).catch(function(){});
 }
 
 function exportBackup(){
@@ -6458,6 +6473,8 @@ function exportBackup(){
   a.href=URL.createObjectURL(blob);
   a.download='shift_roster_backup_'+fmtDate(today())+'.json';
   a.click(); toast('Backup exported');
+  try{ localStorage.setItem('last_export',String(Date.now())); }catch(e){}
+  updateBackupUI();
 }
 function importBackup(input){
   const file=input.files[0]; if(!file) return;
@@ -6479,7 +6496,7 @@ function clearAllData(){
     localStorage.removeItem('syncEnabled');
     localStorage.removeItem('syncPin');
     localStorage.removeItem('syncRole');
-    location.reload();
+    clearDeviceBackup().then(function(){ location.reload(); });
   } else if(btn){
     btn.dataset.confirming='yes';
     btn.textContent='Tap again to confirm';
@@ -6642,13 +6659,17 @@ function initApp(){
   if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(function(){});
   loadState();
   loadRoster();
-  scheduleAutoBackup();
   syncEnabled=localStorage.getItem('syncEnabled')==='1';
   syncPin=localStorage.getItem('syncPin')||'';
   syncRole=localStorage.getItem('syncRole')||'owner';
   showScreen('dash');
   applyRoleUI();
   showSetupIfNeeded();
+  restoreFromDeviceBackupIfEmpty().then(function(restored){
+    if(!restored) scheduleAutoBackup();
+    setTimeout(maybeNudgeExport,3000);
+  });
+  setTimeout(removeLegacyOnlineBackup,1500);
   setTimeout(function(){
     if(syncEnabled&&syncPin){
       if(initFirebase()){
