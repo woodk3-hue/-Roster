@@ -1876,7 +1876,8 @@ async function importRosterPDF(input){
       return;
     }
     ROSTER=parsed;
-    localStorage.setItem('roster_data',JSON.stringify(ROSTER));
+    try{ localStorage.setItem('roster_data',JSON.stringify(ROSTER)); }
+    catch(e){ alert('Warning: your phone is not letting the app save the roster. It will be lost on refresh.'); }
     if(statusEl) statusEl.innerHTML='<span style="color:#16a34a;">✓ '+count+' links imported successfully</span>';
     toast(count+' roster links imported ✓');
     renderDash();
@@ -2462,8 +2463,12 @@ function loadState(){
   purgeBin();
   fixContactSections();
 }
+let saveFailWarned=false;
 function saveState(){
-  try{ localStorage.setItem(STATE_KEY, JSON.stringify(S)); }catch(e){}
+  try{ localStorage.setItem(STATE_KEY, JSON.stringify(S)); }
+  catch(e){
+    if(!saveFailWarned){ saveFailWarned=true; alert('Warning: your phone is not letting the app save data. Changes will be lost when the app is closed or refreshed. Check you are not in a private/incognito tab and that the browser is not set to clear site data.'); }
+  }
   // Sync to Firebase
   if(syncEnabled){
     if(syncRole==='owner') pushSync();
@@ -6171,7 +6176,8 @@ function saveLeave(){
 }
 
 function exportBackup(){
-  const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  const backup=Object.assign({},S,{roster:ROSTER});
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='shift_roster_backup_'+fmtDate(today())+'.json';
@@ -6183,18 +6189,16 @@ function importBackup(input){
   r.onload=e=>{
     try{
       const p=JSON.parse(e.target.result);
-      if(p.anchorLink!=null) S.anchorLink=p.anchorLink;
-      if(p.anchorDate!=null) S.anchorDate=p.anchorDate;
-      if(p.days) S.days=p.days;
-      if(p.swaps) S.swaps=p.swaps;
-      if(p.plannedLeave) S.plannedLeave=p.plannedLeave;
-      if(p.swapEmailSent) S.swapEmailSent=p.swapEmailSent;
-      if(p.claims) S.claims=p.claims;
-      if(p.contacts) S.contacts=p.contacts;
-      if(p.bin) S.bin=p.bin;
-      if(p.settings) Object.assign(S.settings,p.settings);
-      if(p.leave) Object.assign(S.leave,p.leave);
-      saveState(); loadSettingsUI(); renderDash();
+      // Restore every saved field (same rules as loadState)
+      if(p.roster&&Object.keys(p.roster).length){
+        ROSTER=p.roster;
+        try{ localStorage.setItem('roster_data',JSON.stringify(ROSTER)); }catch(e2){}
+        delete p.roster;
+      }
+      try{ localStorage.setItem(STATE_KEY,JSON.stringify(p)); }
+      catch(e2){ alert('Your phone is not letting the app save data, so the backup cannot be kept. Check you are not in a private/incognito tab and that the browser is not set to clear site data.'); return; }
+      loadState();
+      saveState(); loadSettingsUI(); refreshAllScreens();
       toast('Backup restored');
     }catch(e){ toast('Invalid backup file'); }
   };
@@ -6369,6 +6373,8 @@ function hideInstallBanner(){
 // PIN-AWARE INIT
 // ═══════════════════════════════════════════════════════════
 function initApp(){
+  // Ask the browser not to clear this app's saved data when space is low
+  if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(function(){});
   loadState();
   loadRoster();
   syncEnabled=localStorage.getItem('syncEnabled')==='1';
