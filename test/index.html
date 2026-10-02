@@ -823,6 +823,10 @@ html{scroll-padding-top:env(safe-area-inset-top,0px);}
 
 /* Person 2 (Family Sync partner) only sees the roster: hide the Owner's admin bits on the Dash */
 body.partner-view .owner-only{display:none !important;}
+/* Person 2's Settings only shows Family Sync (to see the connection or disconnect) */
+body.partner-view #screen-settings .settings-section:not(.partner-keep){display:none !important;}
+.partner-only{display:none;}
+body.partner-view .partner-only{display:block;}
 
 /* "Show N more" toggles and collapsed sections */
 details.show-more{margin:4px 0 10px;}
@@ -1621,7 +1625,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
   </div>
 
-  <div class="settings-section">
+  <div class="partner-only" style="font-size:12px;color:var(--muted);margin:0 0 10px;">You're viewing your partner's roster through Family Sync. Their settings stay on their phone.</div>
+  <div class="settings-section partner-keep">
     <div class="settings-section-title">Family Sync</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Share your roster with your partner in real time.</div>
     <div style="font-size:11px;color:#fbbf24;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);border-radius:8px;padding:8px 10px;margin-bottom:10px;">⚠ Sync is the only feature that stores your data online: your roster, swaps, claims, leave and contacts are saved under your sync PIN so your partner can see them. Anyone who knows or guesses the PIN can see it too — use a long PIN that's hard to guess (8+ characters, letters and numbers).</div>
@@ -1643,7 +1648,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <button class="btn btn-danger btn-sm" id="sync-disconnect-btn" style="display:none;margin-top:8px;width:100%;" onclick="disableSync()">Disconnect Sync</button>
   </div>
 
-  <div class="settings-section">
+  <div class="settings-section partner-keep">
     <div class="settings-section-title">Help</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Experiencing an issue? Send a report.</div>
     <textarea class="form-textarea" id="report-text" placeholder="Describe the problem…" style="margin-bottom:8px;"></textarea>
