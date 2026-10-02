@@ -2401,6 +2401,17 @@ const FB_CONFIG = {
 let fbApp=null, fbDb=null, fbListener=null;
 let syncEnabled=false, syncRole='owner', syncPin='';
 
+// Shows what Family Sync last did under the sync settings, and any error the database gave
+function syncNote(msg,isError){
+  const el=document.getElementById('sync-info');
+  const base=syncEnabled?'Connected · PIN: '+syncPin+' · Role: '+(syncRole==='owner'?'Owner':'Person 2'):'';
+  if(el){ el.innerHTML=base+'<br><span style="color:'+(isError?'#ef4444':'var(--muted)')+';">'+msg+'</span>'; }
+  if(isError) toast(msg);
+}
+function syncErrorText(e){
+  const code=(e&&(e.code||e.message))||String(e);
+  return /PERMISSION_DENIED|permission/i.test(code)?'Sync blocked by the online database (permission denied)':'Sync error: '+code;
+}
 function initFirebase(){
   try{
     if(typeof firebase==='undefined'){ console.warn('Firebase not loaded yet'); return false; }
@@ -2777,7 +2788,12 @@ function startSync(){
     localStorage.setItem(STATE_KEY,JSON.stringify(S));
     refreshAllScreens();
   };
-  fbRef.on('value',fbListener);
+  const applyRemote=fbListener;
+  fbListener=function(snap){
+    syncNote('Last update received '+new Date().toLocaleTimeString('en-AU'));
+    applyRemote(snap);
+  };
+  fbRef.on('value',fbListener,function(e){ syncNote(syncErrorText(e),true); });
   if(syncRole==='owner') pushRosterTable();
 }
 
@@ -2797,7 +2813,7 @@ function pushRosterTable(){
   if(localStorage.getItem(sentKey)===sig) return;
   fbDb.ref(syncPath('/rosterTable')).set({sig:sig,json:json,asAt:localStorage.getItem('roster_asat')||''})
     .then(function(){ try{ localStorage.setItem(sentKey,sig); }catch(e){} })
-    .catch(function(e){ console.error('Roster share failed:',e); });
+    .catch(function(e){ console.error('Roster share failed:',e); syncNote(syncErrorText(e),true); });
 }
 
 function pushSync(){
@@ -2823,10 +2839,12 @@ function pushSync(){
     lastUpdatedBy:syncRole
   };
   ref.update(JSON.parse(JSON.stringify(payload))).then(function(){
+    syncNote('Last sent '+new Date().toLocaleTimeString('en-AU'));
     setTimeout(function(){ isSyncPushing=false; },1000);
   }).catch(function(e){
     isSyncPushing=false;
     console.error('Sync push failed:',e);
+    syncNote(syncErrorText(e),true);
   });
 }
 
