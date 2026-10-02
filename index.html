@@ -805,27 +805,19 @@ body.day-mode .toast{background:rgba(240,242,248,0.96);border-color:var(--border
 html{scroll-padding-top:env(safe-area-inset-top,0px);}
 </style>
 
-<script>
-// ── PWA MANIFEST (now external manifest.json) ──
-const manifestData = {
-  "name": "Shift Roster",
-  "short_name": "Shift Roster",
-  "description": "Personal shift roster and swap tracker",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#0f1117",
-  "theme_color": "#0f1117",
-  "orientation": "portrait-primary",
-  "icons": [
-    { "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8IS0tIEJhY2tncm91bmQgLS0+CiAgPHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIHJ4PSIxMDAiIGZpbGw9IiMwZjExMTciLz4KICA8IS0tIFJhaWwgdHJhY2sgbGluZXMgLS0+CiAgPHJlY3QgeD0iODAiIHk9IjM4MCIgd2lkdGg9IjM1MiIgaGVpZ2h0PSIyMCIgcng9IjEwIiBmaWxsPSIjMmUzMzUwIi8+CiAgPHJlY3QgeD0iODAiIHk9IjMyMCIgd2lkdGg9IjM1MiIgaGVpZ2h0PSIyMCIgcng9IjEwIiBmaWxsPSIjMmUzMzUwIi8+CiAgPCEtLSBTbGVlcGVycyAtLT4KICA8cmVjdCB4PSIxMTAiIHk9IjMxNSIgd2lkdGg9IjI0IiBoZWlnaHQ9IjkwIiByeD0iNiIgZmlsbD0iIzJlMzM1MCIvPgogIDxyZWN0IHg9IjE3MCIgeT0iMzE1IiB3aWR0aD0iMjQiIGhlaWdodD0iOTAiIHJ4PSI2IiBmaWxsPSIjMmUzMzUwIi8+CiAgPHJlY3QgeD0iMjMwIiB5PSIzMTUiIHdpZHRoPSIyNCIgaGVpZ2h0PSI5MCIgcng9IjYiIGZpbGw9IiMyZTMzNTAiLz4KICA8cmVjdCB4PSIyOTAiIHk9IjMxNSIgd2lkdGg9IjI0IiBoZWlnaHQ9IjkwIiByeD0iNiIgZmlsbD0iIzJlMzM1MCIvPgogIDxyZWN0IHg9IjM1MCIgeT0iMzE1IiB3aWR0aD0iMjQiIGhlaWdodD0iOTAiIHJ4PSI2IiBmaWxsPSIjMmUzMzUwIi8+CiAgPHJlY3QgeD0iNDEwIiB5PSIzMTUiIHdpZHRoPSIyNCIgaGVpZ2h0PSI5MCIgcng9IjYiIGZpbGw9IiMyZTMzNTAiLz4KICA8IS0tIFRyYWluIGJvZHkgLS0+CiAgPHJlY3QgeD0iNjAiIHk9IjE2MCIgd2lkdGg9IjM5MiIgaGVpZ2h0PSIxNjAiIHJ4PSIzMCIgZmlsbD0iIzFhMWQyNyIvPgogIDxyZWN0IHg9IjYwIiB5PSIxNjAiIHdpZHRoPSIzOTIiIGhlaWdodD0iMTYwIiByeD0iMzAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Y1OWUwYiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPCEtLSBXaW5kb3dzIC0tPgogIDxyZWN0IHg9IjkwIiB5PSIxODUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI3MCIgcng9IjEyIiBmaWxsPSIjZjU5ZTBiIiBvcGFjaXR5PSIwLjkiLz4KICA8cmVjdCB4PSIxODAiIHk9IjE4NSIgd2lkdGg9IjcwIiBoZWlnaHQ9IjcwIiByeD0iMTIiIGZpbGw9IiNmNTllMGIiIG9wYWNpdHk9IjAuOSIvPgogIDxyZWN0IHg9IjI3MCIgeT0iMTg1IiB3aWR0aD0iNzAiIGhlaWdodD0iNzAiIHJ4PSIxMiIgZmlsbD0iI2Y1OWUwYiIgb3BhY2l0eT0iMC45Ii8+CiAgPHJlY3QgeD0iMzYwIiB5PSIxODUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI3MCIgcng9IjEyIiBmaWxsPSIjZjU5ZTBiIiBvcGFjaXR5PSIwLjkiLz4KICA8IS0tIFRyYWluIGZyb250IGNhYiAtLT4KICA8cmVjdCB4PSI2MCIgeT0iMjAwIiB3aWR0aD0iNTAiIGhlaWdodD0iMTAwIiByeD0iMCIgZmlsbD0iIzIyMjYzYSIvPgogIDwhLS0gQW1iZXIgYWNjZW50IHN0cmlwZSAtLT4KICA8cmVjdCB4PSI2MCIgeT0iMjkwIiB3aWR0aD0iMzkyIiBoZWlnaHQ9IjE0IiByeD0iMCIgZmlsbD0iI2Y1OWUwYiIvPgogIDwhLS0gV2hlZWxzIC0tPgogIDxjaXJjbGUgY3g9IjE0MCIgY3k9IjMyMCIgcj0iMjgiIGZpbGw9IiMyMjI2M2EiIHN0cm9rZT0iI2Y1OWUwYiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMTQwIiBjeT0iMzIwIiByPSIxMiIgZmlsbD0iI2Y1OWUwYiIvPgogIDxjaXJjbGUgY3g9IjI2MCIgY3k9IjMyMCIgcj0iMjgiIGZpbGw9IiMyMjI2M2EiIHN0cm9rZT0iI2Y1OWUwYiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMjYwIiBjeT0iMzIwIiByPSIxMiIgZmlsbD0iI2Y1OWUwYiIvPgogIDxjaXJjbGUgY3g9IjM4MCIgY3k9IjMyMCIgcj0iMjgiIGZpbGw9IiMyMjI2M2EiIHN0cm9rZT0iI2Y1OWUwYiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMzgwIiBjeT0iMzIwIiByPSIxMiIgZmlsbD0iI2Y1OWUwYiIvPgogIDwhLS0gUVIgdGV4dCAtLT4KICA8dGV4dCB4PSIyNTYiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsIEJsYWNrLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjcyIiBmb250LXdlaWdodD0iOTAwIiBmaWxsPSIjZjU5ZTBiIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5RUjwvdGV4dD4KPC9zdmc+", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any maskable" },
-    { "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8IS0tIEJhY2tncm91bmQgLS0+CiAgPHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIHJ4PSIxMDAiIGZpbGw9IiMwZjExMTciLz4KICA8IS0tIFJhaWwgdHJhY2sgbGluZXMgLS0+CiAgPHJlY3QgeD0iODAiIHk9IjM4MCIgd2lkdGg9IjM1MiIgaGVpZ2h0PSIyMCIgcng9IjEwIiBmaWxsPSIjMmUzMzUwIi8+CiAgPHJlY3QgeD0iODAiIHk9IjMyMCIgd2lkdGg9IjM1MiIgaGVpZ2h0PSIyMCIgcng9IjEwIiBmaWxsPSIjMmUzMzUwIi8+CiAgPCEtLSBTbGVlcGVycyAtLT4KICA8cmVjdCB4PSIxMTAiIHk9IjMxNSIgd2lkdGg9IjI0IiBoZWlnaHQ9IjkwIiByeD0iNiIgZmlsbD0iIzJlMzM1MCIvPgogIDxyZWN0IHg9IjE3MCIgeT0iMzE1IiB3aWR0aD0iMjQiIGhlaWdodD0iOTAiIHJ4PSI2IiBmaWxsPSIjMmUzMzUwIi8+CiAgPHJlY3QgeD0iMjMwIiB5PSIzMTUiIHdpZHRoPSIyNCIgaGVpZ2h0PSI5MCIgcng9IjYiIGZpbGw9IiMyZTMzNTAiLz4KICA8cmVjdCB4PSIyOTAiIHk9IjMxNSIgd2lkdGg9IjI0IiBoZWlnaHQ9IjkwIiByeD0iNiIgZmlsbD0iIzJlMzM1MCIvPgogIDxyZWN0IHg9IjM1MCIgeT0iMzE1IiB3aWR0aD0iMjQiIGhlaWdodD0iOTAiIHJ4PSI2IiBmaWxsPSIjMmUzMzUwIi8+CiAgPHJlY3QgeD0iNDEwIiB5PSIzMTUiIHdpZHRoPSIyNCIgaGVpZ2h0PSI5MCIgcng9IjYiIGZpbGw9IiMyZTMzNTAiLz4KICA8IS0tIFRyYWluIGJvZHkgLS0+CiAgPHJlY3QgeD0iNjAiIHk9IjE2MCIgd2lkdGg9IjM5MiIgaGVpZ2h0PSIxNjAiIHJ4PSIzMCIgZmlsbD0iIzFhMWQyNyIvPgogIDxyZWN0IHg9IjYwIiB5PSIxNjAiIHdpZHRoPSIzOTIiIGhlaWdodD0iMTYwIiByeD0iMzAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Y1OWUwYiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPCEtLSBXaW5kb3dzIC0tPgogIDxyZWN0IHg9IjkwIiB5PSIxODUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI3MCIgcng9IjEyIiBmaWxsPSIjZjU5ZTBiIiBvcGFjaXR5PSIwLjkiLz4KICA8cmVjdCB4PSIxODAiIHk9IjE4NSIgd2lkdGg9IjcwIiBoZWlnaHQ9IjcwIiByeD0iMTIiIGZpbGw9IiNmNTllMGIiIG9wYWNpdHk9IjAuOSIvPgogIDxyZWN0IHg9IjI3MCIgeT0iMTg1IiB3aWR0aD0iNzAiIGhlaWdodD0iNzAiIHJ4PSIxMiIgZmlsbD0iI2Y1OWUwYiIgb3BhY2l0eT0iMC45Ii8+CiAgPHJlY3QgeD0iMzYwIiB5PSIxODUiIHdpZHRoPSI3MCIgaGVpZ2h0PSI3MCIgcng9IjEyIiBmaWxsPSIjZjU5ZTBiIiBvcGFjaXR5PSIwLjkiLz4KICA8IS0tIFRyYWluIGZyb250IGNhYiAtLT4KICA8cmVjdCB4PSI2MCIgeT0iMjAwIiB3aWR0aD0iNTAiIGhlaWdodD0iMTAwIiByeD0iMCIgZmlsbD0iIzIyMjYzYSIvPgogIDwhLS0gQW1iZXIgYWNjZW50IHN0cmlwZSAtLT4KICA8cmVjdCB4PSI2MCIgeT0iMjkwIiB3aWR0aD0iMzkyIiBoZWlnaHQ9IjE0IiByeD0iMCIgZmlsbD0iI2Y1OWUwYiIvPgogIDwhLS0gV2hlZWxzIC0tPgogIDxjaXJjbGUgY3g9IjE0MCIgY3k9IjMyMCIgcj0iMjgiIGZpbGw9IiMyMjI2M2EiIHN0cm9rZT0iI2Y1OWUwYiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMTQwIiBjeT0iMzIwIiByPSIxMiIgZmlsbD0iI2Y1OWUwYiIvPgogIDxjaXJjbGUgY3g9IjI2MCIgY3k9IjMyMCIgcj0iMjgiIGZpbGw9IiMyMjI2M2EiIHN0cm9rZT0iI2Y1OWUwYiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMjYwIiBjeT0iMzIwIiByPSIxMiIgZmlsbD0iI2Y1OWUwYiIvPgogIDxjaXJjbGUgY3g9IjM4MCIgY3k9IjMyMCIgcj0iMjgiIGZpbGw9IiMyMjI2M2EiIHN0cm9rZT0iI2Y1OWUwYiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMzgwIiBjeT0iMzIwIiByPSIxMiIgZmlsbD0iI2Y1OWUwYiIvPgogIDwhLS0gUVIgdGV4dCAtLT4KICA8dGV4dCB4PSIyNTYiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsIEJsYWNrLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjcyIiBmb250LXdlaWdodD0iOTAwIiBmaWxsPSIjZjU5ZTBiIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5RUjwvdGV4dD4KPC9zdmc+", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
-  ]
-};
-const manifestEl=document.getElementById('pwa-manifest');
-if(manifestEl){ const manifestBlob=new Blob([JSON.stringify(manifestData)],{type:'application/json'}); manifestEl.setAttribute('href',URL.createObjectURL(manifestBlob)); }
-</script>
 </head>
 <body>
+
+<!-- ═══════════════════════════════════════
+     ACCESS PIN
+════════════════════════════════════════ -->
+<div id="pin-screen" style="display:none;position:fixed;inset:0;z-index:10000;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;">
+  <div style="font-size:20px;font-weight:700;">🚂 Shift Roster</div>
+  <div style="font-size:13px;color:var(--muted);">Enter access PIN</div>
+  <input type="password" inputmode="numeric" id="pin-input" class="form-input" style="max-width:200px;text-align:center;border:1px solid rgba(255,255,255,0.15);" onkeydown="if(event.key==='Enter')checkPin()">
+  <div id="pin-error" style="display:none;color:#ef4444;font-size:12px;">Incorrect PIN</div>
+  <button class="btn btn-accent" onclick="checkPin()">Unlock</button>
+</div>
 
 <!-- ═══════════════════════════════════════
      DASHBOARD
@@ -3635,7 +3627,7 @@ function undoSwap(elOrId){
     const mon=parseDate(sw.wc);
     if(sw.scope==='week'){
       for(var i=0;i<7;i++){
-        var ds=fmtDate(addDays(mon,i));
+        const ds=fmtDate(addDays(mon,i));
         if(S.days[ds]&&S.days[ds].type==='swap'&&S.days[ds].swapTo===sw.linkReceived){
           delete S.days[ds];
         }
@@ -3643,7 +3635,7 @@ function undoSwap(elOrId){
     } else {
       // Single day — find the specific day
       if(sw.dayIdx!=null){
-        var ds=fmtDate(addDays(mon,sw.dayIdx));
+        const ds=fmtDate(addDays(mon,sw.dayIdx));
         if(S.days[ds]&&S.days[ds].type==='swap') delete S.days[ds];
       }
     }
@@ -4600,7 +4592,6 @@ function renderShiftFinder(){
 function selectAllSFF(){ document.querySelectorAll('.pmf-select-cb').forEach(function(cb){ cb.checked=true; }); }
 function clearSFFSelection(){ document.querySelectorAll('.pmf-select-cb').forEach(function(cb){ cb.checked=false; }); }
 function copySelectedSFF(){
-  const DAY3=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const sel=[];
   document.querySelectorAll('.pmf-select-cb:checked').forEach(function(cb){
     const parts=cb.dataset.pmfid.split('|');
@@ -4637,11 +4628,6 @@ function copySelectedSFF(){
 
 // Keep legacy aliases so any other references still work
 function renderPMFinder(){ renderShiftFinder(); }
-function renderAMFinder(){ renderShiftFinder(); }
-function setPMFYear(y){ setSFFYear(y); }
-function selectAllPMF(){ selectAllSFF(); }
-function clearPMFSelection(){ clearSFFSelection(); }
-function copySelectedPMF(){ copySelectedSFF(); }
 
 
 function countBlpSlp(link){
@@ -4727,87 +4713,6 @@ function buildSwappedRowHtml(swapLink, swapDays, wc){
   return html;
 }
 
-
-let pmfResults=[];
-
-function selectAllPMF(){
-  document.querySelectorAll('.pmf-cb').forEach(function(cb){ cb.checked=true; });
-}
-function clearPMFSelection(){
-  document.querySelectorAll('.pmf-cb').forEach(function(cb){ cb.checked=false; });
-}
-
-function copySelectedPMF(){
-  const checked=Array.from(document.querySelectorAll('.pmf-cb:checked'));
-  if(!checked.length){ toast('Select at least one week'); return; }
-  const selectedIds=checked.map(function(cb){ return cb.dataset.pmfid; });
-  const selected=pmfResults.filter(function(r){ return selectedIds.includes(r.wcStr); });
-  const lines=selected.map(function(r){
-    const wcDD=fmtDDMM(r.wc);
-    // Find BLP/SLP days from actual roster for the day-range label
-    const blpDayNames=[];
-    r.days.forEach(function(raw,i){
-      const sh=parseShift(raw);
-      if(sh.typeKey==='blp'||sh.typeKey==='slp') blpDayNames.push(DAY3[i]);
-    });
-    const dayRange=blpDayNames.length>0?blpDayNames[0]+(blpDayNames.length>1?'/'+blpDayNames[blpDayNames.length-1]:''):'';
-    // Build horizontal shift row
-    const shiftRow=r.days.map(function(raw,i){
-      var sh=parseShift(raw);
-      var lbl=sh.time?sh.time.replace(':',''):sh.code;
-      // Check leave
-      var ds=fmtDate(addDays(r.wc,i));
-      var lv=getLeaveForDate(ds);
-      if(lv){
-        var lvL={al:'AL',sl:'SICK',lsl:'LSL'}[lv.type]||'LV';
-        lbl=lvL+'('+lbl+')';
-      }
-      return lbl;
-    }).join(' ');
-    return wcDD+' Link '+r.link+(dayRange?' '+dayRange:'')+String.fromCharCode(10)+shiftRow;
-  }).join(String.fromCharCode(10,10));
-
-  // Copy to clipboard — use textarea trick which works reliably in Android Brave PWA
-  // navigator.clipboard.writeText fails in many Android PWA contexts
-  const ta=document.createElement('textarea');
-  ta.value=lines;
-  ta.setAttribute('readonly','');
-  ta.style.cssText='position:fixed;top:0;left:0;width:2em;height:2em;padding:0;border:none;outline:none;box-shadow:none;background:transparent;opacity:0;';
-  document.body.appendChild(ta);
-  // Select the text
-  if(navigator.userAgent.match(/ipad|iphone/i)){
-    const range=document.createRange();
-    range.selectNodeContents(ta);
-    const selection=window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    ta.setSelectionRange(0,999999);
-  } else {
-    ta.select();
-    ta.setSelectionRange(0,999999);
-  }
-  let success=false;
-  try{
-    success=document.execCommand('copy');
-  }catch(e){}
-  document.body.removeChild(ta);
-
-  if(success){
-    toast('Copied to clipboard ✓');
-  } else if(navigator.clipboard){
-    // Last resort async attempt
-    navigator.clipboard.writeText(lines).then(function(){ toast('Copied ✓'); }).catch(function(){
-      toast('Copy not supported — try long-pressing the text');
-    });
-  } else {
-    toast('Copy not supported on this browser');
-  }
-}
-
-function setPMFYear(y){
-  sffYear=y;
-  renderShiftFinder();
-}
 
 function deleteSwap(id){
   const sw=S.swaps.find(s=>s.id===id);
@@ -6380,6 +6285,7 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // SERVICE WORKER (offline)
 // ═══════════════════════════════════════════════════════════
+let deferredPrompt=null;
 if('serviceWorker' in navigator){
   const swCode=`
 const CACHE='qr-roster-v2';
@@ -6409,7 +6315,6 @@ self.addEventListener('fetch',e=>{
   navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
 
   // Prompt user to install if not already installed
-  let deferredPrompt=null;
   window.addEventListener('beforeinstallprompt',e=>{
     e.preventDefault();
     deferredPrompt=e;
