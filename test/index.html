@@ -2420,6 +2420,8 @@ function enableSync(){
   localStorage.setItem('syncPin',pin);
   localStorage.setItem('syncRole',syncRole);
   localStorage.setItem('syncEnabled','1');
+  // Owner: send everything now (link, edits, swaps, leave, events), not only after the next change
+  if(syncRole==='owner') pushSync();
   startSync();
   updateSyncUI();
   toast('Sync connected as '+(syncRole==='owner'?'Owner':'Partner'));
@@ -2731,6 +2733,10 @@ function startSync(){
   fbListener=function(snap){
     if(isSyncPushing) return;
     const data=snap.val();
+    if(syncRole!=='owner'&&(!data||data.anchorLink==null)){
+      if(!window.__waitToastShown){ window.__waitToastShown=true; toast('Connected — waiting for the Owner\'s roster. Ask them to open Shift Roster.'); }
+      return;
+    }
     if(!data) return;
     // Safety: only apply if data has actual content (not empty push)
     // and only apply non-empty values — never overwrite local data with nulls/empty
