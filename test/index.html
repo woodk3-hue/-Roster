@@ -2738,6 +2738,14 @@ function startSync(){
     if(data.anchorDate!=null) S.anchorDate=data.anchorDate;
     if(data.days&&Object.keys(data.days).length>0) S.days=data.days;
     if(data.swaps&&data.swaps.length>0) S.swaps=data.swaps;
+    // Person 2 mirrors the Owner exactly: the online database drops empty lists, so a missing
+    // list means the Owner removed the last item (e.g. undid their only swap) — clear it here too
+    if(syncRole!=='owner'&&data.anchorLink!=null){
+      S.days=data.days||{};
+      S.swaps=data.swaps||[];
+      S.plannedLeave=data.plannedLeave||[];
+      S.appointments=data.appointments||[];
+    }
     if(data.claims&&data.claims.length>=0) S.claims=data.claims;
     if(data.contacts&&data.contacts.length>=0) S.contacts=data.contacts;
     // Leave balances — only apply for Person 2 viewing owner's data, never overwrite owner's own balances
