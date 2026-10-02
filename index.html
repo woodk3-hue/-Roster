@@ -936,7 +936,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="screen-title">🚂 Shift Roster</div>
       <div class="screen-subtitle" id="dash-date-sub">—</div>
     </div>
-    <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
+    <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
   </div>
 
   <!-- Backup reminder (shown by updateBackupReminder) -->
@@ -1005,7 +1005,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
         <button id="cal-day-btn" onclick="setCalTheme('day')">☀️</button>
       </div>
       <div id="cal-link-badge" class="link-badge" onclick="calToday()" style="cursor:pointer;" title="Go to today">—</div>
-      <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+      <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
     </div>
   </div>
 
@@ -1139,7 +1139,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 <div id="screen-swaps" class="screen">
   <div class="screen-header">
     <div class="screen-title">Swaps</div>
-    <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
+    <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
   </div>
 
   <!-- ── RECORD SWAP FORM (always visible) ── -->
@@ -1307,7 +1307,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="screen-title">Claims</div>
     <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
       <button class="btn btn-sm btn-accent" onclick="openClaimModal()">+ New</button>
-      <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+      <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
     </div>
   </div>
   <div class="tab-row">
@@ -1322,7 +1322,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      PAY
 ════════════════════════════════════════ -->
 <div id="screen-pay" class="screen">
-  <div class="screen-header"><div class="screen-title">Pay & Leave</div><button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button></div>
+  <div class="screen-header"><div class="screen-title">Pay & Leave</div><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button></div>
 
   <!-- Leave Balances — TOP of page, inline editable -->
   <div class="section-label">Leave Balances</div>
@@ -1389,7 +1389,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="screen-title">Contacts</div>
     <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
       <button class="btn btn-sm btn-accent" onclick="openContactModal()">+ Add</button>
-      <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+      <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
     </div>
   </div>
 
@@ -1427,7 +1427,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      STATISTICS
 ════════════════════════════════════════ -->
 <div id="screen-stats" class="screen">
-  <div class="screen-header"><div class="screen-title">Statistics</div><button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
+  <div class="screen-header"><div class="screen-title">Statistics</div><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
   <div class="section-label">Pay History</div>
   <div id="pay-history-list" style="margin-bottom:16px;"></div>
   <div class="tab-row">
@@ -1651,7 +1651,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <span>Claims</span>
     <span id="claims-badge" style="display:none;position:absolute;top:4px;right:8px;background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;"></span>
   </button>
-  <button class="nav-btn bnav-item" id="nav-pay" onclick="showScreen('pay')" data-partner-hide="true">
+  <button class="nav-btn bnav-item" id="nav-pay" onclick="showScreen('pay')">
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>
     <span>Pay</span>
   </button>
@@ -2404,6 +2404,10 @@ function enableSync(){
 }
 
 function disableSync(){
+  // The owner's shared copy lives online under the PIN; offer to delete it
+  if(syncRole==='owner'&&syncPin&&fbDb&&confirm('Also delete your shared roster from online?\n\nOK = delete it (your partner will stop seeing it)\nCancel = keep it online')){
+    fbDb.ref('roster/'+syncPin).remove().then(function(){ toast('Online copy deleted'); }).catch(function(){ toast('Could not delete the online copy — check your connection'); });
+  }
   syncEnabled=false;
   syncPin='';
   localStorage.removeItem('syncPin');
@@ -2669,13 +2673,13 @@ function updateSyncUI(){
   if(partnerBtn) partnerBtn.style.color=syncRole==='partner'?'#000':'';
   if(pinEl&&syncPin) pinEl.value=syncPin;
   // Show/hide tabs based on role
-  const partnerHiddenTabs=['nav-swaps','nav-claims','nav-contacts','nav-stats'];
+  const partnerHiddenTabs=['nav-swaps','nav-claims','nav-pay','nav-contacts','nav-stats'];
   partnerHiddenTabs.forEach(function(id){
     const el=document.getElementById(id);
     if(el) el.style.display=(syncEnabled&&syncRole==='partner')?'none':'';
   });
   // If partner is on a hidden screen, redirect to dash
-  if(syncEnabled&&syncRole==='partner'&&['swaps','claims','contacts','stats','pay','settings'].includes(currentScreen)){
+  if(syncEnabled&&syncRole==='partner'&&['swaps','claims','contacts','stats','pay'].includes(currentScreen)){
     showScreen('dash');
   }
 }
