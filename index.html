@@ -1564,7 +1564,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 
   <div class="settings-section">
     <div class="settings-section-title">Family Sync</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Share your roster with your partner in real time.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Share your roster with your partner in real time.</div>
+    <div style="font-size:11px;color:#fbbf24;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);border-radius:8px;padding:8px 10px;margin-bottom:10px;">⚠ Sync is the only feature that stores your data online: your roster, swaps, claims, leave and contacts are saved under your sync PIN so your partner can see them. Anyone who knows or guesses the PIN can see it too — use a long PIN that's hard to guess (8+ characters, letters and numbers).</div>
     <div class="form-group">
       <label class="form-label">My Role</label>
       <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -1575,7 +1576,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="form-group">
       <label class="form-label">Sync PIN <span style="font-size:10px;color:var(--muted);">(share with partner)</span></label>
       <div style="display:flex;gap:8px;">
-        <input type="text" class="form-input" id="sync-pin" placeholder="e.g. PIN2026" style="flex:1;font-weight:700;letter-spacing:2px;text-transform:uppercase;">
+        <input type="text" class="form-input" id="sync-pin" placeholder="e.g. WOOD-ROSTER-7Q" style="flex:1;font-weight:700;letter-spacing:2px;text-transform:uppercase;">
         <button class="btn btn-accent" onclick="enableSync()">Connect</button>
       </div>
     </div>
@@ -1587,6 +1588,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="settings-section-title">Help</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Experiencing an issue? Send a report.</div>
     <textarea class="form-textarea" id="report-text" placeholder="Describe the problem…" style="margin-bottom:8px;"></textarea>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Your report and name are sent to the app's developer.</div>
     <button class="btn btn-accent btn-sm" style="width:100%;" onclick="submitErrorReport()">📨 Send Report</button>
   </div>
 
@@ -1616,7 +1618,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
           <button class="btn btn-accent btn-sm" onclick="adminChangePin()">Update</button>
         </div>
       </div>
-      <button class="btn btn-sm" style="width:100%;margin-bottom:8px;" onclick="adminShowUsers()">👥 View Users</button>
+      <button class="btn btn-sm" style="width:100%;margin-bottom:8px;" onclick="adminShowUsers()">👥 Usage</button>
       <button class="btn btn-sm" style="width:100%;margin-bottom:8px;" onclick="adminShowErrors()">🐛 View Error Reports</button>
       <div id="admin-content" style="margin-top:12px;font-size:12px;"></div>
     </div>
@@ -2384,7 +2386,7 @@ function initFirebase(){
 
 function enableSync(){
   const pin=document.getElementById('sync-pin').value.trim().toUpperCase();
-  if(!pin||pin.length<4){ toast('Enter a PIN (min 4 characters)'); return; }
+  if(!pin||pin.length<8){ toast('Use a sync PIN of at least 8 characters'); return; }
   if(!initFirebase()){ toast('Sync unavailable — check connection'); return; }
   syncPin=pin;
   syncEnabled=true;
@@ -2412,7 +2414,12 @@ function disableSync(){
 // ═══════════════════════════════════════════════════
 // PIN & ADMIN
 // ═══════════════════════════════════════════════════
-const ADMIN_PIN='SHIFT2024ADMIN';
+// Only a SHA-256 fingerprint of the admin password is kept here (the code is public)
+const ADMIN_PIN_HASH='4c2abbaa92a6d866da42624854f964c99b9f014d0e654f54ccd1b1d787ab86a6';
+async function sha256Hex(text){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
 let adminTapCount=0, adminTapTimer=null;
 
 function handleAdminTap(){
@@ -2422,12 +2429,13 @@ function handleAdminTap(){
   if(adminTapCount>=5){
     adminTapCount=0;
     const entered=prompt('Admin PIN:');
-    if(entered===ADMIN_PIN){
-      const sec=document.getElementById('admin-section');
-      if(sec) sec.style.display=sec.style.display==='none'?'block':'none';
-    } else if(entered!==null){
-      alert('Incorrect admin PIN');
-    }
+    if(entered===null) return;
+    sha256Hex(entered.trim().toUpperCase()).then(function(h){
+      if(h===ADMIN_PIN_HASH){
+        const sec=document.getElementById('admin-section');
+        if(sec) sec.style.display=sec.style.display==='none'?'block':'none';
+      } else alert('Incorrect admin PIN');
+    }).catch(function(){ alert('Admin is not available on this browser'); });
   }
 }
 
@@ -2451,22 +2459,24 @@ function checkPin(){
   }
 }
 
+// Anonymous usage check-in (once a day): a random device ID, the date, Driver/Guard and the
+// website address the app runs from (so copies hosted elsewhere show up). No name or roster data.
 function registerUser(){
   try{
-    const db=firebase.database();
-    const deviceId=localStorage.getItem('device_id')||(function(){
-      const id='dev_'+Math.random().toString(36).substr(2,12);
-      localStorage.setItem('device_id',id); return id;
-    })();
-    const ua=navigator.userAgent;
-    const device=/iPhone|iPad/.test(ua)?'iPhone':/Android/.test(ua)?'Android':'Desktop';
-    const now=new Date().toISOString();
-    const ref=db.ref('users/'+deviceId);
+    const todayStr=fmtDate(today());
+    if(localStorage.getItem('usage_ping_day')===todayStr) return;
+    if(!initFirebase()) return;
+    const db=fbDb;
+    let deviceId=localStorage.getItem('device_id');
+    if(!deviceId){ deviceId='dev_'+Math.random().toString(36).substr(2,12); localStorage.setItem('device_id',deviceId); }
+    const ref=db.ref('usage/'+deviceId);
     ref.once('value',function(snap){
-      const data={name:S.myName||'Unknown',device:device,lastActive:now,role:S.myRole||'driver'};
-      if(!snap.exists()) data.firstSeen=now;
-      ref.update(data);
+      const data={lastSeen:todayStr,role:S.myRole||'driver',host:location.hostname||'file'};
+      if(!snap.exists()) data.firstSeen=todayStr;
+      ref.update(data).then(function(){ localStorage.setItem('usage_ping_day',todayStr); });
     });
+    // The older version stored names here — remove this device's old record
+    db.ref('users/'+deviceId).remove().catch(function(){});
   }catch(e){}
 }
 
@@ -2484,17 +2494,20 @@ function adminShowUsers(){
   if(!el) return;
   el.innerHTML='<div style="color:var(--muted);">Loading...</div>';
   try{
-    firebase.database().ref('users').once('value',function(snap){
-      const users=snap.val()||{};
-      const rows=Object.values(users).sort(function(a,b){ return (b.lastActive||'').localeCompare(a.lastActive||''); });
-      if(!rows.length){ el.innerHTML='<div style="color:var(--muted);">No users yet.</div>'; return; }
-      el.innerHTML='<div style="font-weight:700;margin-bottom:8px;">'+rows.length+' users</div>'+
-        rows.map(function(u){
-          return '<div style="padding:8px 0;border-bottom:1px solid var(--border);">'+
-            '<div style="font-weight:700;">'+(u.name||'Unknown')+'</div>'+
-            '<div style="font-size:11px;color:var(--muted);">'+(u.device||'?')+' · '+(u.role||'?')+
-            ' · Last: '+(u.lastActive?u.lastActive.slice(0,10):'?')+'</div></div>';
-        }).join('');
+    firebase.database().ref('usage').once('value',function(snap){
+      const rows=Object.values(snap.val()||{});
+      if(!rows.length){ el.innerHTML='<div style="color:var(--muted);">No check-ins yet.</div>'; return; }
+      const daysAgo=function(d){ return d?(Date.now()-parseDate(d).getTime())/864e5:9999; };
+      const active7=rows.filter(function(u){ return daysAgo(u.lastSeen)<=7; }).length;
+      const active30=rows.filter(function(u){ return daysAgo(u.lastSeen)<=30; }).length;
+      const count=function(field){ const m={}; rows.forEach(function(u){ const k=u[field]||'?'; m[k]=(m[k]||0)+1; }); return m; };
+      const list=function(m){ return Object.keys(m).sort(function(a,b){ return m[b]-m[a]; }).map(function(k){ return '<div>'+k+': <b>'+m[k]+'</b></div>'; }).join(''); };
+      el.innerHTML='<div style="font-size:14px;font-weight:700;margin-bottom:6px;">'+rows.length+' phones have used the app</div>'+
+        '<div>Active in the last 7 days: <b>'+active7+'</b></div>'+
+        '<div>Active in the last 30 days: <b>'+active30+'</b></div>'+
+        '<div style="margin-top:10px;font-weight:700;">By role</div>'+list(count('role'))+
+        '<div style="margin-top:10px;font-weight:700;">By website</div>'+list(count('host'))+
+        '<div style="font-size:10px;color:var(--muted);margin-top:6px;">Any address other than your own means someone is running a copy of the app.</div>';
     });
   }catch(e){ el.innerHTML='<div style="color:#ef4444;">Firebase not connected</div>'; }
 }
@@ -2540,19 +2553,8 @@ function submitErrorReport(){
   }catch(e){ toast('Could not send — check connection'); }
 }
 
-function logError(err,context){
-  try{
-    firebase.database().ref('errors').push({
-      type:'Auto: '+(err.name||'Error'),msg:(err.message||'').slice(0,200),
-      user:S.myName||'Unknown',screen:context||currentScreen||'unknown',
-      device:navigator.userAgent.slice(0,60),ts:new Date().toISOString()
-    });
-  }catch(e){}
-}
-
-window.addEventListener('error',function(e){
-  if(e.error) logError(e.error,'global');
-});
+// Errors are only logged on the device; nothing is sent automatically
+function logError(err,context){ console.error(context||'',err); }
 
 function setMyRole(role){
   S.myRole=role; saveState();
@@ -6805,32 +6807,8 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 let deferredPrompt=null;
 if('serviceWorker' in navigator){
-  const swCode=`
-const CACHE='qr-roster-v2';
-self.addEventListener('install',e=>{
-  self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['/'])).catch(()=>{}));
-});
-self.addEventListener('activate',e=>{
-  e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
-  clients.claim();
-});
-self.addEventListener('fetch',e=>{
-  e.respondWith(
-    caches.match(e.request).then(r=>{
-      if(r) return r;
-      return fetch(e.request).then(res=>{
-        if(res&&res.status===200&&res.type==='basic'){
-          const clone=res.clone();
-          caches.open(CACHE).then(c=>c.put(e.request,clone));
-        }
-        return res;
-      }).catch(()=>caches.match(e.request));
-    })
-  );
-});`;
-  const blob=new Blob([swCode],{type:'application/javascript'});
-  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+  // Offline support lives in sw.js next to this page
+  navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(function(e){ console.warn('Offline support unavailable:',e); });
 
   // Prompt user to install if not already installed
   window.addEventListener('beforeinstallprompt',e=>{
@@ -6927,7 +6905,7 @@ function initApp(){
     // No PIN set or already verified — launch directly
     if(ps) ps.style.display='none';
     initApp();
-    if(accessPin) registerUser();
+    registerUser();
   }
 })();
 </script>
