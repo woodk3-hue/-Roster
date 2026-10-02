@@ -3216,7 +3216,7 @@ function renderDash(){
   }).sort(function(a,b){ return a.wc.localeCompare(b.wc); });
   if(futureSwaps.length){
     emailEl.innerHTML='<div class="section-label">Swap Email Due</div>'+
-      futureSwaps.map(function(sw){
+      firstFewThenMore(futureSwaps.map(function(sw){
         const wcDate=parseDate(sw.wc);
         // Email due 3 days before WC
         const emailDue=addDays(wcDate,-3);
@@ -3236,7 +3236,7 @@ function renderDash(){
           '</div>'+
           '<button class="btn btn-sm" style="font-size:10px;width:100%;margin-top:6px;" data-swapid="'+sw.id+'" onclick="generateSwapEmailById(this)">📧 Generate Email</button>'+
         '</div>';
-      }).join('');
+      }),3);
   } else {
     emailEl.innerHTML='';
   }
