@@ -836,6 +836,9 @@ details.show-more>summary::before{content:'▸ ';}
 details.show-more[open]>summary::before{content:'▾ ';}
 details.collapsible-section>summary{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:8px;}
 
+/* Job card text keeps its printed columns; scroll sideways on narrow phones */
+.jobcard-pre{font:9px/1.35 'Courier New',Courier,monospace;white-space:pre;overflow-x:auto;background:rgba(0,0,0,.25);border-radius:6px;padding:8px;margin:6px 0 0;color:var(--text);}
+
 /* Small, faint creator credit (Settings footer and welcome page) */
 .credit-mark{font-size:10px;color:var(--muted);opacity:.55;text-align:center;letter-spacing:.02em;margin-top:2px;}
 
@@ -955,6 +958,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">The Link/Diagram PDF from the rostering office (drivers' or guards'). You can also do this later in Settings.</div>
       <button class="btn" style="width:100%;" onclick="document.getElementById('roster-pdf-input').click()">📄 Import Roster PDF</button>
       <div id="setup-roster-status" style="font-size:12px;margin-top:6px;"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Job Cards (optional)</label>
+      <button class="btn" style="width:100%;" onclick="document.getElementById('jobcards-pdf-input').click()">🗂 Import Job Cards PDF</button>
+      <div id="setup-jobcards-status" style="font-size:12px;margin-top:6px;"></div>
     </div>
     <button class="btn btn-accent" style="width:100%;margin-top:6px;" onclick="finishSetup()">Get Started</button>
     <div style="margin-top:28px;padding-top:16px;border-top:1px solid var(--border);">
@@ -1536,6 +1544,10 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div id="roster-import-status" style="font-size:12px;margin-bottom:8px;"></div>
     <label for="roster-pdf-input" class="btn btn-accent" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">📄 Import Roster File (.txt or .pdf)</label>
     <input type="file" id="roster-pdf-input" accept=".txt,.pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importRosterPDF(this)">
+    <div style="font-size:11px;color:var(--muted);margin:14px 0 8px;">Import the job card PDF (all days in one file) to see each shift's job card, sign-off time and length when you tap a day.</div>
+    <div id="jobcards-import-status" style="font-size:12px;margin-bottom:8px;"></div>
+    <label for="jobcards-pdf-input" class="btn" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">🗂 Import Job Cards PDF</label>
+    <input type="file" id="jobcards-pdf-input" accept=".pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importJobCards(this)">
   </div>
 
   <div class="settings-section">
@@ -2363,6 +2375,106 @@ function loadRoster(){
     const stored=localStorage.getItem('roster_data');
     if(stored) ROSTER=JSON.parse(stored);
   }catch(e){ ROSTER={}; }
+  try{
+    const jc=localStorage.getItem('job_cards');
+    if(jc) JOBCARDS=JSON.parse(jc);
+  }catch(e){ JOBCARDS={}; }
+}
+
+// ── JOB CARDS ───────────────────────────────────────────
+// Imported from the job card PDF (all days in one file): {PB002S:{on:'02:21',off:'09:51',text:'…'}}.
+// A roster job like PB153S-3 matches card PB153S (the part before the dash).
+let JOBCARDS={};
+function jobCardFor(job){
+  if(!job) return null;
+  return JOBCARDS[String(job).split('-')[0].trim().toUpperCase()]||null;
+}
+
+// Reads the job card PDF: rebuilds each page's fixed-width text, then splits it into cards
+async function readJobCardsPDF(buffer,onPage){
+  const pdfjsLib=await loadPdfJs();
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(buffer)}).promise;
+  const cards={}; let cur=null;
+  for(let pn=1;pn<=doc.numPages;pn++){
+    if(onPage) onPage(pn,doc.numPages);
+    const tc=await (await doc.getPage(pn)).getTextContent();
+    // Works for upright or sideways pages: measure each piece along its text direction and up its line direction
+    const rows={}, cw=[];
+    tc.items.forEach(function(it){
+      if(!it.str) return;
+      const t=it.transform, n=Math.hypot(t[0],t[1])||1, m=Math.hypot(t[2],t[3])||1;
+      it._a=(t[4]*t[0]+t[5]*t[1])/n;
+      const k=Math.round((t[4]*t[2]+t[5]*t[3])/m);
+      (rows[k]=rows[k]||[]).push(it);
+      if(it.str.length>2&&it.width) cw.push(it.width/it.str.length);
+    });
+    if(!cw.length) continue;
+    cw.sort(function(a,b){ return a-b; });
+    const w=cw[cw.length>>1];
+    const x0=Math.min.apply(null,tc.items.filter(function(i){ return i.str; }).map(function(i){ return i._a; }));
+    Object.keys(rows).map(Number).sort(function(a,b){ return b-a; }).forEach(function(k){
+      let line='';
+      rows[k].sort(function(a,b){ return a._a-b._a; }).forEach(function(it){
+        const col=Math.round((it._a-x0)/w);
+        if(col>line.length) line+=' '.repeat(col-line.length);
+        line=line.slice(0,col)+it.str+line.slice(col+it.str.length);
+      });
+      line=line.replace(/\s+$/,'');
+      const h=line.match(/^\s?([A-Z]{2,4}\d{2,4}[A-Z]?)\s+LOCO S\.O\.\s*(\d\d:\d\d)?/);
+      if(h){ cur={on:h[2]||'',off:'',lines:[]}; cards[h[1]]=cur; }
+      if(!cur) return;
+      if(/^\*{20,}$|WORKING TIMETABLE ALTERATION/.test(line.trim())) return; // banner lines
+      const so=line.match(/SIGN OFF (\d\d:\d\d)/); if(so) cur.off=so[1];
+      cur.lines.push(line);
+    });
+  }
+  Object.keys(cards).forEach(function(id){
+    const c=cards[id];
+    while(c.lines.length&&!c.lines[c.lines.length-1].trim()) c.lines.pop();
+    c.text=c.lines.join('\n'); delete c.lines;
+  });
+  return cards;
+}
+
+async function importJobCards(input){
+  const file=input.files[0]; if(!file) return;
+  const say=function(v){ ['jobcards-import-status','setup-jobcards-status'].forEach(function(id){ const e=document.getElementById(id); if(e) e.innerHTML=v; }); };
+  say('<span style="color:var(--muted);">Reading job cards…</span>');
+  try{
+    const cards=await readJobCardsPDF(await file.arrayBuffer(),function(n,t){ if(n%25===0||n===t) say('<span style="color:var(--muted);">Reading page '+n+' of '+t+'…</span>'); });
+    const count=Object.keys(cards).length;
+    if(!count){ say('<span style="color:#ef4444;">No job cards found in that file.</span>'); input.value=''; return; }
+    JOBCARDS=cards;
+    try{ localStorage.setItem('job_cards',JSON.stringify(JOBCARDS)); }
+    catch(e){ alert('Warning: your phone is not letting the app save the job cards. They will be lost on refresh.'); }
+    // How many rostered jobs now have a card
+    let jobs=0, matched=0;
+    Object.keys(ROSTER||{}).forEach(function(l){ (ROSTER[l]||[]).forEach(function(c){ const j=String(c||'').split('|')[1]; if(j&&/^P[BF]\d/.test(j)){ jobs++; if(jobCardFor(j)) matched++; } }); });
+    say('<span style="color:#16a34a;">✓ '+count+' job cards imported'+(jobs?' · '+matched+' of '+jobs+' rostered PB/PF jobs matched':'')+'</span>');
+    toast(count+' job cards imported ✓');
+    pushJobCardsTable(); scheduleAutoBackup();
+    if(dayPanelDate) renderDayPanel(dayPanelDate);
+  }catch(e){
+    console.error('Job card import error:',e);
+    say('<span style="color:#ef4444;">Could not read that PDF: '+e.message+'</span>');
+  }
+  input.value='';
+}
+function updateJobCardsStatus(){
+  const el=document.getElementById('jobcards-import-status'); if(!el) return;
+  const n=Object.keys(JOBCARDS||{}).length;
+  el.innerHTML=n?'<span style="color:#16a34a;">✓ '+n+' job cards loaded</span>':'<span style="color:var(--muted);">No job cards imported yet</span>';
+}
+function escHtml(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// Summary line + the full card, shown in the day panel
+function jobCardHtml(job){
+  const c=jobCardFor(job); if(!c) return '';
+  const dur=(c.on&&c.off)?calcDur(c.on,c.off):'';
+  return '<div style="margin-top:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;">'+
+    '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Job card '+escHtml(String(job).split('-')[0])+'</div>'+
+    '<div style="font-size:13px;margin-top:3px;"><b>Sign on</b> '+(c.on||'—')+' &nbsp;·&nbsp; <b>Sign off</b> '+(c.off||'—')+(dur?' &nbsp;·&nbsp; '+dur:'')+'</div>'+
+    '<details class="show-more" style="margin:4px 0 0;"><summary>Full job card</summary><pre class="jobcard-pre">'+escHtml(c.text)+'</pre></details>'+
+  '</div>';
 }
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
@@ -2483,7 +2595,7 @@ function disableSync(){
   if(syncRole==='owner'&&syncPin&&fbDb&&confirm('Also delete your shared roster from online?\n\nOK = delete it (your partner will stop seeing it)\nCancel = keep it online')){
     fbDb.ref(syncPath()).remove().then(function(){ toast('Online copy deleted'); }).catch(function(){ toast('Could not delete the online copy — check your connection'); });
   }
-  if(syncPin) localStorage.removeItem('roster_sent_'+syncPin);
+  if(syncPin){ localStorage.removeItem('roster_sent_'+syncPin); localStorage.removeItem('jobcards_sent_'+syncPin); }
   syncEnabled=false;
   syncPin='';
   localStorage.removeItem('syncPin');
@@ -2831,6 +2943,13 @@ function startSync(){
         if(data.rosterTable.asAt) localStorage.setItem('roster_asat',data.rosterTable.asAt);
       }catch(e){ console.warn('Synced roster could not be read',e); }
     }
+    if(syncRole!=='owner'&&data.jobCards&&data.jobCards.json&&data.jobCards.sig!==localStorage.getItem('jobcards_sync_sig')){
+      try{
+        JOBCARDS=JSON.parse(data.jobCards.json);
+        localStorage.setItem('job_cards',data.jobCards.json);
+        localStorage.setItem('jobcards_sync_sig',data.jobCards.sig);
+      }catch(e){ console.warn('Synced job cards could not be read',e); }
+    }
     localStorage.setItem(STATE_KEY,JSON.stringify(S));
     refreshAllScreens();
   };
@@ -2840,7 +2959,17 @@ function startSync(){
     applyRemote(snap);
   };
   fbRef.on('value',fbListener,function(e){ syncNote(syncErrorText(e),true); });
-  if(syncRole==='owner') pushRosterTable();
+  if(syncRole==='owner'){ pushRosterTable(); pushJobCardsTable(); }
+}
+// Owner: share the job cards with Person 2 (only when they change)
+function pushJobCardsTable(){
+  if(!syncEnabled||syncRole!=='owner'||!fbDb||!syncPin) return;
+  if(!Object.keys(JOBCARDS||{}).length) return;
+  const json=JSON.stringify(JOBCARDS), sig=hashString(json), sentKey='jobcards_sent_'+syncPin;
+  if(localStorage.getItem(sentKey)===sig) return;
+  fbDb.ref(syncPath('/jobCards')).set({sig:sig,json:json})
+    .then(function(){ try{ localStorage.setItem(sentKey,sig); }catch(e){} })
+    .catch(function(e){ console.error('Job card share failed:',e); syncNote(syncErrorText(e),true); });
 }
 
 // Short fingerprint of a string (to tell whether the roster changed)
@@ -3851,6 +3980,7 @@ function renderDayPanel(ds){
   } else {
     html='<div style="color:var(--muted);">'+(sh.code||'--')+'</div>';
   }
+  if(sh.time&&sh.job&&!leaveTypeKey) html+=jobCardHtml(sh.job);
   if(sh.guards&&sh.guards.trim()){
     const lines=sh.guards.trim().split('\n').filter(Boolean);
     html+='<div style="margin-top:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;">';
@@ -4270,6 +4400,7 @@ let blpSwapGiveDays=[];  // indices of days being given away
 let blpSwapRecvDay=null; // index of day being received
 
 function updateRosterImportStatus(){
+  updateJobCardsStatus();
   const el=document.getElementById('roster-import-status');
   if(!el) return;
   const count=Object.keys(ROSTER||{}).length;
@@ -6746,6 +6877,11 @@ function applyBackupData(p){
     try{ localStorage.setItem('roster_data',JSON.stringify(ROSTER)); }catch(e){}
   }
   delete p.roster;
+  if(p.jobCards&&Object.keys(p.jobCards).length){
+    JOBCARDS=p.jobCards;
+    try{ localStorage.setItem('job_cards',JSON.stringify(JOBCARDS)); }catch(e){}
+  }
+  delete p.jobCards;
   // Restore every saved field (same rules as loadState)
   try{ localStorage.setItem(STATE_KEY,JSON.stringify(p)); }
   catch(e){ alert('Your phone is not letting the app save data, so the backup cannot be kept. Check you are not in a private/incognito tab and that the browser is not set to clear site data.'); return false; }
@@ -6790,7 +6926,7 @@ function runAutoBackup(){
   // Never back up an empty app — it would replace a good copy with nothing
   if(!hasRealData()) return;
   const savedAt=Date.now();
-  const copy={savedAt:savedAt,json:JSON.stringify(Object.assign({},S,{roster:ROSTER}))};
+  const copy={savedAt:savedAt,json:JSON.stringify(Object.assign({},S,{roster:ROSTER,jobCards:JOBCARDS}))};
   backupDbOp('readwrite',function(st){ return st.put(copy,'latest'); }).then(function(){
     backupError='';
     try{ localStorage.setItem('backup_last',String(savedAt)); }catch(e){}
@@ -6860,7 +6996,7 @@ function removeLegacyOnlineBackup(){
 }
 
 function exportBackup(){
-  const backup=Object.assign({},S,{roster:ROSTER});
+  const backup=Object.assign({},S,{roster:ROSTER,jobCards:JOBCARDS});
   const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -6887,6 +7023,7 @@ function clearAllData(){
   if(btn&&btn.dataset.confirming==='yes'){
     localStorage.removeItem(STATE_KEY);
     localStorage.removeItem('roster_data');
+    localStorage.removeItem('job_cards');
     localStorage.removeItem('syncEnabled');
     localStorage.removeItem('syncPin');
     localStorage.removeItem('syncRole');
