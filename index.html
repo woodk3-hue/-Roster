@@ -886,7 +886,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <label class="form-label">I am a</label>
       <div style="display:flex;gap:8px;">
         <button class="btn" style="flex:1;" id="setup-role-driver" onclick="setSetupRole('driver')">🚆 Driver</button>
-        <button class="btn" style="flex:1;" id="setup-role-guard" onclick="setSetupRole('guard')">🦺 Guard</button>
+        <button class="btn" style="flex:1;" id="setup-role-guard" onclick="setSetupRole('guard')"><svg viewBox="0 0 24 24" width="1.35em" height="1.35em" style="vertical-align:-0.3em;" aria-hidden="true"><circle cx="9" cy="14" r="6.5" fill="#cbd5e1" stroke="#475569" stroke-width="1.2"/><path d="M9 7.5h11.5a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H14" fill="#cbd5e1" stroke="#475569" stroke-width="1.2" stroke-linejoin="round"/><circle cx="9" cy="14" r="2.2" fill="#475569"/><path d="M3.5 9.5 2 8" stroke="#475569" stroke-width="1.4" stroke-linecap="round"/></svg> Guard</button>
       </div>
     </div>
     <div class="form-group">
@@ -896,7 +896,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">My Link This Week</label>
-        <input type="number" class="form-input" id="setup-link" min="1" max="440" placeholder="e.g. 261">
+        <input type="number" class="form-input" id="setup-link" min="1" placeholder="e.g. 261">
       </div>
       <div class="form-group">
         <label class="form-label">Week Starting (Mon)</label>
@@ -1146,7 +1146,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap;">
       <div style="flex:1;min-width:80px;">
         <div class="form-label">My Link</div>
-        <input type="number" class="form-input" id="sw-my-link" min="1" max="440" placeholder="e.g. 249"
+        <input type="number" class="form-input" id="sw-my-link" min="1" placeholder="e.g. 249"
                oninput="onMyLinkInput()" style="font-size:16px;font-weight:700;">
         <div style="font-size:28px;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums;margin-top:2px;" id="sw-your-link-disp">—</div>
       </div>
@@ -1165,7 +1165,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       </div>
       <div style="flex:1;min-width:80px;">
         <div class="form-label">Other Link</div>
-        <input type="number" class="form-input" id="sw-received" min="1" max="440" placeholder="355" oninput="onSwapLinkInput()">
+        <input type="number" class="form-input" id="sw-received" min="1" placeholder="355" oninput="onSwapLinkInput()">
       </div>
     </div>
 
@@ -1453,13 +1453,13 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <label class="form-label">I am a</label>
       <div style="display:flex;gap:8px;">
         <button class="btn" style="flex:1;" id="role-driver-btn" onclick="setMyRole('driver')">🚆 Driver</button>
-        <button class="btn" style="flex:1;" id="role-guard-btn" onclick="setMyRole('guard')">🦺 Guard</button>
+        <button class="btn" style="flex:1;" id="role-guard-btn" onclick="setMyRole('guard')"><svg viewBox="0 0 24 24" width="1.35em" height="1.35em" style="vertical-align:-0.3em;" aria-hidden="true"><circle cx="9" cy="14" r="6.5" fill="#cbd5e1" stroke="#475569" stroke-width="1.2"/><path d="M9 7.5h11.5a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H14" fill="#cbd5e1" stroke="#475569" stroke-width="1.2" stroke-linejoin="round"/><circle cx="9" cy="14" r="2.2" fill="#475569"/><path d="M3.5 9.5 2 8" stroke="#475569" stroke-width="1.4" stroke-linecap="round"/></svg> Guard</button>
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">My Link This Week</label>
-        <input type="number" class="form-input" id="set-link" min="1" max="440" placeholder="e.g. 261">
+        <input type="number" class="form-input" id="set-link" min="1" placeholder="e.g. 261">
       </div>
       <div class="form-group">
         <label class="form-label">Week Starting (Mon)</label>
@@ -1818,13 +1818,13 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       </div>
       <div class="form-group">
         <label class="form-label">Link Given</label>
-        <input type="number" class="form-input" id="swm-given" min="1" max="440">
+        <input type="number" class="form-input" id="swm-given" min="1">
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Link Received</label>
-        <input type="number" class="form-input" id="swm-received" min="1" max="440" oninput="previewSwapFromModal()">
+        <input type="number" class="form-input" id="swm-received" min="1" oninput="previewSwapFromModal()">
       </div>
       <div class="form-group">
         <label class="form-label">Driver Name</label>
@@ -2016,11 +2016,31 @@ async function importRosterPDF(input){
       if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">0 links found. First 200 chars: '+preview+'</span>';
       return;
     }
+    // Work out this week's link with the OLD roster before swapping it out
+    const hadRoster=Object.keys(ROSTER).length>0;
+    const oldSize=hadRoster?rosterSize():null;
+    const thisMon=getMonday(today());
+    const linkNow=(S.anchorLink&&S.anchorDate)?getLinkForWeek(thisMon):null;
     ROSTER=parsed;
     try{ localStorage.setItem('roster_data',JSON.stringify(ROSTER)); }
     catch(e){ alert('Warning: your phone is not letting the app save the roster. It will be lost on refresh.'); }
+    const newSize=rosterSize();
+    // Re-anchor on this week so the week-by-week rotation carries on from today even if
+    // the new roster has more or fewer links (otherwise the cycle shifts from the old anchor date)
+    if(linkNow&&syncRole!=='partner'){
+      S.anchorLink=Math.min(linkNow,newSize);
+      S.anchorDate=fmtDate(thisMon);
+      saveState();
+      loadSettingsUI();
+    }
+    const asAt=(text.match(/AS AT\s+(\d{2}\/\d{2}\/\d{4})/)||[])[1]||'';
+    try{ localStorage.setItem('roster_asat',asAt); }catch(e){}
     scheduleAutoBackup();
-    if(statusEl) statusEl.innerHTML='<span style="color:#16a34a;">✓ '+count+' links imported successfully</span>';
+    let msg='✓ '+count+' links imported'+(asAt?' (roster as at '+asAt+')':'');
+    if(hadRoster&&oldSize!==newSize) msg+='<br>Roster now has '+newSize+' links (was '+oldSize+').';
+    if(linkNow) msg+='<br><b>Your link this week: '+S.anchorLink+'</b> — check this matches the new roster. If not, change it above and tap Save Link.';
+    if(linkNow&&linkNow>newSize) msg+='<br><span style="color:#ef4444;">Link '+linkNow+' is not in the new roster — please set your link.</span>';
+    if(statusEl) statusEl.innerHTML='<span style="color:#16a34a;">'+msg+'</span>';
     toast(count+' roster links imported ✓');
     renderDash();
     if(currentScreen==='cal') renderCal();
@@ -2185,7 +2205,7 @@ function parseLinkDiagram(text){
   });
   const roster={};
   Object.keys(toks).forEach(function(link){
-    if(link<1||link>440) return;
+    if(link<1||link>999) return;
     roster[link]=toks[link].map(function(list){
       const entries=[];
       list.forEach(function(t){
@@ -2212,7 +2232,7 @@ function parseRosterText(text){
       const parts=lines[i].split('\t');
       if(parts.length>=8){
         const link=parseInt(parts[0]);
-        if(link>=1&&link<=440){
+        if(link>=1&&link<=999){
           roster[String(link)]=parts.slice(1,8);
         }
       }
@@ -2258,7 +2278,7 @@ function parseRosterText(text){
         }
         j++;
       }
-      if(link>=1&&link<=440) roster[String(link)]=shifts;
+      if(link>=1&&link<=999) roster[String(link)]=shifts;
       i=j;
     } else {
       i++;
@@ -2592,7 +2612,7 @@ function finishSetup(){
   const name=(document.getElementById('setup-name').value||'').trim();
   const link=parseInt(document.getElementById('setup-link').value);
   const dv=document.getElementById('setup-date').value;
-  if(!link||link<1||link>440||!dv){ toast('Enter your link this week'); return; }
+  if(!link||link<1||link>maxLinkNumber()||!dv){ toast('Enter your link this week'); return; }
   const [y,m,d]=dv.split('-').map(Number);
   S.myName=name;
   S.myRole=setupRole;
@@ -2825,8 +2845,20 @@ function getLinkForWeek(mon){
   if(!S.anchorLink||!S.anchorDate) return null;
   const anchor = parseDate(S.anchorDate);
   const diff = Math.round((mon-anchor)/(7*864e5));
-  return ((S.anchorLink-1+diff)%440+440)%440+1;
+  const n=rosterSize();
+  return ((S.anchorLink-1+diff)%n+n)%n+1;
 }
+// Number of links in the imported roster (drivers' and guards' rosters differ); 440 until one is imported
+let rosterSizeCache={roster:null,n:440};
+function rosterSize(){
+  if(rosterSizeCache.roster!==ROSTER){
+    const ks=Object.keys(ROSTER||{}).map(Number).filter(function(k){ return k>0; });
+    rosterSizeCache={roster:ROSTER,n:ks.length?Math.max.apply(null,ks):440};
+  }
+  return rosterSizeCache.n;
+}
+// Highest link someone can enter: the roster's size, or anything up to 999 before a roster is imported
+function maxLinkNumber(){ return Object.keys(ROSTER||{}).length?rosterSize():999; }
 function getRaw(link,idx){ return link&&ROSTER[String(link)]?ROSTER[String(link)][idx]:''; }
 function parseShift(raw){
   if(!raw) return {code:'--',time:null,typeKey:'normal',job:''};
@@ -4423,7 +4455,7 @@ function populateSwapDaySelect(mon,link){
 function previewSwapFromModal(){
   const lnk=parseInt(document.getElementById('swm-received').value);
   const prev=document.getElementById('swm-preview');
-  if(!lnk||lnk<1||lnk>440||!ROSTER[String(lnk)]){ prev.style.display='none'; return; }
+  if(!lnk||lnk<1||lnk>rosterSize()||!ROSTER[String(lnk)]){ prev.style.display='none'; return; }
   const days=ROSTER[String(lnk)];
   prev.style.display='block';
   prev.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px;">Link '+lnk+' — Their week</div>'+
@@ -4442,7 +4474,7 @@ function saveSwap(){
   const given=parseInt(document.getElementById('swm-given').value);
   const received=parseInt(document.getElementById('swm-received').value);
   const driver=document.getElementById('swm-driver').value.trim();
-  if(!wc||!received||received<1||received>440){ toast('Enter a valid link to receive'); return; }
+  if(!wc||!received||received<1||received>rosterSize()){ toast('Enter a valid link to receive'); return; }
   const mon=parseDate(wc);
   const monStr=fmtDate(getMonday(mon));
 
@@ -4472,18 +4504,18 @@ function saveSwap(){
 function onMyLinkInput(){
   const targetLink=parseInt(document.getElementById('sw-my-link').value);
   const hintEl=document.getElementById('sw-wc-hint');
-  if(!targetLink||targetLink<1||targetLink>440){ hintEl.textContent=''; return; }
+  if(!targetLink||targetLink<1||targetLink>rosterSize()){ hintEl.textContent=''; return; }
   if(!S.anchorLink||!S.anchorDate){ hintEl.textContent='Set anchor in Settings first'; return; }
-  // Find all future occurrences of this link (up to 440 weeks)
+  // Find all future occurrences of this link (one full roster cycle)
   const nowMon=getMonday(today());
   const occurrences=[];
-  for(let w=0;w<440;w++){
+  for(let w=0;w<rosterSize();w++){
     const mon=addDays(nowMon,w*7);
     if(getLinkForWeek(mon)===targetLink){
       occurrences.push(mon);
     }
   }
-  if(!occurrences.length){ hintEl.textContent='Link not found in next 440 weeks'; return; }
+  if(!occurrences.length){ hintEl.textContent='Link not found in the roster cycle'; return; }
   // Show all occurrences and set first one as WC
   const wcEl=document.getElementById('sw-wc');
   wcEl.value=fmtDate(occurrences[0]);
@@ -4540,7 +4572,7 @@ function onSwapLinkInput(){
   const lnk=parseInt(document.getElementById('sw-received').value);
   const wrap=document.getElementById('sw-compare-wrap');
   const tbl=document.getElementById('sw-compare-table');
-  if(!lnk||lnk<1||lnk>440||!ROSTER[String(lnk)]){ wrap.style.display='none'; return; }
+  if(!lnk||lnk<1||lnk>rosterSize()||!ROSTER[String(lnk)]){ wrap.style.display='none'; return; }
   // Get my link for the selected WC week
   const wcVal=document.getElementById('sw-wc').value;
   const mon=wcVal?getMonday(parseDate(wcVal)):getMonday(today());
@@ -4590,7 +4622,7 @@ function saveSwapInline(){
   const wc=document.getElementById('sw-wc').value;
   const received=parseInt(document.getElementById('sw-received').value);
   const driver=document.getElementById('sw-driver').value.trim();
-  if(!wc||!received||received<1||received>440){ toast('Enter a valid other link'); return; }
+  if(!wc||!received||received<1||received>rosterSize()){ toast('Enter a valid other link'); return; }
   const mon=getMonday(parseDate(wc));
   const monStr=fmtDate(mon);
   const given=getLinkForWeek(mon)||HOME_LINK;
@@ -6455,7 +6487,7 @@ function previewLink(){
   const dv=document.getElementById('set-anchor-date').value;
   const el=document.getElementById('set-link-preview');
   if(!link||!dv){el.textContent='';return;}
-  const nextLink=((link-1+1)%440)+1;
+  const nextLink=(link%rosterSize())+1;
   el.textContent='✓ Next week → Link '+nextLink;
 }
 
@@ -6464,7 +6496,7 @@ function saveRosterSettings(){
   const link=parseInt(document.getElementById('set-link').value);
   const dv=document.getElementById('set-anchor-date').value;
   const name=(document.getElementById('set-name').value||'').trim();
-  if(!link||link<1||link>440||!dv){toast('Enter a valid link and date');return;}
+  if(!link||link<1||link>maxLinkNumber()||!dv){toast('Enter a valid link and date');return;}
   const [y,m,d]=dv.split('-').map(Number);
   S.anchorLink=link;
   S.anchorDate=fmtDate(getMonday(new Date(y,m-1,d)));
