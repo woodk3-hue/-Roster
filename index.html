@@ -912,6 +912,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Pick your exported backup file to bring your data back.</div>
       <button class="btn" onclick="document.getElementById('import-file').click()">⬆ Restore from backup file</button>
     </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+      <div style="font-size:13px;font-weight:700;">Viewing a partner's roster?</div>
+      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">If your partner uses Shift Roster with Family Sync, you only need their sync PIN — no roster PDF or link.</div>
+      <button class="btn" onclick="setupAsPartner()">👀 Connect as Person 2</button>
+    </div>
     <div class="credit-mark" style="margin-top:32px;">Made by K. Wood with Claude</div>
   </div>
 </div>
@@ -936,7 +941,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="screen-title">🚂 Shift Roster</div>
       <div class="screen-subtitle" id="dash-date-sub">—</div>
     </div>
-    <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
+    <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
   </div>
 
   <!-- Backup reminder (shown by updateBackupReminder) -->
@@ -1005,7 +1010,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
         <button id="cal-day-btn" onclick="setCalTheme('day')">☀️</button>
       </div>
       <div id="cal-link-badge" class="link-badge" onclick="calToday()" style="cursor:pointer;" title="Go to today">—</div>
-      <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+      <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
     </div>
   </div>
 
@@ -1139,7 +1144,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 <div id="screen-swaps" class="screen">
   <div class="screen-header">
     <div class="screen-title">Swaps</div>
-    <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
+    <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
   </div>
 
   <!-- ── RECORD SWAP FORM (always visible) ── -->
@@ -1307,7 +1312,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="screen-title">Claims</div>
     <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
       <button class="btn btn-sm btn-accent" onclick="openClaimModal()">+ New</button>
-      <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+      <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
     </div>
   </div>
   <div class="tab-row">
@@ -1322,7 +1327,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      PAY
 ════════════════════════════════════════ -->
 <div id="screen-pay" class="screen">
-  <div class="screen-header"><div class="screen-title">Pay & Leave</div><button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button></div>
+  <div class="screen-header"><div class="screen-title">Pay & Leave</div><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button></div>
 
   <!-- Leave Balances — TOP of page, inline editable -->
   <div class="section-label">Leave Balances</div>
@@ -1389,7 +1394,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="screen-title">Contacts</div>
     <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
       <button class="btn btn-sm btn-accent" onclick="openContactModal()">+ Add</button>
-      <button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+      <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
     </div>
   </div>
 
@@ -1427,7 +1432,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      STATISTICS
 ════════════════════════════════════════ -->
 <div id="screen-stats" class="screen">
-  <div class="screen-header"><div class="screen-title">Statistics</div><button onclick="showScreen('settings')" data-partner-hide="true" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
+  <div class="screen-header"><div class="screen-title">Statistics</div><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
   <div class="section-label">Pay History</div>
   <div id="pay-history-list" style="margin-bottom:16px;"></div>
   <div class="tab-row">
@@ -1580,7 +1585,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="form-group">
       <label class="form-label">Sync PIN <span style="font-size:10px;color:var(--muted);">(share with partner)</span></label>
       <div style="display:flex;gap:8px;">
-        <input type="text" class="form-input" id="sync-pin" placeholder="e.g. WOOD-ROSTER-7Q" style="flex:1;font-weight:700;letter-spacing:2px;text-transform:uppercase;">
+        <input type="text" class="form-input" id="sync-pin" placeholder="e.g. BLUE-TRAIN-42" style="flex:1;font-weight:700;letter-spacing:2px;text-transform:uppercase;">
         <button class="btn btn-accent" onclick="enableSync()">Connect</button>
       </div>
     </div>
@@ -1651,7 +1656,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <span>Claims</span>
     <span id="claims-badge" style="display:none;position:absolute;top:4px;right:8px;background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;"></span>
   </button>
-  <button class="nav-btn bnav-item" id="nav-pay" onclick="showScreen('pay')" data-partner-hide="true">
+  <button class="nav-btn bnav-item" id="nav-pay" onclick="showScreen('pay')">
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>
     <span>Pay</span>
   </button>
@@ -2042,6 +2047,7 @@ async function importRosterPDF(input){
     }
     const asAt=(text.match(/AS AT\s+(\d{2}\/\d{2}\/\d{4})/)||[])[1]||'';
     try{ localStorage.setItem('roster_asat',asAt); }catch(e){}
+    pushRosterTable();
     scheduleAutoBackup();
     let msg='✓ '+count+' links imported'+(asAt?' (roster as at '+asAt+')':'');
     if(hadRoster&&oldSize!==newSize) msg+='<br>Roster now has '+newSize+' links (was '+oldSize+').';
@@ -2404,6 +2410,11 @@ function enableSync(){
 }
 
 function disableSync(){
+  // The owner's shared copy lives online under the PIN; offer to delete it
+  if(syncRole==='owner'&&syncPin&&fbDb&&confirm('Also delete your shared roster from online?\n\nOK = delete it (your partner will stop seeing it)\nCancel = keep it online')){
+    fbDb.ref('roster/'+syncPin).remove().then(function(){ toast('Online copy deleted'); }).catch(function(){ toast('Could not delete the online copy — check your connection'); });
+  }
+  if(syncPin) localStorage.removeItem('roster_sent_'+syncPin);
   syncEnabled=false;
   syncPin='';
   localStorage.removeItem('syncPin');
@@ -2615,6 +2626,17 @@ function showSetupIfNeeded(){
   document.getElementById('setup-date').value=fmtDate(getMonday(today()));
   el.style.display='block';
 }
+// Person 2 skips setup: everything comes from the Owner over Family Sync
+function setupAsPartner(){
+  document.getElementById('setup-screen').style.display='none';
+  setRole('partner');
+  showScreen('settings');
+  setTimeout(function(){
+    const pin=document.getElementById('sync-pin');
+    if(pin){ pin.scrollIntoView({behavior:'smooth',block:'center'}); pin.focus(); }
+  },150);
+  toast('Enter your partner\'s sync PIN and tap Connect');
+}
 function finishSetup(){
   const name=(document.getElementById('setup-name').value||'').trim();
   const link=parseInt(document.getElementById('setup-link').value);
@@ -2669,13 +2691,13 @@ function updateSyncUI(){
   if(partnerBtn) partnerBtn.style.color=syncRole==='partner'?'#000':'';
   if(pinEl&&syncPin) pinEl.value=syncPin;
   // Show/hide tabs based on role
-  const partnerHiddenTabs=['nav-swaps','nav-claims','nav-contacts','nav-stats'];
+  const partnerHiddenTabs=['nav-swaps','nav-claims','nav-pay','nav-contacts','nav-stats'];
   partnerHiddenTabs.forEach(function(id){
     const el=document.getElementById(id);
     if(el) el.style.display=(syncEnabled&&syncRole==='partner')?'none':'';
   });
   // If partner is on a hidden screen, redirect to dash
-  if(syncEnabled&&syncRole==='partner'&&['swaps','claims','contacts','stats','pay','settings'].includes(currentScreen)){
+  if(syncEnabled&&syncRole==='partner'&&['swaps','claims','contacts','stats','pay'].includes(currentScreen)){
     showScreen('dash');
   }
 }
@@ -2710,10 +2732,39 @@ function startSync(){
     if(data.leaveAdj) S.leaveAdj=data.leaveAdj;
     if(data.settings&&data.settings.cph>0) Object.assign(S.settings,data.settings);
     if(data.appointments) S.appointments=data.appointments;
+    // Person 2 gets the Owner's imported roster, so they never need the PDF
+    if(syncRole!=='owner'&&data.rosterTable&&data.rosterTable.json&&data.rosterTable.sig!==localStorage.getItem('roster_sync_sig')){
+      try{
+        ROSTER=JSON.parse(data.rosterTable.json);
+        localStorage.setItem('roster_data',data.rosterTable.json);
+        localStorage.setItem('roster_sync_sig',data.rosterTable.sig);
+        if(data.rosterTable.asAt) localStorage.setItem('roster_asat',data.rosterTable.asAt);
+      }catch(e){ console.warn('Synced roster could not be read',e); }
+    }
     localStorage.setItem(STATE_KEY,JSON.stringify(S));
     refreshAllScreens();
   };
   fbRef.on('value',fbListener);
+  if(syncRole==='owner') pushRosterTable();
+}
+
+// Short fingerprint of a string (to tell whether the roster changed)
+function hashString(str){
+  let h=0x811c9dc5;
+  for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0; }
+  return h.toString(16)+'-'+str.length;
+}
+// Owner: share the imported roster table with Person 2. Only sent when it has changed,
+// as it is much bigger than the rest of the synced data.
+function pushRosterTable(){
+  if(!syncEnabled||syncRole!=='owner'||!fbDb||!syncPin) return;
+  if(!Object.keys(ROSTER||{}).length) return;
+  const json=JSON.stringify(ROSTER), sig=hashString(json);
+  const sentKey='roster_sent_'+syncPin;
+  if(localStorage.getItem(sentKey)===sig) return;
+  fbDb.ref('roster/'+syncPin+'/rosterTable').set({sig:sig,json:json,asAt:localStorage.getItem('roster_asat')||''})
+    .then(function(){ try{ localStorage.setItem(sentKey,sig); }catch(e){} })
+    .catch(function(e){ console.error('Roster share failed:',e); });
 }
 
 function pushSync(){
@@ -2738,7 +2789,7 @@ function pushSync(){
     lastUpdated:Date.now(),
     lastUpdatedBy:syncRole
   };
-  ref.set(payload).then(function(){
+  ref.update(JSON.parse(JSON.stringify(payload))).then(function(){
     setTimeout(function(){ isSyncPushing=false; },1000);
   }).catch(function(e){
     isSyncPushing=false;
