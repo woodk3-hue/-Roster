@@ -824,6 +824,14 @@ html{scroll-padding-top:env(safe-area-inset-top,0px);}
 /* Person 2 (Family Sync partner) only sees the roster: hide the Owner's admin bits on the Dash */
 body.partner-view .owner-only{display:none !important;}
 
+/* "Show N more" toggles and collapsed sections */
+details.show-more{margin:4px 0 10px;}
+details.show-more>summary{cursor:pointer;list-style:none;font-size:12px;font-weight:700;color:var(--accent);padding:6px 2px;}
+details.show-more>summary::-webkit-details-marker{display:none;}
+details.show-more>summary::before{content:'▸ ';}
+details.show-more[open]>summary::before{content:'▾ ';}
+details.collapsible-section>summary{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:8px;}
+
 /* Small, faint creator credit (Settings footer and welcome page) */
 .credit-mark{font-size:10px;color:var(--muted);opacity:.55;text-align:center;letter-spacing:.02em;margin-top:2px;}
 
@@ -924,6 +932,19 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
         <label class="form-label">Week Starting (Mon)</label>
         <input type="date" class="form-input" id="setup-date">
       </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Hourly Pay Rate ($)</label>
+      <input type="number" class="form-input" id="setup-cph" step="0.01" min="0" placeholder="e.g. 52.50" inputmode="decimal">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Starting Leave Balances (hours, from your payslip)</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <input type="number" class="form-input" id="setup-al" step="0.01" min="0" placeholder="Annual" inputmode="decimal">
+        <input type="number" class="form-input" id="setup-lsl" step="0.01" min="0" placeholder="Long service" inputmode="decimal">
+        <input type="number" class="form-input" id="setup-pc" step="0.01" min="0" placeholder="Personal" inputmode="decimal">
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Optional — you can fill these in later on the Pay tab.</div>
     </div>
     <div class="form-group">
       <label class="form-label">Master Roster</label>
@@ -1402,13 +1423,15 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
   <div id="planned-leave-list"></div>
 
-  <!-- Leave Adjustment History -->
-  <div class="section-label">Balance Adjustment History</div>
-  <div id="leave-adj-list"></div>
-
   <!-- Projected Fortnightly Pay -->
   <div class="section-label">Projected Fortnightly Pay</div>
   <div id="pay-projection-card" class="card" style="margin-bottom:12px;"></div>
+
+  <!-- Leave Adjustment History (collapsed, at the bottom) -->
+  <details class="show-more collapsible-section">
+    <summary>Balance Adjustment History</summary>
+    <div id="leave-adj-list" style="margin-top:8px;"></div>
+  </details>
 
 
 </div>
@@ -2685,6 +2708,11 @@ function finishSetup(){
   const dv=document.getElementById('setup-date').value;
   if(!link||link<1||link>maxLinkNumber()||!dv){ toast('Enter your link this week'); return; }
   const [y,m,d]=dv.split('-').map(Number);
+  // Optional pay rate and starting leave balances
+  const num=function(id){ const v=parseFloat(document.getElementById(id).value); return isNaN(v)||v<0?null:v; };
+  const cph=num('setup-cph'); if(cph!==null) S.settings.cph=cph;
+  ['al','lsl','pc'].forEach(function(k){ const v=num('setup-'+k); if(v!==null) S.leave[k]=v; });
+  S.leaveAdjBase={al:S.leave.al,lsl:S.leave.lsl,pc:S.leave.pc}; // starting point, not an adjustment
   S.myName=name;
   S.myRole=setupRole;
   S.anchorLink=link;
@@ -3219,12 +3247,11 @@ function renderDash(){
     if(start<=now) return; // already started
     const daysUntil=Math.ceil((start-now)/(24*60*60*1000));
     const labels={al:'Annual Leave',sl:'Sick Leave',lsl:'Long Service Leave'};
-    leaveThresholds.forEach(function(t){
-      if(daysUntil<=t.days&&daysUntil>0){
-        const msg=daysUntil===1?labels[lv.type]+' starts Tomorrow':''+labels[lv.type]+' starts in '+daysUntil+' days ('+fmtDDMM(start)+')';
-        alerts.push({dot:'dot-green',msg:msg,pri:2});
-      }
-    });
+    // One alert per leave once it's within the first reminder window (it used to add one per window)
+    if(daysUntil>0&&daysUntil<=leaveThresholds[0].days){
+      const msg=daysUntil===1?labels[lv.type]+' starts Tomorrow':''+labels[lv.type]+' starts in '+daysUntil+' days ('+fmtDDMM(start)+')';
+      alerts.push({dot:'dot-green',msg:msg,pri:2});
+    }
   });
 
   if(openClaims>0) alerts.push({dot:'dot-red',msg:openClaims+' unsubmitted claim'+(openClaims>1?'s':'')+' pending.',pri:3});
@@ -3261,10 +3288,10 @@ function renderDash(){
   const visibleAlerts=alerts.filter(function(a){ return !S.dismissedAlerts.includes(a.key||a.msg); });
   const alEl=document.getElementById('dash-alerts');
   if(visibleAlerts.length){
-    alEl.innerHTML=visibleAlerts.map(function(a){
+    alEl.innerHTML=firstFewThenMore(visibleAlerts.map(function(a){
       const key=(a.key||a.msg).replace(/'/g,'');
       return '<div class="alert-card"><div class="dot '+a.dot+'"></div><div style="flex:1;font-size:13px;">'+a.msg+'</div><button data-akey="'+key+'" onclick="dismissAlert(this.getAttribute(\'data-akey\'))" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;">×</button></div>';
-    }).join('');
+    }),3);
   } else {
     alEl.innerHTML='<div class="empty-state" style="padding:16px;">No alerts — all good! ✓</div>';
   }
@@ -6117,6 +6144,14 @@ function daysDiff(ds1,ds2){
   return Math.abs((parseDate(ds2)-parseDate(ds1))/(24*60*60*1000));
 }
 
+// Shows the first few items and tucks the rest under a "Show N more" toggle
+function firstFewThenMore(items,keep){
+  keep=keep||3;
+  if(items.length<=keep) return items.join('');
+  return items.slice(0,keep).join('')+
+    '<details class="show-more"><summary>Show '+(items.length-keep)+' more</summary>'+items.slice(keep).join('')+'</details>';
+}
+
 function renderPlannedLeave(){
   const el=document.getElementById('planned-leave-list');
   if(!el) return;
@@ -6136,7 +6171,7 @@ function renderPlannedLeave(){
   if(!list.length){ el.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">No upcoming leave recorded.</div>'; return; }
   const typeLabels={al:'Annual Leave',sl:'Sick Leave',lsl:'Long Service Leave'};
   const typeCls={al:'leave-type-al',sl:'leave-type-sl',lsl:'leave-type-lsl'};
-  el.innerHTML=list.map(function(lv){
+  el.innerHTML=firstFewThenMore(list.map(function(lv){
     const start=parseDate(lv.start);
     const end=parseDate(lv.end||lv.start);
     const started=start<=now;
@@ -6176,7 +6211,7 @@ function renderPlannedLeave(){
       '</div>'+
       status+
     '</div>';
-  }).join('');
+  }),3);
 }
 
 // ═══════════════════════════════════════════════════════════
