@@ -1310,6 +1310,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
           <option value="PM3">PM3</option>
         </select>
       </div>
+      <input type="text" class="form-input" id="blps-recv-job" placeholder="or their job number, e.g. PB144S" style="margin-top:8px;" oninput="fillBlpFromJobCard(this.value)">
+      <div id="blps-recv-hint" style="font-size:11px;color:#16a34a;margin-top:4px;"></div>
     </div>
     <button class="btn btn-accent btn-full" style="margin-top:4px;" onclick="saveBlpSwap()">Record BLP Swap</button>
     </div>
@@ -4493,6 +4495,15 @@ function toggleBlpRecv(btn){
   }
 }
 
+// BLP swap: typing their job number fills the time from its job card
+function fillBlpFromJobCard(job){
+  const c=jobCardFor(job), hint=document.getElementById('blps-recv-hint');
+  if(!c){ if(hint) hint.textContent=''; return; }
+  if(c.on) document.getElementById('blps-recv-time').value=c.on;
+  document.getElementById('blps-recv-code').value='';
+  if(hint) hint.textContent='✓ Time filled from job card '+String(job).split('-')[0].trim().toUpperCase()+' ('+c.on+'–'+c.off+')';
+}
+
 function saveBlpSwap(){
   const wc=document.getElementById('blps-wc').value;
   const driver=document.getElementById('blps-driver').value.trim();
@@ -4509,6 +4520,8 @@ function saveBlpSwap(){
   // Their shift on received day (optional)
   const recvTime=document.getElementById('blps-recv-time').value;
   const recvCode=document.getElementById('blps-recv-code').value;
+  const recvJob=(document.getElementById('blps-recv-job').value||'').trim().toUpperCase();
+  const recvCard=jobCardFor(recvJob);
 
   // Save swap record
   const swapRec={
@@ -4517,7 +4530,8 @@ function saveBlpSwap(){
     blpGiveIdxs:[...blpSwapGiveDays],
     blpRecvIdx:blpSwapRecvDay,
     recvTime:recvTime||'',
-    recvCode:recvCode||''
+    recvCode:recvCode||'',
+    recvJob:recvJob||''
   };
   S.swaps.push(swapRec);
 
@@ -4534,10 +4548,10 @@ function saveBlpSwap(){
     type:'blp_kept',
     swapPartner:driver,
     start:recvTime||'',
-    end:'',
-    job:recvCode||'',
+    end:(recvCard&&recvCard.off)||'',
+    job:recvJob||recvCode||'',
     guards:'',
-    notes:'BLP received from '+driver+(recvTime?' · '+recvTime:recvCode?' · '+recvCode:'')
+    notes:'BLP received from '+driver+(recvTime?' · '+recvTime:recvCode?' · '+recvCode:'')+(recvJob?' · '+recvJob:'')
   };
 
   // Capture for toast before reset
@@ -4551,6 +4565,7 @@ function saveBlpSwap(){
   blpSwapRecvDay=null;
   document.getElementById('blps-wc').value='';
   document.getElementById('blps-driver').value='';
+  (function(){ const j=document.getElementById('blps-recv-job'); if(j) j.value=''; const h=document.getElementById('blps-recv-hint'); if(h) h.textContent=''; })();
   document.getElementById('blps-recv-time').value='';
   document.getElementById('blps-recv-code').value='';
   document.getElementById('blps-my-blp-days').innerHTML='<div style="font-size:12px;color:var(--muted);">Enter a W/C date to see your BLP days</div>';
