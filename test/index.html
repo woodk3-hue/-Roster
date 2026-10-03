@@ -207,6 +207,21 @@ html,body{
   transform:scale(1.15);
 }
 .nav-btn span{font-size:10px;font-weight:600;}
+#bottom-nav .nav-btn{padding:8px 1px;min-width:0;}
+#bottom-nav .nav-btn span{font-size:9.5px;white-space:nowrap;}
+.tc-title{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+.tc-head,.tc-row{display:grid;grid-template-columns:1fr 58px 52px 26px;gap:6px;align-items:center;}
+.tc-head{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;margin:6px 0 2px;}
+.tc-row{padding:4px 0;border-bottom:1px solid var(--border);}
+.tc-lbl{font-size:13px;}
+.tc-min{padding:6px 6px !important;text-align:center;min-height:0 !important;}
+.tc-missing{border-color:#f59e0b !important;background:rgba(245,158,11,.12) !important;}
+.tc-at{font-size:13px;font-weight:700;text-align:right;}
+.tc-x{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;}
+.tc-add{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.tc-add select{flex:1;min-width:120px;}
+.tc-result{margin-top:10px;padding:10px;border-radius:8px;background:var(--surface2);font-size:13px;}
+.tc-table td:last-child{width:70px;}
 
 /* ── CARDS ── */
 .card{
@@ -835,6 +850,10 @@ details.show-more{margin:4px 0 10px;}
 .rule-line{font-size:12px;line-height:1.45;margin-top:4px;}
 .rule-ref{color:var(--accent);font-weight:700;white-space:nowrap;text-decoration:none;}
 .rule-card{padding:10px 12px;margin-bottom:8px;}
+.rule-table-wrap{overflow-x:auto;margin-top:8px;}
+.rule-table{border-collapse:collapse;font-size:11px;width:100%;}
+.rule-table th,.rule-table td{border:1px solid var(--border);padding:4px 5px;text-align:left;vertical-align:top;}
+.rule-table th{color:var(--muted);font-weight:700;}
 .rule-clause{font-size:10px;font-weight:800;color:var(--accent);white-space:nowrap;}
 .cal-rule-flag{font-size:10px;color:#ef4444;font-weight:800;margin-top:auto;line-height:1;}
 details.show-more>summary{cursor:pointer;list-style:none;font-size:12px;font-weight:700;color:var(--accent);padding:6px 2px;}
@@ -1063,6 +1082,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <div class="owner-only">
     <div class="section-label">Alerts</div>
     <div id="dash-alerts"><div class="empty-state" style="padding:16px;">No alerts — all good! 👍</div></div>
+    <div id="dash-rules"></div>
   </div>
 </div>
 
@@ -1515,6 +1535,22 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 </div>
 
 <!-- ═══════════════════════════════════════
+     TOOLS (time check)
+════════════════════════════════════════ -->
+<div id="screen-tools" class="screen">
+  <div class="screen-header"><div class="screen-title">🧰 Tools</div><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
+  <div class="tab-row">
+    <button class="tab-btn active" id="tools-tab-time" onclick="setToolsView('time')">⏱ Time check</button>
+    <button class="tab-btn" id="tools-tab-rules" onclick="setToolsView('rules')">📘 Rules</button>
+  </div>
+  <div id="tools-content"></div>
+  <div id="tools-rules" style="display:none;">
+    <input type="search" class="form-input" id="tools-rules-search" placeholder="Search rules, e.g. swap, 12 hours, meal, walk" oninput="renderRules('tools-rules-list',this.value)" style="margin-bottom:12px;">
+    <div id="tools-rules-list"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
      RULES (EBA + Roster Protocols)
 ════════════════════════════════════════ -->
 <div id="screen-rules" class="screen">
@@ -1759,6 +1795,10 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <button class="nav-btn bnav-item" id="nav-stats" onclick="showScreen('stats')">
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     <span>Stats</span>
+  </button>
+  <button class="nav-btn bnav-item" id="nav-tools" onclick="showScreen('tools')">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>
+    <span>Tools</span>
   </button>
 </nav>
 
@@ -2924,7 +2964,7 @@ function updateSyncUI(){
   if(pinEl&&syncPin) pinEl.value=syncPin;
   document.body.classList.toggle('partner-view',!!(syncEnabled&&syncRole==='partner'));
   // Show/hide tabs based on role
-  const partnerHiddenTabs=['nav-swaps','nav-claims','nav-pay','nav-contacts','nav-stats'];
+  const partnerHiddenTabs=['nav-swaps','nav-claims','nav-pay','nav-contacts','nav-stats','nav-tools'];
   partnerHiddenTabs.forEach(function(id){
     const el=document.getElementById(id);
     if(el) el.style.display=(syncEnabled&&syncRole==='partner')?'none':'';
@@ -3127,6 +3167,7 @@ function loadState(){
       if(p.payHistory) S.payHistory = p.payHistory;
       if(p.appointments) S.appointments = p.appointments;
       if(p.leaveAdjBase) S.leaveAdjBase = p.leaveAdjBase;
+      if(p.myTimes) S.myTimes = p.myTimes;
     }
   }catch(e){}
   purgeBin();
@@ -3357,7 +3398,7 @@ function ruleRawFacts(ds,raw){
   const sh=parseShift(raw||'');
   return ruleFacts(ds,sh.time,'',sh.job,sh.typeKey,sh.code);
 }
-function ruleGap(m){ return Math.floor(m/60)+'h'+(m%60?' '+pad(m%60)+'m':''); }
+function ruleGap(m){ return m<60?m+' min':Math.floor(m/60)+'h'+(m%60?' '+pad(m%60)+'m':''); }
 function ruleDayName(ds){ const d=parseDate(ds); return DAY3[dayIdx(d)]+' '+fmtDDMM(d); }
 // Minutes off between two working days, if it is under the 12 hours EBA 82.1 needs
 function ruleShortRest(prev,next){
@@ -3461,6 +3502,16 @@ function swapRuleIssues(mon,received,scope,idx){
   return out;
 }
 
+// EBA 85.1 meal windows for a shift, shown in the day panel
+function mealWindowsHtml(f){
+  if(!f.work||f.end==null) return '';
+  const s=parseTime(f.startStr), len=Math.round((f.end-f.start)/60000);
+  const t=function(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
+  const txt=len<=450
+    ?'one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330)
+    :'1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)';
+  return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA 85.1</a></div>';
+}
 function ruleIssuesHtml(list){
   if(!list.length) return '';
   return '<div class="rule-box"><div class="rule-box-title">⚠ Roster rule check</div>'+list.map(function(i){
@@ -3474,7 +3525,10 @@ function ruleConfirmText(list){
 // ── Rules screen ──
 const RULE_GROUPS=[
  ['check','Checked by the app'],
- ['hours','Hours and shift limits'],
+ ['length','Shift and job length'],
+ ['meals','Meal breaks and working through meals'],
+ ['times','Sign-on, walk and prep times'],
+ ['hours','Hours and work cycle'],
  ['changes','Roster changes'],
  ['swaps','Swaps'],
  ['leisure','Leisure periods (BLP / SLP)'],
@@ -3484,7 +3538,7 @@ const RULE_GROUPS=[
 ];
 const RULES=[
  {g:'check',c:'82.1',t:'12 hours between shifts',b:'At least 12 hours off between any shifts at your home depot. The app checks each day against the days either side, using finish times from your edits or job cards.'},
- {g:'check',c:'81.1',t:'Shift length 6 to 9 hours',b:'SEQ drivers and guards: shifts are at least 6 hours and no more than 9 hours sign-on to sign-off.'},
+ {g:'check',c:'81.1',t:'Shift length 6 to 9 hours',b:'SEQ drivers and guards: shift (job) length is at least 6 hours and no more than 9 hours sign-on to sign-off.'},
  {g:'check',c:'89.6',t:'Altered shifts',b:'An altered shift should be as close as possible to the original: sign-on moved no more than 1 hour either way, sign-off no more than 30 minutes later, and no longer than the rostered shift (it can be shorter). More than this only by agreement.'},
  {g:'check',c:'90.7',t:'Sign-on brought forward',b:'After the roster is posted, sign-on can be brought forward by no more than 2 hours unless you agree, and altered no more than 3 times.'},
  {g:'check',c:'93.5',t:'Monday after a weekend off',b:'After a Saturday and Sunday BLP in a row, you will not start before 04:00 on Monday unless you agree.'},
@@ -3494,15 +3548,16 @@ const RULES=[
  {g:'check',c:'80.4',t:'Weekend shift limits',b:'Full-time drivers and guards: no more than 26 shifts starting on a Saturday and 18 starting on a Sunday in a year, counted from 1 September. Tutors, TOIs and TOGs: 18 and 18 (80.5).'},
  {g:'hours',c:'79.1',t:'Guaranteed hours',b:'Full-time: paid 160 ordinary hours per 4-week cycle, as 80 hours a fortnight. From 31 December 2026: 152 hours (76 a fortnight) with the hourly rate raised so fortnightly pay stays the same. Leave balances are kept in hours at the changeover.'},
  {g:'hours',c:'80.1',t:'Ordinary hours',b:'SEQ full-time: 160 hours across 4 weeks, with a maximum of 19 attendances. From 31 December 2026: 152 hours including a nine-day fortnight (80.2).'},
- {g:'hours',c:'81.1',t:'Limitation of hours',b:'SEQ driver and guard: maximum rostered shift 9 hours, minimum 6 hours, maximum 8 hours footplate time. 2-person crews: 9 hours, relief at 8 hours where requested and available. Heritage SEQ: 10 hours.'},
+ {g:'length',c:'81.1',t:'Limitation of hours',b:'SEQ driver and guard: maximum rostered shift 9 hours, minimum 6 hours, maximum 8 hours footplate time. 2-person crews: 9 hours, relief at 8 hours where requested and available. Heritage SEQ: 10 hours.'},
  {g:'hours',c:'81.2',t:'Minimum payment',b:'Except where listed above, minimum payment and rostered workings are 4 hours, credited to the cycle.'},
  {g:'hours',c:'81.3',t:'Lay-off at a foreign depot',b:'At least 8 hours lay-off at a foreign depot (10 hours for later lay-offs on IML work trains). Time away from home should not go over 34 hours where practical (81.4).'},
  {g:'hours',c:'82.1',t:'Minimum layoff at home',b:'At least 12 hours between any shifts at your home depot.'},
- {g:'hours',c:'85.1',t:'Meal breaks',b:'Shifts up to 7h30m: one 40-minute break, starting after 3 hours and finished before 5h30m. Shifts of 7h31m to 9 hours: two 30-minute breaks, the first starting 2h30m–3h30m in and the second 5h30m–6h30m in, at least 2 hours apart. Walking time is not included.'},
- {g:'hours',c:'85.2',t:'Working through a meal break',b:'During a network failure (bridge strike, fatality, points failure etc.) you can be directed to work through one of two rostered breaks. You are then paid a meal allowance (85.3).'},
- {g:'hours',c:'85.4',t:'Non-passenger job cards',b:'One 60-minute meal break, taken after 3h30m and finished before 5h30m from sign-on.'},
+ {g:'meals',c:'85.1',t:'Meal breaks',b:'Shifts up to 7h30m: one 40-minute break, starting after 3 hours and finished before 5h30m. Shifts of 7h31m to 9 hours: two 30-minute breaks, the first starting 2h30m–3h30m in and the second 5h30m–6h30m in, at least 2 hours apart. Walking time is not included.'},
+ {g:'meals',c:'85.2',t:'Working through a meal break',b:'Only during a network failure that delays trains (bridge strike, fatality, telemetry or points failure, broken rail), and only where you have two rostered breaks: you can be directed to work through one of them. You are then paid a meal allowance, paid at the end of the work cycle (85.3). With one rostered break you can\'t be directed to work through it.'},
+ {g:'meals',c:'RP 2.5',t:'Meal break examples',b:'Shift of 7h30m or less, sign on 10:00: the 40-minute break can start after 13:00 and must be finished by 15:30. Longer shift, sign on 06:00: 1st 30-minute break between 08:30 and 10:00 (finished by 10:00), 2nd between 11:30 and 13:00 (finished by 13:00). Tap a day in the calendar to see your own meal windows.'},
+ {g:'meals',c:'85.4',t:'Non-passenger job cards',b:'One 60-minute meal break, taken after 3h30m and finished before 5h30m from sign-on.'},
  {g:'hours',c:'86.2',t:'What counts towards the cycle',b:'All hours are credited to your work cycle except hours worked on a leisure period, travel, and some Regional extensions. If a master roster shift runs past midnight into a leisure day, the part on the leisure day is paid but not credited (86.3.3).'},
- {g:'hours',c:'87.8',t:'Job card limits (SEQ)',b:'Mon–Fri midnight to 04:00 revenue job cards: no more than 7h30m. Mon–Thu revenue job cards signing on after 17:00: no more than 7h30m. Weekend job cards: 6 to 9 hours. Shunts, "as required" and diesel workings are excluded.'},
+ {g:'length',c:'87.8',t:'Job card length limits (SEQ)',b:'Mon–Fri midnight to 04:00 revenue job cards: no more than 7h30m. Mon–Thu revenue job cards signing on after 17:00: no more than 7h30m. Weekend job cards: 6 to 9 hours. Shunts, "as required" and diesel workings are excluded.'},
  {g:'hours',c:'14.4',t:'Fatigue scores',b:'On request you can see the FAID fatigue scores for your roster.'},
  {g:'changes',c:'89.1',t:'Posted roster',b:'Rosters are posted at least 106 hours before the day and cover 00:01 to 23:59. It is up to you to get your next working (89.3).'},
  {g:'changes',c:'89.5',t:'Master roster entitlement',b:'If you are qualified for the job and have had the required time off, you must get the working shown in the master roster.'},
@@ -3532,12 +3587,20 @@ const RULES=[
  {g:'rp',c:'RP 2',t:'Sign on and off',b:'Rail traffic crew sign on and sign off at the same depot. Mayne signs on at BHAB / A Block.'},
  {g:'rp',c:'RP 2.3.1',t:'Turnbacks and dwells',b:'Turnback at least 3 minutes with a turnback driver, 8 minutes without. No more than 20 minutes at a platform with no meal facility, and no more than 90 minutes on a train with no toilet. Long turnbacks allow 10 minutes to secure and 10 minutes for a pre-departure check.'},
  {g:'rp',c:'RP 2.3.2',t:'Similar solution',b:'Altered job cards stay within 1 hour either side of sign-on, 30 minutes after sign-off, and no longer than the master link. Cards outside this are renumbered as CD cards (EBA 88–89).'},
- {g:'rp',c:'RP 2.4.1',t:'Shift length',b:'Minimum 6 hours, maximum 9. "As required" is added where a card is more than 30 minutes short of 6 hours. Mon–Fri 00:00–04:00 and Mon–Thu after 17:00 revenue cards: 7h30m maximum. Weekend cards: 6 to 9 hours.'},
- {g:'rp',c:'RP 2.5',t:'Meal periods',b:'As EBA 85.1. Diesel and track vehicle workings: 30–60 minutes, after 3h30m and before 5h30m (shifts up to 9 hours) or after 4 hours and before 7h30m (longer shifts). Non-revenue cards (as required, shunt and prep, tuition): one 60-minute break after 3h30m and before 5h30m.'},
+ {g:'length',c:'RP 2.4.1',t:'Shift length',b:'Minimum 6 hours, maximum 9. "As required" is added where a card is more than 30 minutes short of 6 hours. Mon–Fri 00:00–04:00 and Mon–Thu after 17:00 revenue cards: 7h30m maximum. Weekend cards: 6 to 9 hours.'},
+ {g:'meals',c:'RP 2.5',t:'Meal periods',b:'As EBA 85.1. Diesel and track vehicle workings: 30–60 minutes, after 3h30m and before 5h30m (shifts up to 9 hours) or after 4 hours and before 7h30m (longer shifts). Non-revenue cards (as required, shunt and prep, tuition): one 60-minute break after 3h30m and before 5h30m.'},
  {g:'rp',c:'RP 2.7',t:'Roster time frames',b:'Crew are rostered at least 106 hours ahead. Extra job cards are created 10 days before the day. Changes to posted job cards within 10 days need Team Leader approval (2.8).'},
  {g:'rp',c:'RP 2.9',t:'Cancelled job cards',b:'Cancelled after the roster is posted: you are entitled to cancelled working, brought-forward or deferment payments. The card is marked AMEX.'},
- {g:'rp',c:'RP 2.11',t:'Preparation',b:'Units have 24-hour prep dockets. A full prep is rostered for units stowed at Mayne or Wulkuraka unless already prepped; otherwise a 10-minute pre-departure check. Prep: 6-car 40 minutes, 3-car 20 minutes. Stow: 10 minutes.'},
- {g:'rp',c:'RP 2.15',t:'Sign-on, walk and handover times',b:'Sign on and sign off: 15 minutes. Walks from Mayne A Block: 10 minutes to ETF/ETS, 15 to Bowen Hills, 20 to Mayne Yard North. 5-minute handover on terminating trains.'}
+ {g:'times',c:'RP 2.11',t:'Preparation',b:'Units have 24-hour prep dockets. A full prep is rostered for units stowed at Mayne or Wulkuraka unless already prepped; otherwise a 10-minute pre-departure check. Prep: 6-car 40 minutes, 3-car 20 minutes. Stow: 10 minutes.'},
+ {g:'times',c:'RP 2.15',t:'Sign on and sign off',b:'Sign on and sign off take 15 minutes at a depot. Mayne crew sign on at BHAB (Bowen Hills) or A Block. Start of a passenger or relief working = sign on + walk to the platform. End = walk + sign off, plus a 5-minute handover on terminating trains. At some locations a 20-minute platform dwell for cleaning comes before stowing.'},
+ {g:'times',c:'RP 2.15',t:'Mayne start and finish times (minutes)',b:'Electric units, Mayne locations. Shunt only applies at ETS/ESY.',html:'<table class="rule-table"><tr><th></th><th>Bowen Hills (BHAB)</th><th>ETF</th><th>ETS / ESY</th><th>Mayne Yard North</th></tr><tr><td>Sign on</td><td>15</td><td>15 (A Block)</td><td>15 (A Block)</td><td>15 (A Block)</td></tr><tr><td>Walk</td><td>15 to ETF/ETS<br>5 to platform</td><td>10</td><td>10</td><td>20</td></tr><tr><td><b>Start: prepare</b><br>sign on + walk + 40 prep (+6 shunt)</td><td><b>70</b> ETF<br><b>76</b> ETS/ESY</td><td><b>65</b></td><td><b>71</b></td><td><b>75</b></td></tr><tr><td><b>Start: passenger / relieve</b></td><td><b>20</b></td><td><b>25</b></td><td><b>25</b></td><td><b>35</b></td></tr><tr><td><b>End: passenger</b><br>walk + sign off</td><td><b>20</b></td><td><b>25</b></td><td><b>25</b></td><td><b>35</b></td></tr><tr><td><b>End: relieved</b></td><td colspan="4">as passenger, plus 5 handover on terminating trains</td></tr><tr><td><b>End: stow</b><br>(shunt) + 10 stow + walk + sign off</td><td><b>40</b> ETF<br><b>46</b> ETS/ESY</td><td><b>35</b></td><td><b>41</b></td><td><b>45</b></td></tr></table>'},
+ {g:'times',c:'RP 2.12',t:'Change train walk times (minutes)',b:'Walk time allowed when changing trains. Anywhere not listed: at least 5 minutes between platforms.',html:'<table class="rule-table"><tr><th>Location</th><th>Walk</th></tr><tr><td>Same platform area (most stations)</td><td>5</td></tr><tr><td>Bowen Hills ↔ ETF / ETS / ETD</td><td>15</td></tr><tr><td>Mayne Yard: between ETS, ETF, ETD</td><td>10</td></tr><tr><td>Mayne Yard North</td><td>10</td></tr><tr><td>Roma Street · Petrie</td><td>10</td></tr><tr><td>Banyo station ↔ yard</td><td>14</td></tr><tr><td>Beenleigh platform ↔ yard / turnback</td><td>10</td></tr><tr><td>Caboolture · Robina platform ↔ yard</td><td>10</td></tr><tr><td>Ipswich platform ↔ yard</td><td>8</td></tr><tr><td>Nambour platform ↔ yard</td><td>5</td></tr><tr><td>Woombye platform ↔ yard</td><td>15</td></tr><tr><td>Kippa-Ring · Redbank platform ↔ yard</td><td>20</td></tr><tr><td>Wulkuraka to east yard / west yard</td><td>15 / 25</td></tr></table>'},
+ {g:'times',c:'RP 2.6',t:'Track vehicle and infrastructure work',b:'Rail traffic crew working infrastructure services get 15 minutes sign on and sign off, plus 10 minutes for a toolbox talk before leaving. Track Vehicle Pilot weekday shifts should ideally be 7h30m, and up to 9 hours only with Team Leader approval.'},
+ {g:'length',c:'RP 2.4.2',t:'Stricter roster targets',b:'For the master roster the business may set tighter limits than the EBA on job card length (for cycle hours), buffer times or toolbox talks. Altered job cards still follow the EBA and the similar-solution limits.'},
+ {g:'meals',c:'85.6',t:'Locomotive and track vehicle workings',b:'Meal breaks of 30 to 60 minutes, at a time that doesn\'t affect operations. Shifts up to 9 hours: taken after 3h30m and finished before 5h30m. Shifts over 9 hours: after 4h30m and finished before 7h30m (85.7).'},
+ {g:'meals',c:'91.23',t:'Changed jobs still need a meal break',b:'If you are directed to work other services within your shift, you must still get your meal break under the EBA.'},
+ {g:'meals',c:'85.8',t:'Personal needs break',b:'You can take a short personal needs break (e.g. toilet) when needed. Let control know.'},
+ {g:'meals',c:'RP 2.3.1',t:'Dwells with no meal room',b:'No more than 20 minutes at a platform with no meal facility (e.g. Northgate, Coopers Plains) and no more than 90 minutes on a train with no toilet, unless the Roster Centre approves.'},
 ];
 let rulesQuery='';
 function openRules(q){
@@ -3546,10 +3609,11 @@ function openRules(q){
   if(typeof closeDayPanel==='function'&&dayPanelDate) closeDayPanel();
   showScreen('rules');
 }
-function renderRules(){
-  const el=document.getElementById('rules-content'); if(!el) return;
+function renderRules(elId,query){
+  const el=document.getElementById(elId||'rules-content'); if(!el) return;
+  if(query==null) query=rulesQuery;
   let html='';
-  if(!rulesQuery){
+  if(!query){
     // Summary of the checks for the current period
     const p=rulePeriodFor(today()), w=ruleWeekendCounts();
     const upcoming=[];
@@ -3565,9 +3629,9 @@ function renderRules(){
       '<div style="font-size:11px;color:var(--muted);margin-top:6px;">Checks only what is in your calendar. Finish times come from your edits or job cards.</div>'+
     '</div>';
   }
-  const q=rulesQuery.trim().toLowerCase();
+  const q=query.trim().toLowerCase();
   const words=q?q.split(/\s+/):[];
-  const match=function(r){ const s=(r.c+' '+r.t+' '+r.b).toLowerCase(); return words.every(function(w){ return s.indexOf(w)>-1; }); };
+  const match=function(r){ const s=(r.c+' '+r.t+' '+r.b+' '+(r.html||'').replace(/<[^>]+>/g,' ')).toLowerCase(); return words.every(function(w){ return s.indexOf(w)>-1; }); };
   let found=0;
   RULE_GROUPS.forEach(function(gr){
     const list=RULES.filter(function(r){ return r.g===gr[0]&&match(r); });
@@ -3576,12 +3640,232 @@ function renderRules(){
     html+='<div class="section-label">'+gr[1]+'</div>';
     html+=list.map(function(r){
       return '<div class="card rule-card"><div style="display:flex;gap:8px;align-items:baseline;"><span class="rule-clause">'+(r.c.indexOf('RP')===0?r.c:'EBA '+r.c)+'</span><b style="font-size:14px;">'+escHtml(r.t)+'</b></div>'+
-        '<div style="font-size:13px;margin-top:4px;line-height:1.45;">'+escHtml(r.b)+'</div></div>';
+        '<div style="font-size:13px;margin-top:4px;line-height:1.45;">'+escHtml(r.b)+'</div>'+(r.html?'<div class="rule-table-wrap">'+r.html+'</div>':'')+'</div>';
     }).join('');
   });
-  if(q&&!found) html+='<div class="empty-state">Nothing matches "'+escHtml(rulesQuery)+'".</div>';
+  if(q&&!found) html+='<div class="empty-state">Nothing matches "'+escHtml(query)+'".</div>';
   html+='<div style="font-size:11px;color:var(--muted);margin:14px 2px;line-height:1.5;">Plain-English summary of the Queensland Rail Traincrew Enterprise Agreement 2024 and the SEQ Operations Roster Protocols (MD-20-140 v4.1). Always check the full documents or ask your delegate before relying on it.</div>';
   el.innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOOLS — Time check: add up walk, prep, run, stow and sign-off times (Mayne)
+// Figures from the SEQ Roster Protocols (2.11, 2.12, 2.15), the traincrew times card and the job cards.
+// ═══════════════════════════════════════════════════════════
+const TC_LOCS=[
+ ['BHAB','BHAB (Bowen Hills sign-on)'],['BHI','Bowen Hills platform'],['ABLK','A Block'],['CBLK','C Block'],['EBLK','E Block'],
+ ['ETD','ETD (senior drivers)'],['ETF','ETF'],['ETS','ETS / ESY'],['YNY','Mayne Yard North']
+];
+// Walks, either direction (minutes). Missing pairs are set by the user in My times.
+const TC_WALK={'BHAB|BHI':5,'ABLK|BHAB':15,'BHAB|ETF':15,'BHAB|ETS':15,'BHAB|ETD':15,'BHAB|YNY':35,
+ 'BHI|ETF':15,'BHI|ETS':15,'BHI|ETD':15,'ABLK|BHI':15,'BHI|YNY':35,'ABLK|ETF':10,'ABLK|ETS':10,'ABLK|YNY':20,
+ 'ETF|ETS':10,'ETD|ETF':10,'ETD|ETS':10};
+// Runs, one direction (minutes) — typical times from the job cards
+const TC_RUN={'BHI>ETF':9,'ETF>BHI':9,'BHI>ETS':20,'ETS>BHI':20,'BHI>YNY':10,'YNY>BHI':10};
+const TC_STEPS={
+ signonat:{l:'Sign on at… (15 + walk)'},signoffat:{l:'Sign off at… (walk + 15)'},
+ signon:{l:'Sign on',m:15},signoff:{l:'Sign off',m:15},
+ prep6:{l:'Prep 6-car',m:40},prep3:{l:'Prep 3-car',m:20},pdt:{l:'Pre-departure test',m:10},
+ ends:{l:'Change ends',m:8},shunt:{l:'Shunt (ETS/ESY)',m:6},stow:{l:'Stow',m:10},handover:{l:'Handover',m:5},
+ walk:{l:'Walk to'},run:{l:'Run to'},custom:{l:'Other'}
+};
+const TC_PRESETS=[
+ {n:'Walk to ETD, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETD'},{k:'prep6'},{k:'run',to:'BHI'}]},
+ {n:'Walk to ETF, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETF'},{k:'prep6'},{k:'run',to:'BHI'}]},
+ {n:'Walk to ETS, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'},{k:'run',to:'BHI'}]},
+ {n:'From BHI: run to ETF, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETF'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff',to:'BHAB'}]},
+ {n:'From BHI: run to ETS, shunt, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff',to:'BHAB'}]},
+ {n:'From BHI: run to ETS, stow, walk to ETD, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'ETD'},{k:'signoff',to:'ETD'}]},
+ {n:'Sign on at BHAB, walk to ETF, prep a 6-car',start:'BHAB',steps:[{k:'signon',to:'BHAB'},{k:'walk',to:'ETF'},{k:'prep6'}]},
+ {n:'Sign on at A Block, walk to ETS, prep a 6-car',start:'ABLK',steps:[{k:'signon',to:'ABLK'},{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'}]}
+];
+let TC={start:'',from:'BHI',due:'',steps:[]};
+function tcLocName(k){ const l=TC_LOCS.find(function(x){ return x[0]===k; }); return l?l[1]:k; }
+function tcMy(){ if(!S.myTimes) S.myTimes={walk:{},run:{}}; return S.myTimes; }
+function tcWalk(a,b){
+  if(a===b) return 0;
+  const k=[a,b].sort().join('|'), my=tcMy().walk;
+  if(my[k]!=null&&my[k]!=='') return +my[k];
+  return TC_WALK[k]!=null?TC_WALK[k]:null;
+}
+function tcRun(a,b){
+  const k=a+'>'+b, my=tcMy().run;
+  if(my[k]!=null&&my[k]!=='') return +my[k];
+  return TC_RUN[k]!=null?TC_RUN[k]:null;
+}
+function tcSave(){ try{ localStorage.setItem('tc_state',JSON.stringify(TC)); }catch(e){} }
+function tcLoad(){ try{ const v=JSON.parse(localStorage.getItem('tc_state')||'null'); if(v&&v.steps) TC=v; }catch(e){} }
+function tcHM(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); }
+function tcLocOptions(sel){ return TC_LOCS.map(function(l){ return '<option value="'+l[0]+'"'+(l[0]===sel?' selected':'')+'>'+l[1]+'</option>'; }).join(''); }
+function tcPreset(i){
+  const p=TC_PRESETS[i]; if(!p) return;
+  TC.from=p.start; TC.steps=p.steps.map(function(s){ return {k:s.k,to:s.to||'',m:null}; });
+  tcSave(); renderTools();
+}
+function tcAddStep(){
+  const k=document.getElementById('tc-add-kind').value, to=document.getElementById('tc-add-to').value;
+  // Where you'd be before this step
+  let loc=TC.from; TC.steps.forEach(function(s){ if(s.k==='walk'||s.k==='run') loc=s.to; });
+  if(k==='signonat'){
+    if(!TC.steps.length){ TC.from=to; TC.steps.push({k:'signon',to:to,m:null}); }
+    else { if(loc!==to) TC.steps.push({k:'walk',to:to,m:null}); TC.steps.push({k:'signon',to:to,m:null}); }
+  } else if(k==='signoffat'){
+    if(loc!==to) TC.steps.push({k:'walk',to:to,m:null});
+    TC.steps.push({k:'signoff',to:to,m:null});
+  } else TC.steps.push({k:k,to:(k==='walk'||k==='run')?to:'',m:null});
+  tcSave(); renderTools();
+}
+function tcRemove(i){ TC.steps.splice(i,1); tcSave(); renderTools(); }
+function tcClear(){ TC.steps=[]; TC.due=''; tcSave(); renderTools(); }
+function tcSetMins(i,v){
+  const st=TC.steps[i]; if(!st) return;
+  const n=v===''?null:Math.max(0,parseInt(v,10)||0);
+  // A walk or run with no known time: remember what was typed in My times
+  if((st.k==='walk'||st.k==='run')&&n!=null&&st.base==null){
+    const my=tcMy();
+    if(st.k==='walk') my.walk[[st.fromLoc,st.to].sort().join('|')]=n; else my.run[st.fromLoc+'>'+st.to]=n;
+    saveState(); toast('Saved to My times');
+  }
+  st.m=n; tcSave(); tcCalc();
+}
+function tcOnAddKind(){
+  const k=document.getElementById('tc-add-kind').value;
+  const sel=document.getElementById('tc-add-to');
+  sel.style.display=['walk','run','signonat','signoffat'].includes(k)?'':'none';
+  if(k==='signonat'||k==='signoffat') sel.value='BHAB';
+}
+// Works out each step's minutes and clock time, then compares with the time given
+function tcCalc(){
+  TC.start=(document.getElementById('tc-start')||{}).value||TC.start;
+  TC.from=(document.getElementById('tc-from')||{}).value||TC.from;
+  TC.due=(document.getElementById('tc-due')||{}).value||'';
+  tcSave();
+  let loc=TC.from, t=parseTime(TC.start), total=0, broken=false;
+  TC.steps.forEach(function(st,i){
+    st.fromLoc=loc;
+    let base=null;
+    if(st.k==='walk'){ base=tcWalk(loc,st.to); loc=st.to; }
+    else if(st.k==='run'){ base=tcRun(loc,st.to); loc=st.to; }
+    else if(TC_STEPS[st.k]&&TC_STEPS[st.k].m!=null) base=TC_STEPS[st.k].m;
+    st.base=base;
+    const m=st.m!=null?st.m:base;
+    const minEl=document.getElementById('tc-m-'+i), atEl=document.getElementById('tc-at-'+i);
+    if(minEl&&document.activeElement!==minEl) minEl.value=m!=null?m:'';
+    if(minEl) minEl.classList.toggle('tc-missing',m==null);
+    if(m==null) broken=true; else total+=m;
+    if(atEl) atEl.textContent=(t==null||broken)?'—':tcHM(t+total);
+  });
+  const res=document.getElementById('tc-result'); if(!res) return;
+  if(!TC.steps.length){ res.innerHTML='<span style="color:var(--muted);">Pick a quick start or add steps below.</span>'; return; }
+  if(broken){ res.innerHTML='<span style="color:#f59e0b;">Type the minutes for the step marked in orange — it isn\'t in the roster documents yet. The app remembers it in My times.</span>'; return; }
+  let html='Total <b>'+ruleGap(total)+'</b>';
+  if(t!=null) html+=' · done at <b>'+tcHM(t+total)+'</b> at '+escHtml(tcLocName(loc));
+  const due=parseTime(TC.due);
+  if(t!=null&&due!=null){
+    let spare=due-(t+total)%1440; if(spare>720) spare-=1440; if(spare<-720) spare+=1440;
+    html+='<div style="margin-top:6px;font-size:15px;font-weight:800;color:'+(spare>=0?'var(--early)':'#ef4444')+';">'+
+      (spare>=0?'✓ Enough time — '+ruleGap(spare)+' spare':'⚠ Not enough time — '+ruleGap(-spare)+' short')+'</div>';
+  }
+  res.innerHTML=html;
+}
+function tcStepLabel(st,fromLoc){
+  if(st.k==='walk') return 'Walk '+tcLocName(fromLoc)+' → '+tcLocName(st.to);
+  if(st.k==='run') return 'Run '+tcLocName(fromLoc)+' → '+tcLocName(st.to);
+  if((st.k==='signon'||st.k==='signoff')&&st.to) return (st.k==='signon'?'Sign on at ':'Sign off at ')+tcLocName(st.to);
+  return (TC_STEPS[st.k]||{l:st.k}).l;
+}
+function renderTools(){
+  const el=document.getElementById('tools-content'); if(!el) return;
+  tcLoad();
+  if(!TC.start){ const n=new Date(); TC.start=pad(n.getHours())+':'+pad(n.getMinutes()); }
+  // Labels need each step's starting location, so walk the list once
+  let loc=TC.from;
+  const rows=TC.steps.map(function(st,i){
+    const lbl=tcStepLabel(st,loc); if(st.k==='walk'||st.k==='run') loc=st.to;
+    return '<div class="tc-row"><div class="tc-lbl">'+escHtml(lbl)+'</div>'+
+      '<input type="number" inputmode="numeric" min="0" class="form-input tc-min" id="tc-m-'+i+'" oninput="tcSetMins('+i+',this.value)" aria-label="minutes">'+
+      '<div class="tc-at" id="tc-at-'+i+'">—</div>'+
+      '<button class="tc-x" onclick="tcRemove('+i+')" aria-label="Remove step">×</button></div>';
+  }).join('');
+  el.innerHTML=
+   '<div class="card" style="margin-bottom:12px;">'+
+    '<div class="tc-title">⏱ Time check</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Asked to walk somewhere, prep a train and bring it in? Add up the steps and see if the time you were given is enough.</div>'+
+    '<select class="form-select" onchange="if(this.value!==\'\')tcPreset(+this.value)" style="margin-bottom:8px;"><option value="">Quick start…</option>'+
+      TC_PRESETS.map(function(p,i){ return '<option value="'+i+'">'+escHtml(p.n)+'</option>'; }).join('')+'</select>'+
+    '<div class="form-row"><div class="form-group"><label class="form-label">Start time</label><input type="time" class="form-input" id="tc-start" value="'+TC.start+'" oninput="tcCalc()"></div>'+
+    '<div class="form-group"><label class="form-label">Starting at</label><select class="form-select" id="tc-from" onchange="tcCalc();renderTools()">'+tcLocOptions(TC.from)+'</select></div></div>'+
+    '<div class="tc-head"><span>Step</span><span>Min</span><span>Time</span><span></span></div>'+
+    (rows||'<div style="font-size:12px;color:var(--muted);padding:6px 0;">No steps yet.</div>')+
+    '<div class="tc-add"><select class="form-select" id="tc-add-kind" onchange="tcOnAddKind()">'+
+      Object.keys(TC_STEPS).filter(function(k){ return k!=='signon'&&k!=='signoff'; }).map(function(k){ const s=TC_STEPS[k]; return '<option value="'+k+'">'+s.l+(s.m!=null?' ('+s.m+')':'')+'</option>'; }).join('')+'</select>'+
+      '<select class="form-select" id="tc-add-to" style="display:none;">'+tcLocOptions('BHI')+'</select>'+
+      '<button class="btn btn-accent" onclick="tcAddStep()">+ Add</button></div>'+
+    '<div class="form-group" style="margin-top:10px;"><label class="form-label">Time given (when you need to be there)</label><input type="time" class="form-input" id="tc-due" value="'+(TC.due||'')+'" oninput="tcCalc()"></div>'+
+    '<div id="tc-result" class="tc-result"></div>'+
+    '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcClear()">Clear steps</button>'+
+   '</div>'+
+   '<div class="card" style="margin-bottom:12px;">'+
+    '<div class="tc-title">My times</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Walks and runs used above. Filled in from the Roster Protocols, the traincrew times card and your job cards; blank ones aren\'t in those documents. Change any to match what you know — saved on this phone.</div>'+
+    tcMyTimesHtml()+
+    '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcResetMy()">Reset to document times</button>'+
+    '<div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5;">Fixed: sign on/off 15 · prep 6-car 40, 3-car 20 · pre-departure test 10 · change ends 8 · stow 10 · shunt at ETS/ESY 6 · handover 5 (RP 2.11, 2.15; traincrew times card).</div>'+
+   '</div>';
+  tcCalc();
+}
+function tcMyTimesHtml(){
+  const my=tcMy(), keys=TC_LOCS.map(function(l){ return l[0]; });
+  let walk='', i, j;
+  for(i=0;i<keys.length;i++) for(j=i+1;j<keys.length;j++){
+    const k=[keys[i],keys[j]].sort().join('|'), v=(my.walk[k]!=null&&my.walk[k]!=='')?my.walk[k]:(TC_WALK[k]!=null?TC_WALK[k]:'');
+    walk+='<tr><td>'+tcLocName(keys[i])+' ↔ '+tcLocName(keys[j])+'</td><td><input type="number" inputmode="numeric" min="0" class="form-input tc-min'+(v===''?' tc-missing':'')+'" value="'+v+'" onchange="tcSetMy(\'walk\',\''+k+'\',this.value)"></td></tr>';
+  }
+  const runPairs=['BHI>ETF','ETF>BHI','BHI>ETS','ETS>BHI','BHI>YNY','YNY>BHI','BHI>ETD','ETD>BHI'];
+  const run=runPairs.map(function(k){
+    const p=k.split('>'), v=(my.run[k]!=null&&my.run[k]!=='')?my.run[k]:(TC_RUN[k]!=null?TC_RUN[k]:'');
+    return '<tr><td>'+tcLocName(p[0])+' → '+tcLocName(p[1])+'</td><td><input type="number" inputmode="numeric" min="0" class="form-input tc-min'+(v===''?' tc-missing':'')+'" value="'+v+'" onchange="tcSetMy(\'run\',\''+k+'\',this.value)"></td></tr>';
+  }).join('');
+  return '<details class="show-more" open><summary>Run times (from the job cards)</summary><table class="rule-table tc-table">'+run+'</table></details>'+
+    '<details class="show-more"><summary>Walk times</summary><table class="rule-table tc-table">'+walk+'</table></details>';
+}
+function tcSetMy(kind,k,v){
+  const my=tcMy();
+  if(v===''){ delete my[kind][k]; } else my[kind][k]=Math.max(0,parseInt(v,10)||0);
+  saveState(); TC.steps.forEach(function(s){ if(s.k===kind) s.m=null; }); tcSave(); tcCalc(); toast('Saved');
+}
+function tcResetMy(){
+  if(!confirm('Put all walk and run times back to the document figures?')) return;
+  S.myTimes={walk:{},run:{}}; saveState(); TC.steps.forEach(function(s){ s.m=null; }); tcSave(); renderTools(); toast('Times reset');
+}
+
+// Tools has two views: the time check and the rules list
+function setToolsView(v){
+  if(v){ try{ localStorage.setItem('tools_view',v); }catch(e){} }
+  else { try{ v=localStorage.getItem('tools_view'); }catch(e){} }
+  if(v!=='rules') v='time';
+  document.getElementById('tools-tab-time').classList.toggle('active',v==='time');
+  document.getElementById('tools-tab-rules').classList.toggle('active',v==='rules');
+  document.getElementById('tools-content').style.display=v==='time'?'':'none';
+  document.getElementById('tools-rules').style.display=v==='rules'?'':'none';
+  if(v==='time') renderTools();
+  else renderRules('tools-rules-list',(document.getElementById('tools-rules-search')||{}).value||'');
+}
+
+// ── Rules card on the Dash ──
+function renderDashRules(){
+  const el=document.getElementById('dash-rules'); if(!el) return;
+  if(!S.anchorLink||!ROSTER||!Object.keys(ROSTER).length){ el.innerHTML=''; return; }
+  const p=rulePeriodFor(today()), w=ruleWeekendCounts();
+  let probs=0; for(let i=0;i<28;i++) dayRuleIssues(fmtDate(addDays(today(),i))).forEach(function(x){ if(x.side!=='after') probs++; });
+  const ok=function(b){ return b?'<span style="color:var(--early);">✓</span>':'<span style="color:#ef4444;">⚠</span>'; };
+  el.innerHTML='<div class="card" style="margin-top:12px;">'+
+    '<div style="display:flex;align-items:center;margin-bottom:4px;"><div class="tc-title" style="margin:0;">📘 Rules &amp; EBA</div><a href="#" class="rule-ref" style="margin-left:auto;" onclick="openRules();return false;">See all ›</a></div>'+
+    '<div class="rule-line">'+ok(p.leis>=p.minLeis&&p.att<=p.maxAtt)+' '+p.name+': '+p.leis+' leisure days (min '+p.minLeis+') · '+p.att+' attendances (max '+p.maxAtt+')</div>'+
+    '<div class="rule-line">'+ok(w.sat<=w.maxSat&&w.sun<=w.maxSun)+' Weekend shifts this year: Sat '+w.sat+' of '+w.maxSat+' · Sun '+w.sun+' of '+w.maxSun+'</div>'+
+    '<div class="rule-line">'+ok(!probs)+' '+(probs?probs+' rule problem'+(probs>1?'s':'')+' in the next 4 weeks (see Alerts)':'No rule problems in the next 4 weeks')+'</div>'+
+    '<input type="search" class="form-input" placeholder="Search rules, e.g. swap, meal, walk" style="margin-top:8px;" onkeydown="if(event.key===\'Enter\'){openRules(this.value);this.value=\'\';}" onchange="if(this.value){openRules(this.value);this.value=\'\';}">'+
+  '</div>';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3604,6 +3888,7 @@ function showScreen(name){
   if(name==='contacts') renderContacts();
   if(name==='stats'){ renderStats(); renderPayHistory(); }
   if(name==='rules') renderRules();
+  if(name==='tools') setToolsView();
   if(name==='settings'){ loadSettingsUI(); updateSyncUI(); updateRosterImportStatus(); }
 }
 
@@ -3752,6 +4037,8 @@ function renderDash(){
   } else {
     alEl.innerHTML='<div class="empty-state" style="padding:16px;">No alerts — all good! ✓</div>';
   }
+
+  renderDashRules();
 
   // Today's shift
   renderDashShift('today');
@@ -4307,7 +4594,7 @@ function renderDayPanel(ds){
   // Job card: a typed job number (or a single-day swap's 'their job') wins over the roster's
   const cardJob=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job;
   if(sh.time&&cardJob&&!leaveTypeKey) html+=jobCardHtml(cardJob);
-  if(!leaveTypeKey) html+=ruleIssuesHtml(dayRuleIssues(ds));
+  if(!leaveTypeKey){ html+=mealWindowsHtml(ruleDayFacts(ds)); html+=ruleIssuesHtml(dayRuleIssues(ds)); }
   // Job cards are loaded but this day can't show one: say why
   if(sh.time&&!leaveTypeKey&&Object.keys(JOBCARDS||{}).length&&!(cardJob&&jobCardFor(cardJob))){
     html+='<div style="font-size:11px;color:var(--muted);margin-top:8px;">'+(cardJob
