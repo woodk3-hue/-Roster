@@ -848,6 +848,13 @@ details.show-more{margin:4px 0 10px;}
 .rule-box{margin-top:10px;padding:8px 10px;border:1px solid rgba(239,68,68,.45);background:rgba(239,68,68,.08);border-radius:8px;}
 .rule-box-title{font-size:10px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
 .rule-line{font-size:12px;line-height:1.45;margin-top:4px;}
+.jc-search{margin-top:14px;border-top:1px solid var(--border);padding-top:6px;}
+.jcs-days{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;}
+.jcs-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:6px;}
+.jcs-item>summary{cursor:pointer;list-style:none;font-size:13px;}
+.jcs-item>summary::-webkit-details-marker{display:none;}
+.jcs-item>summary span{color:var(--muted);margin-left:6px;}
+.jcs-sub{font-size:11px;color:var(--muted);margin-top:2px;}
 .job-decode{font-size:11px;color:var(--muted);margin-top:6px;}
 .meal-type{flex-wrap:wrap;margin-top:6px;display:flex;align-items:center;gap:6px;font-size:11px;}
 .meal-chip{padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:11px;cursor:pointer;}
@@ -1388,6 +1395,13 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <button class="tab-btn" onclick="setClaimsTab('all',this)">All</button>
   </div>
   <div id="claims-list"></div>
+
+  <details class="show-more jc-search" ontoggle="if(this.open)renderJobCardSearch()">
+    <summary>🗂 Job card search</summary>
+    <input type="search" class="form-input" id="jcs-q" placeholder="Job number or start time, e.g. PB019, EA6, 16:30" oninput="renderJobCardSearch()" style="margin:6px 0 8px;">
+    <div class="jcs-days" id="jcs-days"></div>
+    <div id="jcs-results"></div>
+  </details>
 </div>
 
 <!-- ═══════════════════════════════════════
@@ -3639,6 +3653,42 @@ function swapRuleIssues(mon,received,scope,idx){
   const lv=(S.plannedLeave||[]).find(function(l){ return (l.type==='al'||l.type==='lsl')&&l.start<=last&&(l.end||l.start)>=first; });
   if(lv) out.push({c:'91.20',msg:'You have '+(lv.type==='lsl'?'long service':'annual')+' leave booked in this period. Swaps are not granted over pre-approved long leave.'});
   return out;
+}
+
+// ── Job card search (Claims tab) ──
+let jcsDay='';
+function setJcsDay(d){ jcsDay=(jcsDay===d?'':d); renderJobCardSearch(); }
+function renderJobCardSearch(){
+  const res=document.getElementById('jcs-results'); if(!res) return;
+  const daysEl=document.getElementById('jcs-days');
+  if(daysEl) daysEl.innerHTML=['Mon–Thu','Friday','Saturday','Sunday'].map(function(d){
+    return '<button class="meal-chip'+(jcsDay===d?' on':'')+'" onclick="setJcsDay(\''+d+'\')">'+(d==='Friday'?'Fri':d==='Saturday'?'Sat':d==='Sunday'?'Sun':d)+'</button>';
+  }).join('');
+  const ids=Object.keys(JOBCARDS||{});
+  if(!ids.length){ res.innerHTML='<div class="empty-state" style="padding:12px;">Import the job card PDF in Settings to search it.</div>'; return; }
+  const raw=(document.getElementById('jcs-q').value||'').trim().toUpperCase();
+  // A time: "16:30", "1630" or "16" (that hour); otherwise part of a job number
+  let tm=null;
+  const m=raw.match(/^(\d{1,2})(?::?(\d{2}))?$/);
+  if(m&&+m[1]<24) tm={h:+m[1],min:m[2]!=null?+m[2]:null};
+  let list=ids.filter(function(id){
+    const c=JOBCARDS[id];
+    if(jcsDay){ const d=decodeJob(id); if(!d||d.days!==jcsDay) return false; }
+    if(!raw) return true;
+    if(tm){ const on=parseTime(c.on); if(on==null) return false; const h=Math.floor(on/60), mi=on%60; return h===tm.h&&(tm.min==null||mi===tm.min); }
+    return id.indexOf(raw.replace(/-\d+$/,''))>-1;
+  });
+  list.sort(function(a,b){ return tm?(parseTime(JOBCARDS[a].on)-parseTime(JOBCARDS[b].on))||a.localeCompare(b):a.localeCompare(b); });
+  const total=list.length;
+  if(!raw&&!jcsDay){ res.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 0;">'+ids.length+' job cards loaded. Type a job number or a start time.</div>'; return; }
+  if(!total){ res.innerHTML='<div class="empty-state" style="padding:12px;">No job cards match.</div>'; return; }
+  list=list.slice(0,40);
+  res.innerHTML='<div style="font-size:11px;color:var(--muted);margin-bottom:6px;">'+total+' match'+(total===1?'':'es')+(total>40?' — showing the first 40':'')+'</div>'+list.map(function(id){
+    const c=JOBCARDS[id], d=decodeJob(id), dur=(c.on&&c.off)?calcDur(c.on,c.off):'';
+    return '<details class="jcs-item"><summary><b>'+escHtml(id)+'</b> <span>'+(c.on||'—')+'–'+(c.off||'—')+(dur?' · '+dur:'')+'</span>'+
+      (d?'<div class="jcs-sub">'+escHtml(d.type+(d.days?' · '+d.days:'')+(d.sector?' · '+d.sector:''))+'</div>':'')+'</summary>'+
+      '<pre class="jobcard-pre">'+escHtml(c.text||'')+'</pre></details>';
+  }).join('');
 }
 
 // ── Job card numbers (SEQ Roster Protocols 2.13) ──
