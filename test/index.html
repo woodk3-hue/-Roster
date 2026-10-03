@@ -3654,6 +3654,7 @@ const TC_WALK={'BHAB|BHI':5,'ABLK|BHAB':15,'BHAB|ETF':15,'BHAB|ETS':15,'BHAB|ETD
 // Runs, one direction (minutes) — typical times from the job cards
 const TC_RUN={'BHI>ETF':9,'ETF>BHI':9,'BHI>ETS':20,'ETS>BHI':20,'BHI>YNY':10,'YNY>BHI':10};
 const TC_STEPS={
+ signonat:{l:'Sign on at… (15 + walk)'},signoffat:{l:'Sign off at… (walk + 15)'},
  signon:{l:'Sign on',m:15},signoff:{l:'Sign off',m:15},
  prep6:{l:'Prep 6-car',m:40},prep3:{l:'Prep 3-car',m:20},pdt:{l:'Pre-departure test',m:10},
  ends:{l:'Change ends',m:8},shunt:{l:'Shunt (ETS/ESY)',m:6},stow:{l:'Stow',m:10},handover:{l:'Handover',m:5},
@@ -3663,11 +3664,11 @@ const TC_PRESETS=[
  {n:'Walk to ETD, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETD'},{k:'prep6'},{k:'run',to:'BHI'}]},
  {n:'Walk to ETF, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETF'},{k:'prep6'},{k:'run',to:'BHI'}]},
  {n:'Walk to ETS, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'},{k:'run',to:'BHI'}]},
- {n:'From BHI: run to ETF, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETF'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff'}]},
- {n:'From BHI: run to ETS, shunt, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff'}]},
- {n:'From BHI: run to ETS, stow, walk to ETD, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'ETD'},{k:'signoff'}]},
- {n:'Sign on at BHAB, walk to ETF, prep a 6-car',start:'BHAB',steps:[{k:'signon'},{k:'walk',to:'ETF'},{k:'prep6'}]},
- {n:'Sign on at A Block, walk to ETS, prep a 6-car',start:'ABLK',steps:[{k:'signon'},{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'}]}
+ {n:'From BHI: run to ETF, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETF'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff',to:'BHAB'}]},
+ {n:'From BHI: run to ETS, shunt, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff',to:'BHAB'}]},
+ {n:'From BHI: run to ETS, stow, walk to ETD, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'ETD'},{k:'signoff',to:'ETD'}]},
+ {n:'Sign on at BHAB, walk to ETF, prep a 6-car',start:'BHAB',steps:[{k:'signon',to:'BHAB'},{k:'walk',to:'ETF'},{k:'prep6'}]},
+ {n:'Sign on at A Block, walk to ETS, prep a 6-car',start:'ABLK',steps:[{k:'signon',to:'ABLK'},{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'}]}
 ];
 let TC={start:'',from:'BHI',due:'',steps:[]};
 function tcLocName(k){ const l=TC_LOCS.find(function(x){ return x[0]===k; }); return l?l[1]:k; }
@@ -3694,7 +3695,16 @@ function tcPreset(i){
 }
 function tcAddStep(){
   const k=document.getElementById('tc-add-kind').value, to=document.getElementById('tc-add-to').value;
-  TC.steps.push({k:k,to:(k==='walk'||k==='run')?to:'',m:null,label:''}); tcSave(); renderTools();
+  // Where you'd be before this step
+  let loc=TC.from; TC.steps.forEach(function(s){ if(s.k==='walk'||s.k==='run') loc=s.to; });
+  if(k==='signonat'){
+    if(!TC.steps.length){ TC.from=to; TC.steps.push({k:'signon',to:to,m:null}); }
+    else { if(loc!==to) TC.steps.push({k:'walk',to:to,m:null}); TC.steps.push({k:'signon',to:to,m:null}); }
+  } else if(k==='signoffat'){
+    if(loc!==to) TC.steps.push({k:'walk',to:to,m:null});
+    TC.steps.push({k:'signoff',to:to,m:null});
+  } else TC.steps.push({k:k,to:(k==='walk'||k==='run')?to:'',m:null});
+  tcSave(); renderTools();
 }
 function tcRemove(i){ TC.steps.splice(i,1); tcSave(); renderTools(); }
 function tcClear(){ TC.steps=[]; TC.due=''; tcSave(); renderTools(); }
@@ -3711,7 +3721,9 @@ function tcSetMins(i,v){
 }
 function tcOnAddKind(){
   const k=document.getElementById('tc-add-kind').value;
-  document.getElementById('tc-add-to').style.display=(k==='walk'||k==='run')?'':'none';
+  const sel=document.getElementById('tc-add-to');
+  sel.style.display=['walk','run','signonat','signoffat'].includes(k)?'':'none';
+  if(k==='signonat'||k==='signoffat') sel.value='BHAB';
 }
 // Works out each step's minutes and clock time, then compares with the time given
 function tcCalc(){
@@ -3750,6 +3762,7 @@ function tcCalc(){
 function tcStepLabel(st,fromLoc){
   if(st.k==='walk') return 'Walk '+tcLocName(fromLoc)+' → '+tcLocName(st.to);
   if(st.k==='run') return 'Run '+tcLocName(fromLoc)+' → '+tcLocName(st.to);
+  if((st.k==='signon'||st.k==='signoff')&&st.to) return (st.k==='signon'?'Sign on at ':'Sign off at ')+tcLocName(st.to);
   return (TC_STEPS[st.k]||{l:st.k}).l;
 }
 function renderTools(){
@@ -3776,7 +3789,7 @@ function renderTools(){
     '<div class="tc-head"><span>Step</span><span>Min</span><span>Time</span><span></span></div>'+
     (rows||'<div style="font-size:12px;color:var(--muted);padding:6px 0;">No steps yet.</div>')+
     '<div class="tc-add"><select class="form-select" id="tc-add-kind" onchange="tcOnAddKind()">'+
-      Object.keys(TC_STEPS).map(function(k){ const s=TC_STEPS[k]; return '<option value="'+k+'">'+s.l+(s.m!=null?' ('+s.m+')':'')+'</option>'; }).join('')+'</select>'+
+      Object.keys(TC_STEPS).filter(function(k){ return k!=='signon'&&k!=='signoff'; }).map(function(k){ const s=TC_STEPS[k]; return '<option value="'+k+'">'+s.l+(s.m!=null?' ('+s.m+')':'')+'</option>'; }).join('')+'</select>'+
       '<select class="form-select" id="tc-add-to" style="display:none;">'+tcLocOptions('BHI')+'</select>'+
       '<button class="btn btn-accent" onclick="tcAddStep()">+ Add</button></div>'+
     '<div class="form-group" style="margin-top:10px;"><label class="form-label">Time given (when you need to be there)</label><input type="time" class="form-input" id="tc-due" value="'+(TC.due||'')+'" oninput="tcCalc()"></div>'+
