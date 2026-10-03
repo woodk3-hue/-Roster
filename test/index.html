@@ -848,6 +848,7 @@ details.show-more{margin:4px 0 10px;}
 .rule-box{margin-top:10px;padding:8px 10px;border:1px solid rgba(239,68,68,.45);background:rgba(239,68,68,.08);border-radius:8px;}
 .rule-box-title{font-size:10px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
 .rule-line{font-size:12px;line-height:1.45;margin-top:4px;}
+.rule-agreed{margin-top:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted);}
 .rule-ref{color:var(--accent);font-weight:700;white-space:nowrap;text-decoration:none;}
 .rule-card{padding:10px 12px;margin-bottom:8px;}
 .rule-table-wrap{overflow-x:auto;margin-top:8px;}
@@ -1863,6 +1864,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <label class="form-label">Notes</label>
       <textarea class="form-textarea" id="sm-notes" placeholder="Any notes…" style="min-height:48px;"></textarea>
     </div>
+    <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin:-4px 0 12px;"><input type="checkbox" id="sm-agreed"> I agreed to this change (mutual agreement) — don't warn me about it</label>
     <div class="form-group">
       <label class="form-label">Roster alteration (EBA 91)</label>
       <select class="form-select" id="sm-alt-kind" onchange="onAltChange()">
@@ -3182,6 +3184,8 @@ function loadState(){
       if(p.leaveAdjBase) S.leaveAdjBase = p.leaveAdjBase;
       if(p.myTimes) S.myTimes = p.myTimes;
       if(p.leaveAutoTo) S.leaveAutoTo = p.leaveAutoTo;
+      if(p.ruleAcks) S.ruleAcks = p.ruleAcks;
+      if(p.nonRevJobs) S.nonRevJobs = p.nonRevJobs;
     }
   }catch(e){}
   purgeBin();
@@ -3463,6 +3467,30 @@ function dayRuleIssues(ds){
   return out;
 }
 
+// Rule checks the user has marked as agreed / acknowledged for a day: S.ruleAcks[ds] = ['89.6', …]
+function ruleAcksFor(ds){ return (S.ruleAcks&&S.ruleAcks[ds])||[]; }
+function activeRuleIssues(ds){ const a=ruleAcksFor(ds); return dayRuleIssues(ds).filter(function(x){ return a.indexOf(x.c)<0; }); }
+function ackRuleIssues(ds,on){
+  if(!S.ruleAcks) S.ruleAcks={};
+  const d=parseDate(ds), prev=fmtDate(addDays(d,-1)), next=fmtDate(addDays(d,1));
+  // A short break involves two days: agreeing on one covers the other day too
+  const addAck=function(day,c){ const a=S.ruleAcks[day]||[]; if(a.indexOf(c)<0) a.push(c); S.ruleAcks[day]=a; };
+  const dropAck=function(day,c){ const a=(S.ruleAcks[day]||[]).filter(function(x){ return x!==c; }); if(a.length) S.ruleAcks[day]=a; else delete S.ruleAcks[day]; };
+  if(on){
+    dayRuleIssues(ds).forEach(function(x){
+      addAck(ds,x.c);
+      if(x.c==='82.1') addAck(x.side==='after'?next:prev,'82.1');
+    });
+  } else {
+    if((S.ruleAcks[ds]||[]).indexOf('82.1')>-1){ dropAck(prev,'82.1'); dropAck(next,'82.1'); }
+    delete S.ruleAcks[ds];
+  }
+  saveState();
+  if(dayPanelDate===ds) renderDayPanel(ds);
+  if(currentScreen==='cal') renderCal();
+  toast(on?'Marked as agreed':'Agreement removed');
+}
+
 // 4-week cycle (or, from the nine-day fortnight, the fortnight) holding a date, with its counts
 function rulePeriodFor(d){
   const a=parseDate(cycleAnchorDs());
@@ -3607,20 +3635,38 @@ function swapRuleIssues(mon,received,scope,idx){
 }
 
 // EBA 85.1 meal windows for a shift, shown in the day panel
-function mealWindowsHtml(f){
+// Non-revenue job cards (Control "as required" EA jobs, or ones the user marks) get one 60-minute meal (EBA 85.4)
+function jobBase(job){ return String(job||'').split('-')[0].trim().toUpperCase(); }
+function isNonRevenueJob(job){
+  const b=jobBase(job); if(!b) return false;
+  if(S.nonRevJobs&&S.nonRevJobs[b]!=null) return !!S.nonRevJobs[b];
+  return /^EA/.test(b);
+}
+function toggleNonRevenue(job){
+  const b=jobBase(job); if(!b) return;
+  if(!S.nonRevJobs) S.nonRevJobs={};
+  S.nonRevJobs[b]=!isNonRevenueJob(job);
+  saveState(); if(dayPanelDate) renderDayPanel(dayPanelDate);
+}
+function mealWindowsHtml(f,job){
   if(!f.work||f.end==null) return '';
   const s=parseTime(f.startStr), len=Math.round((f.end-f.start)/60000);
   const t=function(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
-  const txt=len<=450
-    ?'one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330)
-    :'1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)';
-  return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA 85.1</a></div>';
+  const nonRev=isNonRevenueJob(job);
+  const txt=nonRev
+    ?'one 60-minute break (non-revenue card), start after '+t(s+210)+', finished by '+t(s+330)
+    :len<=450
+      ?'one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330)
+      :'1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)';
+  const b=jobBase(job);
+  return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA '+(nonRev?'85.4':'85.1')+'</a>'+
+    (b&&syncRole!=='partner'?'<br><a href="#" class="rule-ref" style="font-weight:600;" onclick="toggleNonRevenue(\''+b+'\');return false;">'+(nonRev?'Not a non-revenue card? Use normal meal breaks':b+' is non-revenue (as required, shunt, prep)? Use one 60-minute break')+'</a>':'')+'</div>';
 }
-function ruleIssuesHtml(list){
+function ruleIssuesHtml(list,ds){
   if(!list.length) return '';
   return '<div class="rule-box"><div class="rule-box-title">⚠ Roster rule check</div>'+list.map(function(i){
     return '<div class="rule-line">'+escHtml(i.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+i.c+'\');return false;">EBA '+i.c+'</a></div>';
-  }).join('')+'</div>';
+  }).join('')+(ds&&syncRole!=='partner'?'<button class="btn btn-sm" style="margin-top:8px;" onclick="ackRuleIssues(\''+ds+'\',true)">✓ I agreed to this / acknowledge</button>':'')+'</div>';
 }
 function ruleConfirmText(list){
   return '⚠ Roster rule check\n\n'+list.map(function(i){ return '• '+i.msg+' (EBA '+i.c+')'; }).join('\n')+'\n\nSave anyway?';
@@ -3721,7 +3767,7 @@ function renderRules(elId,query){
     // Summary of the checks for the current period
     const p=rulePeriodFor(today()), w=ruleWeekendCounts();
     const upcoming=[];
-    for(let i=0;i<28;i++){ const ds=fmtDate(addDays(today(),i)); dayRuleIssues(ds).forEach(function(x){ if(x.side!=='after') upcoming.push({ds:ds,i:x}); }); }
+    for(let i=0;i<28;i++){ const ds=fmtDate(addDays(today(),i)); activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') upcoming.push({ds:ds,i:x}); }); }
     const ok=function(b){ return b?'<span style="color:var(--early);">✓</span>':'<span style="color:#ef4444;">⚠</span>'; };
     html+='<div class="card" style="margin-bottom:12px;">'+
       '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Your roster check</div>'+
@@ -3980,7 +4026,7 @@ function renderDashRules(){
   const el=document.getElementById('dash-rules'); if(!el) return;
   if(!S.anchorLink||!ROSTER||!Object.keys(ROSTER).length){ el.innerHTML=''; return; }
   const p=rulePeriodFor(today()), w=ruleWeekendCounts();
-  let probs=0; for(let i=0;i<28;i++) dayRuleIssues(fmtDate(addDays(today(),i))).forEach(function(x){ if(x.side!=='after') probs++; });
+  let probs=0; for(let i=0;i<28;i++) activeRuleIssues(fmtDate(addDays(today(),i))).forEach(function(x){ if(x.side!=='after') probs++; });
   const ok=function(b){ return b?'<span style="color:var(--early);">✓</span>':'<span style="color:#ef4444;">⚠</span>'; };
   el.innerHTML='<div class="card" style="margin-top:12px;">'+
     '<div style="display:flex;align-items:center;margin-bottom:4px;"><div class="tc-title" style="margin:0;">📘 Rules &amp; EBA</div><a href="#" class="rule-ref" style="margin-left:auto;" onclick="openRules();return false;">See all ›</a></div>'+
@@ -4135,7 +4181,7 @@ function renderDash(){
   if(syncRole!=='partner'&&S.anchorLink){
     for(let i=0;i<28;i++){
       const ds=fmtDate(addDays(now,i));
-      dayRuleIssues(ds).forEach(function(x){ if(x.side!=='after') alerts.push({dot:'dot-red',msg:'⚠ <b>'+ruleDayName(ds)+'</b>: '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+ds+'-'+x.c+'-'+x.msg.length}); });
+      activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') alerts.push({dot:'dot-red',msg:'⚠ <b>'+ruleDayName(ds)+'</b>: '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+ds+'-'+x.c+'-'+x.msg.length}); });
     }
     const p1=rulePeriodFor(now), p2=rulePeriodFor(addDays(p1.end,1));
     p1.issues.concat(p2.issues).forEach(function(x){ alerts.push({dot:'dot-red',msg:'⚠ '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+x.msg}); });
@@ -4604,7 +4650,7 @@ function renderCalCell(d, otherMonth){
   }
 
   // Guard quick view handled inline in shift display blocks above
-  if(!leavePeriod&&dayRuleIssues(ds).length) inner+='<div class="cal-rule-flag" title="Roster rule check">⚠ rule</div>';
+  if(!leavePeriod&&activeRuleIssues(ds).length) inner+='<div class="cal-rule-flag" title="Roster rule check">⚠ rule</div>';
 
   return '<div class="'+cls+'" data-ds="'+ds+'">'+inner+'</div>';
 }
@@ -4731,9 +4777,16 @@ function renderDayPanel(ds){
   // Job card: a typed job number (or a single-day swap's 'their job') wins over the roster's
   const cardJob=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job;
   if(sh.time&&cardJob&&!leaveTypeKey) html+=jobCardHtml(cardJob);
-  if(!leaveTypeKey){ html+=mealWindowsHtml(ruleDayFacts(ds)); html+=ruleIssuesHtml(dayRuleIssues(ds)); }
+  if(!leaveTypeKey){
+    html+=mealWindowsHtml(ruleDayFacts(ds),cardJob);
+    const allIss=dayRuleIssues(ds), acks=ruleAcksFor(ds);
+    const act=allIss.filter(function(x){ return acks.indexOf(x.c)<0; }), agreed=allIss.filter(function(x){ return acks.indexOf(x.c)>-1; });
+    if(act.length) html+=ruleIssuesHtml(act,ds);
+    if(agreed.length) html+='<div class="rule-agreed"><b>✓ Agreed / acknowledged</b>'+agreed.map(function(x){ return '<div class="rule-line">'+escHtml(x.msg)+' <span style="white-space:nowrap;">(EBA '+x.c+')</span></div>'; }).join('')+
+      '<a href="#" class="rule-ref" onclick="ackRuleIssues(\''+ds+'\',false);return false;">Undo</a></div>';
+  }
   // Job cards are loaded but this day can't show one: say why
-  if(sh.time&&!leaveTypeKey&&Object.keys(JOBCARDS||{}).length&&!(cardJob&&jobCardFor(cardJob))){
+  if(sh.time&&!leaveTypeKey&&Object.keys(JOBCARDS||{}).length&&!(cardJob&&jobCardFor(cardJob))&&!/^EA/.test(jobBase(cardJob))){
     html+='<div style="font-size:11px;color:var(--muted);margin-top:8px;">'+(cardJob
       ?'No job card found for '+escHtml(String(cardJob).split('-')[0])+'.'
       :'No job number for this day. Type one in Edit Shift, or import the roster PDF again to add job numbers to every day.')+'</div>';
@@ -4853,6 +4906,7 @@ function openShiftModal(ds){
   (function(){ const h=document.getElementById('sm-jobcard-hint'); if(h) h.textContent=''; })();
   document.getElementById('sm-guards').value=ov.guards||'';
   document.getElementById('sm-notes').value=ov.notes||'';
+  document.getElementById('sm-agreed').checked=ruleAcksFor(ds).length>0;
   const alt=ov.alt||{};
   document.getElementById('sm-alt-kind').value=alt.kind||'';
   document.getElementById('sm-alt-orig').value=alt.orig||sh.time||'';
@@ -4944,8 +4998,13 @@ function saveShift(){
   if(type==='normal'&&!start&&!end&&!job&&!guards&&!notes&&!d.alt){ delete S.days[ds]; }
   else S.days[ds]=d;
   // Roster rule check (EBA): warn before saving a shift that breaks a rule
-  const ruleIssues=dayRuleIssues(ds);
-  if(ruleIssues.length&&!confirm(ruleConfirmText(ruleIssues))){
+  // "I agreed to this change" in Edit Shift marks this day's rule checks as agreed
+  if(document.getElementById('sm-agreed')&&document.getElementById('sm-agreed').checked){
+    if(!S.ruleAcks) S.ruleAcks={};
+    const cs=dayRuleIssues(ds).map(function(x){ return x.c; }); S.ruleAcks[ds]=cs.filter(function(c,i){ return cs.indexOf(c)===i; });
+  }
+  const ruleIssues=activeRuleIssues(ds);
+  if(ruleIssues.length&&!confirm(ruleConfirmText(ruleIssues)+'\n\n(Tick "I agreed to this change" if you agreed to it.)')){
     if(hadOv) S.days[ds]=oldOv; else delete S.days[ds];
     return;
   }
