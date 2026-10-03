@@ -1604,6 +1604,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <input type="date" class="form-input" id="set-cyclestart">
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">Used for cycle hours, excess time and pay fortnights.</div>
     </div>
+    <div class="form-group">
+      <label class="form-label">Nine-day fortnight starts</label>
+      <input type="date" class="form-input" id="set-ninedayfrom">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">From this date: 152h cycles, max 9 attendances / min 5 leisure days a fortnight, and the lower leave accrual rates (EBA 80.2, 93.3). Change it if the start date moves. When it starts, also set guaranteed hours to 76 and your new hourly rate.</div>
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Saturday Loading %</label>
@@ -3176,6 +3181,7 @@ function loadState(){
       if(p.appointments) S.appointments = p.appointments;
       if(p.leaveAdjBase) S.leaveAdjBase = p.leaveAdjBase;
       if(p.myTimes) S.myTimes = p.myTimes;
+      if(p.leaveAutoTo) S.leaveAutoTo = p.leaveAutoTo;
     }
   }catch(e){}
   purgeBin();
@@ -3372,7 +3378,8 @@ if(t==='sick')    return {code:'SL',time:null,typeKey:'sl',link,idx,ov,guards:ov
 // ═══════════════════════════════════════════════════════════
 const CYCLE_START='2026-09-07';       // default: a Monday that starts a 4-week work cycle (changeable in Pay Settings)
 function cycleAnchorDs(){ return (S.settings&&S.settings.cycleStart)||CYCLE_START; }
-const NINE_DAY_FN_FROM='2026-12-31';  // EBA 80.2 / 93.3: nine-day fortnight starts
+const NINE_DAY_FN_FROM='2026-12-31';  // EBA 80.2 / 93.3: nine-day fortnight starts (default; changeable in Pay Settings)
+function nineDayFromDs(){ return (S.settings&&S.settings.nineDayFrom)||NINE_DAY_FN_FROM; }
 const RULE_LEAVE_TYPES=['al','lsl','sl','repro','lwop','mbo','cbo','ph_booked_off'];
 const RULE_LEISURE_WORKED=['blp_worked','slp_worked','ot'];
 const RULE_AVAILABLE=['afa','afp','am1','am2','am3','pm1','pm2','pm3'];
@@ -3462,7 +3469,7 @@ function rulePeriodFor(d){
   const days=Math.round((getMonday(d)-a)/86400000);
   let start=addDays(a,Math.floor(days/28)*28), len=28;
   const fnStart=addDays(a,Math.floor(days/14)*14);
-  const nine=fmtDate(fnStart)>=NINE_DAY_FN_FROM;
+  const nine=fmtDate(fnStart)>=nineDayFromDs();
   if(nine){ start=fnStart; len=14; }
   let att=0, leis=0;
   for(let i=0;i<len;i++){ const f=ruleDayFacts(fmtDate(addDays(start,i))); if(f.att) att++; if(f.leisure) leis++; }
@@ -3494,7 +3501,7 @@ function avgShiftHours(){
   _avgShiftKey=key; _avgShift=n?h/n:((S.settings.cycleHrs||80.43)*2/19);
   return _avgShift;
 }
-function cycleTarget(start){ return fmtDate(start)>=NINE_DAY_FN_FROM?152:160; }
+function cycleTarget(start){ return fmtDate(start)>=nineDayFromDs()?152:160; }
 function dayIsLeisureRoster(ds){
   const d=parseDate(ds), sh=parseShift(getRaw(getLinkForWeek(getMonday(d)),dayIdx(d)));
   return sh.typeKey==='blp'||sh.typeKey==='slp';
@@ -6337,6 +6344,7 @@ function saveClaim(){
 // PAY
 // ═══════════════════════════════════════════════════════════
 function renderPay(){
+  if(runLeaveAuto()) saveState();
   const cph=S.settings.cph||66.50;
   const hrs=S.settings.cycleHrs||80.43;
   const hpd=hrs/10;
@@ -6516,6 +6524,48 @@ function calcLeaveImpact(){
   return impact;
 }
 
+// ── AUTOMATIC LEAVE: accrual each pay fortnight and leave taken (EBA 47, 48, 49) ──
+// Hours per fortnight: before / from the nine-day fortnight (152-hour cycle)
+const LEAVE_ACCRUAL={al:[200/26,190/26],pc:[80/26,76/26],lsl:[52/26,49.4/26]};
+function runLeaveAuto(){
+  if(syncRole==='partner') return false;
+  const yday=fmtDate(addDays(today(),-1));
+  if(!S.leaveAutoTo){ S.leaveAutoTo=yday; return true; } // starts from now; nothing back-dated
+  if(S.leaveAutoTo>=yday) return false;
+  if(!S.leaveAdj) S.leaveAdj=[];
+  const from=addDays(parseDate(S.leaveAutoTo),1), to=parseDate(yday);
+  let changed=false;
+  const a=parseDate(cycleAnchorDs());
+  for(let d=new Date(from);d<=to;d=addDays(d,1)){
+    const ds=fmtDate(d);
+    // A pay fortnight ended today: credit its accrual (less any leave without pay)
+    const days=Math.round((d-a)/86400000);
+    if(((days%14)+14)%14===13){
+      const fnStart=addDays(d,-13), nine=fmtDate(fnStart)>=nineDayFromDs()?1:0;
+      let lwop=0; for(let k=0;k<14;k++){ const o=S.days[fmtDate(addDays(fnStart,k))]; if(o&&o.type==='lwop') lwop++; }
+      const factor=Math.max(0,1-lwop/10);
+      ['al','lsl','pc'].forEach(function(t){
+        const h=Math.round(LEAVE_ACCRUAL[t][nine]*factor*10000)/10000;
+        if(h>0) S.leaveAdj.push({id:uid(),leaveType:t,type:'accrual',dir:'increase',hours:h,date:ds,auto:true,
+          reason:'Auto accrual, fortnight '+fmtDDMM(fnStart)+'–'+fmtDDMM(d)+(lwop?' (less '+lwop+' day'+(lwop>1?'s':'')+' LWOP)':'')});
+      });
+      changed=true;
+    }
+    // Annual / long service leave taken on this day: 8 hours a chargeable day (same as the projection)
+    const ov=S.days[ds];
+    const lv=(S.plannedLeave||[]).find(function(l){ return (l.type==='al'||l.type==='lsl')&&ds>=l.start&&ds<=(l.end||l.start); });
+    const lt=lv?lv.type:(ov&&(ov.type==='al'||ov.type==='lsl')?ov.type:null);
+    if(lt&&calcChargeableDays(ds,ds)>0){
+      S.leaveAdj.push({id:uid(),leaveType:lt,type:'leave-taken',dir:'decrease',hours:8,date:ds,auto:true,
+        reason:(lt==='al'?'Annual':'Long service')+' leave taken '+fmtDDMM(d)});
+      changed=true;
+    }
+  }
+  S.leaveAutoTo=yday;
+  if(changed) recalcLeaveFromAdj();
+  return true;
+}
+
 // ── LEAVE ADJUSTMENTS ───────────────────────────────────
 function setLamDir(dir){
   document.getElementById('lam-dir').value=dir;
@@ -6671,7 +6721,8 @@ function calcPayProjection(offsetFortnights){
   const altLeisGross=altLeisHrs*cph*1.75;
 
   // ── GROSS EARNINGS ──
-  const baseGross=80*cph;                          // guaranteed 80h
+  const guar=S.settings.guarHrs||80;
+  const baseGross=guar*cph;                        // guaranteed ordinary hours per fortnight
   const blpGross=blpHrs*cph*1.75;                  // full 175% (BLP hours replace ordinary hours)
   const satGross=satHrs*cph*0.50;                 // 50% extra
   const sunGross=sunHrs*cph*1.00;                 // 100% extra
@@ -6796,8 +6847,8 @@ function renderPayProjection(){
   '</div>';
 
   const cph=S.settings.cph||66.50;
-  const ordGross=80*cph;
-  html+=payRow('Ord Time (80h guaranteed)','80.00','100%',fmt$(ordGross),'');
+  const guarH=S.settings.guarHrs||80, ordGross=guarH*cph;
+  html+=payRow('Ord Time ('+guarH+'h guaranteed)',guarH.toFixed(2),'100%',fmt$(ordGross),'');
   if(p.blpHrs>0) html+=payRow('BLP/SLP Wrkd 175%',p.blpHrs.toFixed(2),'175%',fmt$(p.blpGross),'var(--early)');
   if(p.satHrs>0) html+=payRow('Wknd Pnlty TC SAT',p.satHrs.toFixed(2),'50%',fmt$(p.satGross),'var(--early)');
   if(p.sunHrs>0) html+=payRow('Wknd Pnlty TC SUN',p.sunHrs.toFixed(2),'100%',fmt$(p.sunGross),'var(--early)');
@@ -6928,9 +6979,11 @@ function saveLeaveBalanceInline(type, val){
       reason:'Direct balance edit ('+prev.toFixed(2)+'h → '+hours.toFixed(2)+'h)'
     });
   }
-  // Update base snapshot so delete-adj recalc works correctly
+  // The typed balance is the new starting point: earlier adjustments stay as history only
+  S.leaveAdj.forEach(function(a){ if(a.leaveType===type) a.applied=true; });
   if(!S.leaveAdjBase) S.leaveAdjBase={al:S.leave.al,lsl:S.leave.lsl,pc:S.leave.pc};
   S.leaveAdjBase[type]=hours; // new base is the manually entered value
+  S.leaveAutoTo=fmtDate(addDays(today(),-1)); // automatic accrual carries on from here
   saveState();
   renderPay();
   toast('Balance updated');
@@ -6978,6 +7031,7 @@ function recalcLeaveFromAdj(){
   // Recompute from base
   var al=S.leaveAdjBase.al, lsl=S.leaveAdjBase.lsl, pc=S.leaveAdjBase.pc;
   (S.leaveAdj||[]).forEach(function(a){
+    if(a.applied) return; // already part of a balance typed in from a payslip
     var delta=a.dir==='increase'?a.hours:-a.hours;
     if(a.leaveType==='al') al+=delta;
     else if(a.leaveType==='lsl') lsl+=delta;
@@ -7017,8 +7071,8 @@ function renderLeaveAdjHistory(){
   const adjs=(S.leaveAdj||[]).slice().reverse();
   if(!adjs.length){ el.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">No adjustments recorded.</div>'; return; }
   const typeLabels={al:'AL',lsl:'LSL',pc:'Personal'};
-  const adjLabels={accrual:'Accrual',payroll:'Payroll',manual:'Manual','sick-shift':'Sick Shift'};
-  const adjCls={accrual:'adj-accrual',payroll:'adj-payroll',manual:'adj-manual','sick-shift':'adj-payroll'};  el.innerHTML='';
+  const adjLabels={accrual:'Accrual',payroll:'Payroll',manual:'Manual','sick-shift':'Sick Shift','leave-taken':'Leave taken'};
+  const adjCls={accrual:'adj-accrual',payroll:'adj-payroll',manual:'adj-manual','sick-shift':'adj-payroll','leave-taken':'adj-payroll'};  el.innerHTML='';
   adjs.forEach(function(a){
     const div=document.createElement('div');
     div.className='leave-adj-item';
@@ -7618,6 +7672,7 @@ function loadSettingsUI(){
   document.getElementById('set-guar').value=S.settings.guarHrs;
   document.getElementById('set-cycle').value=S.settings.cycleHrs;
   if(document.getElementById('set-cyclestart')) document.getElementById('set-cyclestart').value=cycleAnchorDs();
+  if(document.getElementById('set-ninedayfrom')) document.getElementById('set-ninedayfrom').value=nineDayFromDs();
   document.getElementById('set-sat').value=S.settings.satLoad;
   document.getElementById('set-sun').value=S.settings.sunLoad;
   document.getElementById('set-blp').value=S.settings.blpRate;
@@ -7665,6 +7720,8 @@ function savePaySettings(){
   S.settings.cycleHrs=f('set-cycle',80.43);
   const csEl=document.getElementById('set-cyclestart');
   if(csEl&&csEl.value) S.settings.cycleStart=fmtDate(getMonday(parseDate(csEl.value)));
+  const ndEl=document.getElementById('set-ninedayfrom');
+  if(ndEl&&ndEl.value) S.settings.nineDayFrom=ndEl.value;
   S.settings.satLoad=f('set-sat',150);
   S.settings.sunLoad=f('set-sun',200);
   S.settings.blpRate=f('set-blp',175);
@@ -7677,6 +7734,10 @@ function saveLeave(){
   S.leave.al=f('set-al',227.51);
   S.leave.lsl=f('set-lsl',460.67);
   S.leave.pc=f('set-pc',12.36);
+  // New starting point for all three balances
+  (S.leaveAdj||[]).forEach(function(a){ a.applied=true; });
+  S.leaveAdjBase={al:S.leave.al,lsl:S.leave.lsl,pc:S.leave.pc};
+  S.leaveAutoTo=fmtDate(addDays(today(),-1));
   saveState(); renderPay(); toast('Leave updated');
 }
 
@@ -7980,6 +8041,8 @@ function initApp(){
   syncEnabled=localStorage.getItem('syncEnabled')==='1';
   syncPin=localStorage.getItem('syncPin')||'';
   syncRole=localStorage.getItem('syncRole')||'owner';
+  // Leave accrual / leave taken since the app was last opened
+  if(runLeaveAuto()){ try{ localStorage.setItem(STATE_KEY,JSON.stringify(S)); }catch(e){} }
   showScreen('dash');
   applyRoleUI();
   showSetupIfNeeded();
