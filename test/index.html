@@ -3594,7 +3594,7 @@ const RULES=[
  {g:'times',c:'RP 2.11',t:'Preparation',b:'Units have 24-hour prep dockets. A full prep is rostered for units stowed at Mayne or Wulkuraka unless already prepped; otherwise a 10-minute pre-departure check. Prep: 6-car 40 minutes, 3-car 20 minutes. Stow: 10 minutes.'},
  {g:'times',c:'RP 2.15',t:'Sign on and sign off',b:'Sign on and sign off take 15 minutes at a depot. Mayne crew sign on at BHAB (Bowen Hills) or A Block. Start of a passenger or relief working = sign on + walk to the platform. End = walk + sign off, plus a 5-minute handover on terminating trains. At some locations a 20-minute platform dwell for cleaning comes before stowing.'},
  {g:'times',c:'RP 2.15',t:'Mayne start and finish times (minutes)',b:'Electric units, Mayne locations. Shunt only applies at ETS/ESY.',html:'<table class="rule-table"><tr><th></th><th>Bowen Hills (BHAB)</th><th>ETF</th><th>ETS / ESY</th><th>Mayne Yard North</th></tr><tr><td>Sign on</td><td>15</td><td>15 (A Block)</td><td>15 (A Block)</td><td>15 (A Block)</td></tr><tr><td>Walk</td><td>15 to ETF/ETS<br>5 to platform</td><td>10</td><td>10</td><td>20</td></tr><tr><td><b>Start: prepare</b><br>sign on + walk + 40 prep (+6 shunt)</td><td><b>70</b> ETF<br><b>76</b> ETS/ESY</td><td><b>65</b></td><td><b>71</b></td><td><b>75</b></td></tr><tr><td><b>Start: passenger / relieve</b></td><td><b>20</b></td><td><b>25</b></td><td><b>25</b></td><td><b>35</b></td></tr><tr><td><b>End: passenger</b><br>walk + sign off</td><td><b>20</b></td><td><b>25</b></td><td><b>25</b></td><td><b>35</b></td></tr><tr><td><b>End: relieved</b></td><td colspan="4">as passenger, plus 5 handover on terminating trains</td></tr><tr><td><b>End: stow</b><br>(shunt) + 10 stow + walk + sign off</td><td><b>40</b> ETF<br><b>46</b> ETS/ESY</td><td><b>35</b></td><td><b>41</b></td><td><b>45</b></td></tr></table>'},
- {g:'times',c:'RP 2.12',t:'Change train walk times (minutes)',b:'Walk time allowed when changing trains. Anywhere not listed: at least 5 minutes between platforms.',html:'<table class="rule-table"><tr><th>Location</th><th>Walk</th></tr><tr><td>Same platform area (most stations)</td><td>5</td></tr><tr><td>Bowen Hills ↔ ETF / ETS / ETD</td><td>15</td></tr><tr><td>Mayne Yard: between ETS, ETF, ETD</td><td>10</td></tr><tr><td>Mayne Yard North</td><td>10</td></tr><tr><td>Roma Street · Petrie</td><td>10</td></tr><tr><td>Banyo station ↔ yard</td><td>14</td></tr><tr><td>Beenleigh platform ↔ yard / turnback</td><td>10</td></tr><tr><td>Caboolture · Robina platform ↔ yard</td><td>10</td></tr><tr><td>Ipswich platform ↔ yard</td><td>8</td></tr><tr><td>Nambour platform ↔ yard</td><td>5</td></tr><tr><td>Woombye platform ↔ yard</td><td>15</td></tr><tr><td>Kippa-Ring · Redbank platform ↔ yard</td><td>20</td></tr><tr><td>Wulkuraka to east yard / west yard</td><td>15 / 25</td></tr></table>'},
+ {g:'times',c:'RP 2.12',t:'Change train walk times (minutes)',b:'Walk time allowed when changing trains. Anywhere not listed: at least 5 minutes between platforms.',html:'<table class="rule-table"><tr><th>Location</th><th>Walk</th></tr><tr><td>Same platform area (most stations)</td><td>5</td></tr><tr><td>Bowen Hills ↔ ETF / ETS</td><td>15</td></tr><tr><td>Mayne Yard: ETS ↔ ETF</td><td>10</td></tr><tr><td>Mayne Yard North</td><td>10</td></tr><tr><td>Roma Street · Petrie</td><td>10</td></tr><tr><td>Banyo station ↔ yard</td><td>14</td></tr><tr><td>Beenleigh platform ↔ yard / turnback</td><td>10</td></tr><tr><td>Caboolture · Robina platform ↔ yard</td><td>10</td></tr><tr><td>Ipswich platform ↔ yard</td><td>8</td></tr><tr><td>Nambour platform ↔ yard</td><td>5</td></tr><tr><td>Woombye platform ↔ yard</td><td>15</td></tr><tr><td>Kippa-Ring · Redbank platform ↔ yard</td><td>20</td></tr><tr><td>Wulkuraka to east yard / west yard</td><td>15 / 25</td></tr></table>'},
  {g:'times',c:'RP 2.6',t:'Track vehicle and infrastructure work',b:'Rail traffic crew working infrastructure services get 15 minutes sign on and sign off, plus 10 minutes for a toolbox talk before leaving. Track Vehicle Pilot weekday shifts should ideally be 7h30m, and up to 9 hours only with Team Leader approval.'},
  {g:'length',c:'RP 2.4.2',t:'Stricter roster targets',b:'For the master roster the business may set tighter limits than the EBA on job card length (for cycle hours), buffer times or toolbox talks. Altered job cards still follow the EBA and the similar-solution limits.'},
  {g:'meals',c:'85.6',t:'Locomotive and track vehicle workings',b:'Meal breaks of 30 to 60 minutes, at a time that doesn\'t affect operations. Shifts up to 9 hours: taken after 3h30m and finished before 5h30m. Shifts over 9 hours: after 4h30m and finished before 7h30m (85.7).'},
@@ -3653,32 +3653,23 @@ function renderRules(elId,query){
 // Figures from the SEQ Roster Protocols (2.11, 2.12, 2.15), the traincrew times card and the job cards.
 // ═══════════════════════════════════════════════════════════
 const TC_LOCS=[
- ['BHAB','BHAB (Bowen Hills sign-on)'],['BHI','Bowen Hills platform'],['ABLK','A Block'],['CBLK','C Block'],['EBLK','E Block'],
- ['ETD','ETD (senior drivers)'],['ETF','ETF'],['ETS','ETS / ESY'],['YNY','Mayne Yard North']
+ ['BHAB','BHAB (Bowen Hills sign-on)'],['ABLK','A Block (sign-on)'],['BHI','Bowen Hills platform'],
+ ['ETF','ETF'],['ETS','ETS / ESY'],['YNY','Mayne Yard North']
 ];
+const TC_SIGNON=['BHAB','ABLK'];  // the only sign-on / sign-off points
 // Walks, either direction (minutes). Missing pairs are set by the user in My times.
-const TC_WALK={'BHAB|BHI':5,'ABLK|BHAB':15,'BHAB|ETF':15,'BHAB|ETS':15,'BHAB|ETD':15,'BHAB|YNY':35,
- 'BHI|ETF':15,'BHI|ETS':15,'BHI|ETD':15,'ABLK|BHI':15,'BHI|YNY':35,'ABLK|ETF':10,'ABLK|ETS':10,'ABLK|YNY':20,
- 'ETF|ETS':10,'ETD|ETF':10,'ETD|ETS':10};
+const TC_WALK={'BHAB|BHI':5,'ABLK|BHAB':15,'BHAB|ETF':15,'BHAB|ETS':15,'BHAB|YNY':35,
+ 'BHI|ETF':15,'BHI|ETS':15,'ABLK|BHI':15,'BHI|YNY':35,'ABLK|ETF':10,'ABLK|ETS':10,'ABLK|YNY':20,
+ 'ETF|ETS':10};
 // Runs, one direction (minutes) — typical times from the job cards
 const TC_RUN={'BHI>ETF':9,'ETF>BHI':9,'BHI>ETS':20,'ETS>BHI':20,'BHI>YNY':10,'YNY>BHI':10};
 const TC_STEPS={
- signonat:{l:'Sign on at… (15 + walk)'},signoffat:{l:'Sign off at… (walk + 15)'},
+ signoffat:{l:'Sign off at… (walk + 15)'},signonat:{l:'Sign on at… (15 + walk)'},
  signon:{l:'Sign on',m:15},signoff:{l:'Sign off',m:15},
  prep6:{l:'Prep 6-car',m:40},prep3:{l:'Prep 3-car',m:20},pdt:{l:'Pre-departure test',m:10},
  ends:{l:'Change ends',m:8},shunt:{l:'Shunt (ETS/ESY)',m:6},stow:{l:'Stow',m:10},handover:{l:'Handover',m:5},
  walk:{l:'Walk to'},run:{l:'Run to'},custom:{l:'Other'}
 };
-const TC_PRESETS=[
- {n:'Walk to ETD, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETD'},{k:'prep6'},{k:'run',to:'BHI'}]},
- {n:'Walk to ETF, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETF'},{k:'prep6'},{k:'run',to:'BHI'}]},
- {n:'Walk to ETS, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'},{k:'run',to:'BHI'}]},
- {n:'From BHI: run to ETF, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETF'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff',to:'BHAB'}]},
- {n:'From BHI: run to ETS, shunt, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff',to:'BHAB'}]},
- {n:'From BHI: run to ETS, stow, walk to ETD, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'ETD'},{k:'signoff',to:'ETD'}]},
- {n:'Sign on at BHAB, walk to ETF, prep a 6-car',start:'BHAB',steps:[{k:'signon',to:'BHAB'},{k:'walk',to:'ETF'},{k:'prep6'}]},
- {n:'Sign on at A Block, walk to ETS, prep a 6-car',start:'ABLK',steps:[{k:'signon',to:'ABLK'},{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'}]}
-];
 let TC={start:'',from:'BHI',due:'',steps:[]};
 function tcLocName(k){ const l=TC_LOCS.find(function(x){ return x[0]===k; }); return l?l[1]:k; }
 function tcMy(){ if(!S.myTimes) S.myTimes={walk:{},run:{}}; return S.myTimes; }
@@ -3694,14 +3685,14 @@ function tcRun(a,b){
   return TC_RUN[k]!=null?TC_RUN[k]:null;
 }
 function tcSave(){ try{ localStorage.setItem('tc_state',JSON.stringify(TC)); }catch(e){} }
-function tcLoad(){ try{ const v=JSON.parse(localStorage.getItem('tc_state')||'null'); if(v&&v.steps) TC=v; }catch(e){} }
-function tcHM(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); }
-function tcLocOptions(sel){ return TC_LOCS.map(function(l){ return '<option value="'+l[0]+'"'+(l[0]===sel?' selected':'')+'>'+l[1]+'</option>'; }).join(''); }
-function tcPreset(i){
-  const p=TC_PRESETS[i]; if(!p) return;
-  TC.from=p.start; TC.steps=p.steps.map(function(s){ return {k:s.k,to:s.to||'',m:null}; });
-  tcSave(); renderTools();
+function tcLoad(){
+  try{ const v=JSON.parse(localStorage.getItem('tc_state')||'null'); if(v&&v.steps) TC=v; }catch(e){}
+  const ok=function(k){ return TC_LOCS.some(function(l){ return l[0]===k; }); };
+  if(!ok(TC.from)) TC.from='BHI';
+  TC.steps=TC.steps.filter(function(st){ return !st.to||ok(st.to); });
 }
+function tcHM(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); }
+function tcLocOptions(sel,only){ return TC_LOCS.filter(function(l){ return !only||only.indexOf(l[0])>-1; }).map(function(l){ return '<option value="'+l[0]+'"'+(l[0]===sel?' selected':'')+'>'+l[1]+'</option>'; }).join(''); }
 function tcAddStep(){
   const k=document.getElementById('tc-add-kind').value, to=document.getElementById('tc-add-to').value;
   // Where you'd be before this step
@@ -3732,7 +3723,8 @@ function tcOnAddKind(){
   const k=document.getElementById('tc-add-kind').value;
   const sel=document.getElementById('tc-add-to');
   sel.style.display=['walk','run','signonat','signoffat'].includes(k)?'':'none';
-  if(k==='signonat'||k==='signoffat') sel.value='BHAB';
+  const signPt=(k==='signonat'||k==='signoffat');
+  sel.innerHTML=tcLocOptions(signPt?'BHAB':'BHI',signPt?TC_SIGNON:null);
 }
 // Works out each step's minutes and clock time, then compares with the time given
 function tcCalc(){
@@ -3756,7 +3748,7 @@ function tcCalc(){
     if(atEl) atEl.textContent=(t==null||broken)?'—':tcHM(t+total);
   });
   const res=document.getElementById('tc-result'); if(!res) return;
-  if(!TC.steps.length){ res.innerHTML='<span style="color:var(--muted);">Pick a quick start or add steps below.</span>'; return; }
+  if(!TC.steps.length){ res.innerHTML='<span style="color:var(--muted);">Add steps below.</span>'; return; }
   if(broken){ res.innerHTML='<span style="color:#f59e0b;">Type the minutes for the step marked in orange — it isn\'t in the roster documents yet. The app remembers it in My times.</span>'; return; }
   let html='Total <b>'+ruleGap(total)+'</b>';
   if(t!=null) html+=' · done at <b>'+tcHM(t+total)+'</b> at '+escHtml(tcLocName(loc));
@@ -3791,8 +3783,6 @@ function renderTools(){
    '<div class="card" style="margin-bottom:12px;">'+
     '<div class="tc-title">⏱ Time check</div>'+
     '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Asked to walk somewhere, prep a train and bring it in? Add up the steps and see if the time you were given is enough.</div>'+
-    '<select class="form-select" onchange="if(this.value!==\'\')tcPreset(+this.value)" style="margin-bottom:8px;"><option value="">Quick start…</option>'+
-      TC_PRESETS.map(function(p,i){ return '<option value="'+i+'">'+escHtml(p.n)+'</option>'; }).join('')+'</select>'+
     '<div class="form-row"><div class="form-group"><label class="form-label">Start time</label><input type="time" class="form-input" id="tc-start" value="'+TC.start+'" oninput="tcCalc()"></div>'+
     '<div class="form-group"><label class="form-label">Starting at</label><select class="form-select" id="tc-from" onchange="tcCalc();renderTools()">'+tcLocOptions(TC.from)+'</select></div></div>'+
     '<div class="tc-head"><span>Step</span><span>Min</span><span>Time</span><span></span></div>'+
@@ -3812,6 +3802,7 @@ function renderTools(){
     '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcResetMy()">Reset to document times</button>'+
     '<div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5;">Fixed: sign on/off 15 · prep 6-car 40, 3-car 20 · pre-departure test 10 · change ends 8 · stow 10 · shunt at ETS/ESY 6 · handover 5 (RP 2.11, 2.15; traincrew times card).</div>'+
    '</div>';
+  tcOnAddKind();
   tcCalc();
 }
 function tcMyTimesHtml(){
@@ -3821,7 +3812,7 @@ function tcMyTimesHtml(){
     const k=[keys[i],keys[j]].sort().join('|'), v=(my.walk[k]!=null&&my.walk[k]!=='')?my.walk[k]:(TC_WALK[k]!=null?TC_WALK[k]:'');
     walk+='<tr><td>'+tcLocName(keys[i])+' ↔ '+tcLocName(keys[j])+'</td><td><input type="number" inputmode="numeric" min="0" class="form-input tc-min'+(v===''?' tc-missing':'')+'" value="'+v+'" onchange="tcSetMy(\'walk\',\''+k+'\',this.value)"></td></tr>';
   }
-  const runPairs=['BHI>ETF','ETF>BHI','BHI>ETS','ETS>BHI','BHI>YNY','YNY>BHI','BHI>ETD','ETD>BHI'];
+  const runPairs=['BHI>ETF','ETF>BHI','BHI>ETS','ETS>BHI','BHI>YNY','YNY>BHI'];
   const run=runPairs.map(function(k){
     const p=k.split('>'), v=(my.run[k]!=null&&my.run[k]!=='')?my.run[k]:(TC_RUN[k]!=null?TC_RUN[k]:'');
     return '<tr><td>'+tcLocName(p[0])+' → '+tcLocName(p[1])+'</td><td><input type="number" inputmode="numeric" min="0" class="form-input tc-min'+(v===''?' tc-missing':'')+'" value="'+v+'" onchange="tcSetMy(\'run\',\''+k+'\',this.value)"></td></tr>';
