@@ -2589,7 +2589,8 @@ function jobCardHtml(job){
   const c=jobCardFor(job); if(!c) return '';
   const dur=(c.on&&c.off)?calcDur(c.on,c.off):'';
   return '<div style="margin-top:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;">'+
-    '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Job card '+escHtml(String(job).split('-')[0])+'</div>'+
+    '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Job card '+escHtml(String(job).split('-')[0])+
+      (function(){ const d=decodeJob(job); return d&&d.sector?' · '+escHtml(d.sector.replace(' drivers','').replace('North or South sector','North or South sector')):''; })()+'</div>'+
     '<div style="font-size:13px;margin-top:3px;"><b>Sign on</b> '+(c.on||'—')+' &nbsp;·&nbsp; <b>Sign off</b> '+(c.off||'—')+(dur?' &nbsp;·&nbsp; '+dur:'')+'</div>'+
     '<details class="show-more" style="margin:4px 0 0;"><summary>Full job card</summary><pre class="jobcard-pre">'+escHtml(c.text)+'</pre></details>'+
   '</div>';
@@ -4917,7 +4918,8 @@ function renderDayPanel(ds){
   const cardJob=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job;
   if(sh.time&&cardJob&&!leaveTypeKey) html+=jobCardHtml(cardJob);
   if(!leaveTypeKey){
-    if(sh.time&&cardJob&&jobDecodeText(cardJob,sh.time)) html+='<div class="job-decode">🔎 '+escHtml(jobDecodeText(cardJob,sh.time))+' <a href="#" class="rule-ref" style="font-size:11px;" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
+    // What the job number means — only when there's no job card to show (the card shows the sector)
+    if(sh.time&&cardJob&&!jobCardFor(cardJob)&&jobDecodeText(cardJob,sh.time)) html+='<div class="job-decode">🔎 '+escHtml(jobDecodeText(cardJob,sh.time))+' <a href="#" class="rule-ref" style="font-size:11px;" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
     html+=mealWindowsHtml(ruleDayFacts(ds),cardJob);
     const allIss=dayRuleIssues(ds), acks=ruleAcksFor(ds);
     const act=allIss.filter(function(x){ return acks.indexOf(x.c)<0; }), agreed=allIss.filter(function(x){ return acks.indexOf(x.c)>-1; });
