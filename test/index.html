@@ -3670,17 +3670,6 @@ const TC_STEPS={
  ends:{l:'Change ends',m:8},shunt:{l:'Shunt (ETS/ESY)',m:6},stow:{l:'Stow',m:10},handover:{l:'Handover',m:5},
  walk:{l:'Walk to'},run:{l:'Run to'},custom:{l:'Other'}
 };
-const TC_PRESETS=[
- {n:'Walk to ETF, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETF'},{k:'prep6'},{k:'run',to:'BHI'}]},
- {n:'Walk to ETS, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'},{k:'run',to:'BHI'}]},
- {n:'Walk to Mayne Yard North, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'YNY'},{k:'prep6'},{k:'run',to:'BHI'}]},
- {n:'From BHI: run to ETF, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETF'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff',to:'BHAB'}]},
- {n:'From BHI: run to ETS, shunt, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff',to:'BHAB'}]},
- {n:'From BHI: run to ETS, stow, walk to A Block, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'ABLK'},{k:'signoff',to:'ABLK'}]},
- {n:'From BHI: run to Mayne Yard North, stow, walk to A Block, sign off',start:'BHI',steps:[{k:'run',to:'YNY'},{k:'stow'},{k:'walk',to:'ABLK'},{k:'signoff',to:'ABLK'}]},
- {n:'Sign on at BHAB, walk to ETF, prep a 6-car',start:'BHAB',steps:[{k:'signon',to:'BHAB'},{k:'walk',to:'ETF'},{k:'prep6'}]},
- {n:'Sign on at A Block, walk to ETS, prep a 6-car',start:'ABLK',steps:[{k:'signon',to:'ABLK'},{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'}]}
-];
 let TC={start:'',from:'BHI',due:'',steps:[]};
 function tcLocName(k){ const l=TC_LOCS.find(function(x){ return x[0]===k; }); return l?l[1]:k; }
 function tcMy(){ if(!S.myTimes) S.myTimes={walk:{},run:{}}; return S.myTimes; }
@@ -3704,11 +3693,6 @@ function tcLoad(){
 }
 function tcHM(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); }
 function tcLocOptions(sel,only){ return TC_LOCS.filter(function(l){ return !only||only.indexOf(l[0])>-1; }).map(function(l){ return '<option value="'+l[0]+'"'+(l[0]===sel?' selected':'')+'>'+l[1]+'</option>'; }).join(''); }
-function tcPreset(i){
-  const p=TC_PRESETS[i]; if(!p) return;
-  TC.from=p.start; TC.steps=p.steps.map(function(s){ return {k:s.k,to:s.to||'',m:null}; });
-  tcSave(); renderTools();
-}
 function tcAddStep(){
   const k=document.getElementById('tc-add-kind').value, to=document.getElementById('tc-add-to').value;
   // Where you'd be before this step
@@ -3764,7 +3748,7 @@ function tcCalc(){
     if(atEl) atEl.textContent=(t==null||broken)?'—':tcHM(t+total);
   });
   const res=document.getElementById('tc-result'); if(!res) return;
-  if(!TC.steps.length){ res.innerHTML='<span style="color:var(--muted);">Pick a quick start or add steps below.</span>'; return; }
+  if(!TC.steps.length){ res.innerHTML='<span style="color:var(--muted);">Add steps below.</span>'; return; }
   if(broken){ res.innerHTML='<span style="color:#f59e0b;">Type the minutes for the step marked in orange — it isn\'t in the roster documents yet. The app remembers it in My times.</span>'; return; }
   let html='Total <b>'+ruleGap(total)+'</b>';
   if(t!=null) html+=' · done at <b>'+tcHM(t+total)+'</b> at '+escHtml(tcLocName(loc));
@@ -3799,8 +3783,6 @@ function renderTools(){
    '<div class="card" style="margin-bottom:12px;">'+
     '<div class="tc-title">⏱ Time check</div>'+
     '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Asked to walk somewhere, prep a train and bring it in? Add up the steps and see if the time you were given is enough.</div>'+
-    '<select class="form-select" onchange="if(this.value!==\'\')tcPreset(+this.value)" style="margin-bottom:8px;"><option value="">Quick start…</option>'+
-      TC_PRESETS.map(function(p,i){ return '<option value="'+i+'">'+escHtml(p.n)+'</option>'; }).join('')+'</select>'+
     '<div class="form-row"><div class="form-group"><label class="form-label">Start time</label><input type="time" class="form-input" id="tc-start" value="'+TC.start+'" oninput="tcCalc()"></div>'+
     '<div class="form-group"><label class="form-label">Starting at</label><select class="form-select" id="tc-from" onchange="tcCalc();renderTools()">'+tcLocOptions(TC.from)+'</select></div></div>'+
     '<div class="tc-head"><span>Step</span><span>Min</span><span>Time</span><span></span></div>'+
