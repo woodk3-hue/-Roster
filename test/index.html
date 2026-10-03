@@ -3670,7 +3670,7 @@ const TC_STEPS={
  ends:{l:'Change ends',m:8},shunt:{l:'Shunt (ETS/ESY)',m:6},stow:{l:'Stow',m:10},handover:{l:'Handover',m:5},
  walk:{l:'Walk to'},run:{l:'Run to'},custom:{l:'Other'}
 };
-let TC={start:'',from:'BHI',due:'',steps:[]};
+let TC={mode:'fwd',start:'',end:'',from:'BHI',due:'',steps:[]};
 function tcLocName(k){ const l=TC_LOCS.find(function(x){ return x[0]===k; }); return l?l[1]:k; }
 function tcMy(){ if(!S.myTimes) S.myTimes={walk:{},run:{}}; return S.myTimes; }
 function tcWalk(a,b){
@@ -3707,6 +3707,7 @@ function tcAddStep(){
   tcSave(); renderTools();
 }
 function tcRemove(i){ TC.steps.splice(i,1); tcSave(); renderTools(); }
+function tcSetMode(m){ TC.mode=m; tcSave(); renderTools(); }
 function tcClear(){ TC.steps=[]; TC.due=''; tcSave(); renderTools(); }
 function tcSetMins(i,v){
   const st=TC.steps[i]; if(!st) return;
@@ -3731,8 +3732,11 @@ function tcCalc(){
   TC.start=(document.getElementById('tc-start')||{}).value||TC.start;
   TC.from=(document.getElementById('tc-from')||{}).value||TC.from;
   TC.due=(document.getElementById('tc-due')||{}).value||'';
+  if(document.getElementById('tc-end')) TC.end=document.getElementById('tc-end').value;
   tcSave();
-  let loc=TC.from, t=parseTime(TC.start), total=0, broken=false;
+  const back=TC.mode==='back';
+  let loc=TC.from, total=0, broken=false;
+  const mins=[];
   TC.steps.forEach(function(st,i){
     st.fromLoc=loc;
     let base=null;
@@ -3744,12 +3748,27 @@ function tcCalc(){
     const minEl=document.getElementById('tc-m-'+i), atEl=document.getElementById('tc-at-'+i);
     if(minEl&&document.activeElement!==minEl) minEl.value=m!=null?m:'';
     if(minEl) minEl.classList.toggle('tc-missing',m==null);
+    mins.push(m);
     if(m==null) broken=true; else total+=m;
-    if(atEl) atEl.textContent=(t==null||broken)?'—':tcHM(t+total);
+  });
+  // Forwards: each row shows when that step is done. Backwards: when it must start by.
+  const fin=parseTime(TC.end);
+  const t=back?(fin==null?null:fin-total):parseTime(TC.start);
+  let run=0;
+  mins.forEach(function(m,i){
+    const atEl=document.getElementById('tc-at-'+i);
+    if(atEl) atEl.textContent=(t==null||broken)?'—':tcHM(back?t+run:t+run+m);
+    run+=m||0;
   });
   const res=document.getElementById('tc-result'); if(!res) return;
   if(!TC.steps.length){ res.innerHTML='<span style="color:var(--muted);">Add steps below.</span>'; return; }
   if(broken){ res.innerHTML='<span style="color:#f59e0b;">Type the minutes for the step marked in orange — it isn\'t in the roster documents yet. The app remembers it in My times.</span>'; return; }
+  if(back){
+    res.innerHTML=t==null?'Total <b>'+ruleGap(total)+'</b>. Enter your finish time above.':
+      '<div style="font-size:16px;font-weight:800;color:var(--accent);">Leave '+escHtml(tcLocName(TC.from))+' by '+tcHM(t)+'</div>'+
+      '<div style="margin-top:4px;">Total <b>'+ruleGap(total)+'</b> · finish <b>'+tcHM(fin)+'</b> at '+escHtml(tcLocName(loc))+'</div>';
+    return;
+  }
   let html='Total <b>'+ruleGap(total)+'</b>';
   if(t!=null) html+=' · done at <b>'+tcHM(t+total)+'</b> at '+escHtml(tcLocName(loc));
   const due=parseTime(TC.due);
@@ -3770,6 +3789,7 @@ function renderTools(){
   const el=document.getElementById('tools-content'); if(!el) return;
   tcLoad();
   if(!TC.start){ const n=new Date(); TC.start=pad(n.getHours())+':'+pad(n.getMinutes()); }
+  const back=TC.mode==='back';
   // Labels need each step's starting location, so walk the list once
   let loc=TC.from;
   const rows=TC.steps.map(function(st,i){
@@ -3782,16 +3802,23 @@ function renderTools(){
   el.innerHTML=
    '<div class="card" style="margin-bottom:12px;">'+
     '<div class="tc-title">⏱ Time check</div>'+
-    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Asked to walk somewhere, prep a train and bring it in? Add up the steps and see if the time you were given is enough.</div>'+
-    '<div class="form-row"><div class="form-group"><label class="form-label">Start time</label><input type="time" class="form-input" id="tc-start" value="'+TC.start+'" oninput="tcCalc()"></div>'+
-    '<div class="form-group"><label class="form-label">Starting at</label><select class="form-select" id="tc-from" onchange="tcCalc();renderTools()">'+tcLocOptions(TC.from)+'</select></div></div>'+
-    '<div class="tc-head"><span>Step</span><span>Min</span><span>Time</span><span></span></div>'+
+    '<div class="tab-row" style="margin-bottom:8px;">'+
+      '<button class="tab-btn'+(back?'':' active')+'" onclick="tcSetMode(\'fwd\')">▶ From a start time</button>'+
+      '<button class="tab-btn'+(back?' active':'')+'" onclick="tcSetMode(\'back\')">◀ Back from a finish</button></div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">'+(back
+      ?'Know your sign-off (or when you must be somewhere)? Add the steps and see the latest time you need to leave.'
+      :'Asked to walk somewhere, prep a train and bring it in? Add up the steps and see if the time you were given is enough.')+'</div>'+
+    '<div class="form-row"><div class="form-group">'+(back
+      ?'<label class="form-label">Finish by (e.g. sign off)</label><input type="time" class="form-input" id="tc-end" value="'+(TC.end||'')+'" oninput="tcCalc()">'
+      :'<label class="form-label">Start time</label><input type="time" class="form-input" id="tc-start" value="'+TC.start+'" oninput="tcCalc()">')+'</div>'+
+    '<div class="form-group"><label class="form-label">'+(back?'Leaving from':'Starting at')+'</label><select class="form-select" id="tc-from" onchange="tcCalc();renderTools()">'+tcLocOptions(TC.from)+'</select></div></div>'+
+    '<div class="tc-head"><span>Step</span><span>Min</span><span>'+(back?'Start by':'Done at')+'</span><span></span></div>'+
     (rows||'<div style="font-size:12px;color:var(--muted);padding:6px 0;">No steps yet.</div>')+
     '<div class="tc-add"><select class="form-select" id="tc-add-kind" onchange="tcOnAddKind()">'+
       Object.keys(TC_STEPS).filter(function(k){ return k!=='signon'&&k!=='signoff'; }).map(function(k){ const s=TC_STEPS[k]; return '<option value="'+k+'">'+s.l+(s.m!=null?' ('+s.m+')':'')+'</option>'; }).join('')+'</select>'+
       '<select class="form-select" id="tc-add-to" style="display:none;">'+tcLocOptions('BHI')+'</select>'+
       '<button class="btn btn-accent" onclick="tcAddStep()">+ Add</button></div>'+
-    '<div class="form-group" style="margin-top:10px;"><label class="form-label">Time given (when you need to be there)</label><input type="time" class="form-input" id="tc-due" value="'+(TC.due||'')+'" oninput="tcCalc()"></div>'+
+    (back?'':'<div class="form-group" style="margin-top:10px;"><label class="form-label">Time given (when you need to be there)</label><input type="time" class="form-input" id="tc-due" value="'+(TC.due||'')+'" oninput="tcCalc()"></div>')+
     '<div id="tc-result" class="tc-result"></div>'+
     '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcClear()">Clear steps</button>'+
    '</div>'+
