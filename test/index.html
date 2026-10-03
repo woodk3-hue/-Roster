@@ -2573,7 +2573,7 @@ function updateJobCardsStatus(){
 function fillFromJobCard(job,isTheirJob){
   const hint=document.getElementById('sm-jobcard-hint');
   const c=jobCardFor(job);
-  if(!c){ if(hint) hint.textContent=jobDecodeText(job)?'ℹ '+jobDecodeText(job):''; return; }
+  if(!c){ const st=(document.getElementById(isTheirJob?'sm-sds-their-start':'sm-start')||{}).value||''; if(hint) hint.textContent=jobDecodeText(job,st)?'ℹ '+jobDecodeText(job,st):''; return; }
   if(isTheirJob){
     const ts=document.getElementById('sm-sds-their-start'); if(ts&&c.on) ts.value=c.on;
     const mj=document.getElementById('sm-job'); if(mj&&!mj.value.trim()) mj.value=job.trim();
@@ -3723,9 +3723,16 @@ const JOB_TYPES=[
  [/^V[NSU]/,'Projects (network / test / training)','nonrev','D'],
  [/^I[BRSZ]/,'Infrastructure (ballast, rail, spoil, track machine)','loco','D']
 ];
-function decodeJob(job){
+// Shunt / prep cards sign on at fixed times; other EA jobs are As required (Control)
+const SHUNT_PREP_TIMES=['00:01','03:00','06:00','10:00','14:00','18:00'];
+function decodeJob(job,start){
   const b=jobBase(job); if(!b) return null;
   const t=JOB_TYPES.find(function(x){ return x[0].test(b); }); if(!t) return null;
+  let type=t[1];
+  if(/^EA/.test(b)&&!/^EA20[1-3]/.test(b)&&start){
+    const st=String(start).match(/(\d{1,2}):(\d{2})/), hm=st?pad(+st[1])+':'+st[2]:'';
+    type=SHUNT_PREP_TIMES.indexOf(hm)>-1?'Shunt / prep':'As required (Control)';
+  }
   const dm=b.match(/^[A-Z]+(\d)/), dig=dm?+dm[1]:null;
   let days='';
   if(t[3]==='ALL') days='any day';
@@ -3734,11 +3741,12 @@ function decodeJob(job){
   else if(t[3]==='F') days='Friday';
   else if(t[3]==='D0'){ const d=+(b.match(/^D0(\d)/)||[])[1]; days=d<=5?'Mon–Fri':d===6?'Saturday':'Sunday'; }
   else if(dig!=null) days=dig<=3?(t[3]==='B'||/^EP/.test(b)?'Mon–Thu':'Mon–Fri'):dig<=6?'Saturday':'Sunday';
+  if(type==='Shunt / prep'&&dig!=null&&dig<=3) days=''; // EA0–3 shunt / prep cards can be weekday or weekend (RP 2.13)
   const sec=(t[3]==='B'||t[3]==='F')?({N:'North sector drivers',S:'South sector drivers',A:'North or South sector drivers'})[b.slice(-1)]||'':'';
-  return {base:b,type:t[1],meal:t[2],days:days,sector:sec};
+  return {base:b,type:type,meal:t[2],days:days,sector:sec};
 }
-function jobDecodeText(job){
-  const d=decodeJob(job); if(!d) return '';
+function jobDecodeText(job,start){
+  const d=decodeJob(job,start); if(!d) return '';
   return d.base+': '+d.type+(d.days?' · '+d.days+' card':'')+(d.sector?' · '+d.sector:'');
 }
 // Meal rule for a job: the user's choice for that job number, otherwise from the job type
@@ -3858,7 +3866,7 @@ const RULES=[
   '<tr><td>PF / EF 0–3</td><td>Electric passenger</td><td>Friday</td><td>85.1</td></tr>'+
   '<tr><td>PB / EB 4–6 · 7–9</td><td>Electric passenger</td><td>Sat · Sun</td><td>85.1</td></tr>'+
   '<tr><td>EP / FP</td><td>Elimbah / Shorncliffe shuttle</td><td>EP0 Mon–Thu · FP0 Fri · EP4 Sat · EP7 Sun</td><td>85.1</td></tr>'+
-  '<tr><td>EA 0–3 · 6 · 7</td><td>As required (Control), shunt / prep</td><td>Weekday · Sat · Sun</td><td>60 min (85.4)</td></tr>'+
+  '<tr><td>EA 0–3 · 6 · 7</td><td>Shunt / prep if it signs on at 00:01, 03:00, 06:00, 10:00, 14:00 or 18:00 — otherwise As required (Control)</td><td>Weekday · Sat · Sun</td><td>60 min (85.4)</td></tr>'+
   '<tr><td>EA201–203</td><td>Assistant ETD allocation</td><td>Any day</td><td>60 min</td></tr>'+
   '<tr><td>SPA</td><td>Allocation driver assist</td><td>Mon–Fri</td><td>60 min</td></tr>'+
   '<tr><td>ET · EX · CE · CD</td><td>Electric additional · exhibition · SCAS · non-similar altered card</td><td>by digit</td><td>85.1</td></tr>'+
@@ -4909,7 +4917,7 @@ function renderDayPanel(ds){
   const cardJob=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job;
   if(sh.time&&cardJob&&!leaveTypeKey) html+=jobCardHtml(cardJob);
   if(!leaveTypeKey){
-    if(sh.time&&cardJob&&jobDecodeText(cardJob)) html+='<div class="job-decode">🔎 '+escHtml(jobDecodeText(cardJob))+' <a href="#" class="rule-ref" style="font-size:11px;" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
+    if(sh.time&&cardJob&&jobDecodeText(cardJob,sh.time)) html+='<div class="job-decode">🔎 '+escHtml(jobDecodeText(cardJob,sh.time))+' <a href="#" class="rule-ref" style="font-size:11px;" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
     html+=mealWindowsHtml(ruleDayFacts(ds),cardJob);
     const allIss=dayRuleIssues(ds), acks=ruleAcksFor(ds);
     const act=allIss.filter(function(x){ return acks.indexOf(x.c)<0; }), agreed=allIss.filter(function(x){ return acks.indexOf(x.c)>-1; });
