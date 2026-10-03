@@ -855,6 +855,10 @@ details.show-more{margin:4px 0 10px;}
 .rule-table th,.rule-table td{border:1px solid var(--border);padding:4px 5px;text-align:left;vertical-align:top;}
 .rule-table th{color:var(--muted);font-weight:700;}
 .rule-clause{font-size:10px;font-weight:800;color:var(--accent);white-space:nowrap;}
+.cal-cycle-chip{display:inline-block;margin:0 4px 6px 0;padding:4px 9px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer;}
+.cal-cycle-chip.over{border-color:var(--early);color:var(--early);}
+#cal-cycles{text-align:center;margin:-2px 0 4px;}
+.cal-cell.cycle-start{box-shadow:inset 3px 0 0 var(--accent2);}
 .cal-rule-flag{font-size:10px;color:#ef4444;font-weight:800;margin-top:auto;line-height:1;}
 details.show-more>summary{cursor:pointer;list-style:none;font-size:12px;font-weight:700;color:var(--accent);padding:6px 2px;}
 details.show-more>summary::-webkit-details-marker{display:none;}
@@ -1111,6 +1115,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
     <button class="btn btn-icon btn-sm" onclick="calNav(1)">&#8250;</button>
   </div>
+  <div id="cal-cycles" class="owner-only"></div>
 
   <div class="cal-dow-row">
     <div class="cal-dow">Mon</div><div class="cal-dow">Tue</div><div class="cal-dow">Wed</div>
@@ -1627,6 +1632,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
         <input type="number" class="form-input" id="set-cycle" step="0.01" placeholder="80.43">
       </div>
     </div>
+    <div class="form-group">
+      <label class="form-label">4-week cycle starts (a Monday)</label>
+      <input type="date" class="form-input" id="set-cyclestart">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Used for cycle hours, excess time and pay fortnights.</div>
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Saturday Loading %</label>
@@ -1867,6 +1877,24 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="form-group">
       <label class="form-label">Notes</label>
       <textarea class="form-textarea" id="sm-notes" placeholder="Any notes…" style="min-height:48px;"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Roster alteration (EBA 91)</label>
+      <select class="form-select" id="sm-alt-kind" onchange="onAltChange()">
+        <option value="">None</option>
+        <option value="brought">Brought forward (earlier sign-on)</option>
+        <option value="deferred">Deferred (later sign-on)</option>
+        <option value="cancel4">Cancelled — not re-booked within 8 hours</option>
+        <option value="cancel1">Cancelled — re-booked within 8 hours</option>
+      </select>
+      <div id="sm-alt-fields" style="display:none;margin-top:8px;">
+        <div class="form-row">
+          <div class="form-group" id="sm-alt-orig-row"><label class="form-label">Rostered sign-on</label><input type="time" class="form-input" id="sm-alt-orig" oninput="onAltChange()"></div>
+          <div class="form-group"><label class="form-label">Hours credited</label><input type="number" step="0.01" min="0" class="form-input" id="sm-alt-credit"></div>
+        </div>
+        <div id="sm-alt-hint" style="font-size:11px;color:var(--muted);line-height:1.4;"></div>
+        <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-top:6px;"><input type="checkbox" id="sm-alt-claim" checked> Add it to my Claims list</label>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeShiftModal()">Cancel</button>
@@ -3362,7 +3390,8 @@ if(t==='sick')    return {code:'SL',time:null,typeKey:'sl',link,idx,ov,guards:ov
 // ROSTER RULES — 2024 Traincrew Enterprise Agreement (EBA) and SEQ Roster Protocols
 // Checks what is in the calendar against the rules below; the Rules screen lists them in plain English.
 // ═══════════════════════════════════════════════════════════
-const CYCLE_START='2026-09-07';       // a Monday that starts a 4-week work cycle
+const CYCLE_START='2026-09-07';       // default: a Monday that starts a 4-week work cycle (changeable in Pay Settings)
+function cycleAnchorDs(){ return (S.settings&&S.settings.cycleStart)||CYCLE_START; }
 const NINE_DAY_FN_FROM='2026-12-31';  // EBA 80.2 / 93.3: nine-day fortnight starts
 const RULE_LEAVE_TYPES=['al','lsl','sl','repro','lwop','mbo','cbo','ph_booked_off'];
 const RULE_LEISURE_WORKED=['blp_worked','slp_worked','ot'];
@@ -3449,7 +3478,7 @@ function dayRuleIssues(ds){
 
 // 4-week cycle (or, from the nine-day fortnight, the fortnight) holding a date, with its counts
 function rulePeriodFor(d){
-  const a=parseDate(CYCLE_START);
+  const a=parseDate(cycleAnchorDs());
   const days=Math.round((getMonday(d)-a)/86400000);
   let start=addDays(a,Math.floor(days/28)*28), len=28;
   const fnStart=addDays(a,Math.floor(days/14)*14);
@@ -3463,6 +3492,94 @@ function rulePeriodFor(d){
   if(att>p.maxAtt) p.issues.push({c:nine?'93.3':'80.1',msg:p.name+': '+att+' attendances. The maximum is '+p.maxAtt+' per '+p.label+'.'});
   if(leis<p.minLeis) p.issues.push({c:p.c,msg:p.name+': only '+leis+' leisure days (BLP/SLP). You need at least '+p.minLeis+' per '+p.label+'.'});
   return p;
+}
+
+// ── Work cycle hours (EBA 79/80/86/91) ──
+const CYCLE_LEAVE_CREDIT=['al','lsl','sl','repro','ph_booked_off'];
+function cycleStartFor(d){
+  const a=parseDate(cycleAnchorDs());
+  const days=Math.round((getMonday(d)-a)/86400000);
+  return addDays(a,Math.floor(days/28)*28);
+}
+// Average shift length in the imported roster (used for available days with no times yet)
+let _avgShiftKey='', _avgShift=0;
+function avgShiftHours(){
+  const key=Object.keys(ROSTER||{}).length+'|'+Object.keys(JOBCARDS||{}).length;
+  if(key===_avgShiftKey) return _avgShift;
+  let n=0,h=0;
+  Object.keys(ROSTER||{}).forEach(function(l){ (ROSTER[l]||[]).forEach(function(c){
+    const sh=parseShift(c), card=jobCardFor(sh.job);
+    if(sh.time&&card&&card.off){ let a=parseTime(sh.time), e=parseTime(card.off); if(e<=a) e+=1440; n++; h+=(e-a)/60; }
+  }); });
+  _avgShiftKey=key; _avgShift=n?h/n:((S.settings.cycleHrs||80.43)*2/19);
+  return _avgShift;
+}
+function cycleTarget(start){ return fmtDate(start)>=NINE_DAY_FN_FROM?152:160; }
+function dayIsLeisureRoster(ds){
+  const d=parseDate(ds), sh=parseShift(getRaw(getLinkForWeek(getMonday(d)),dayIdx(d)));
+  return sh.typeKey==='blp'||sh.typeKey==='slp';
+}
+// Hours credited to one 4-week cycle: shifts worked, leave (rostered hours) and roster alteration credits
+function cycleHours(start){
+  const r={start:start,end:addDays(start,27),worked:0,leave:0,alt:0,leisureAlt:0,est:0,target:cycleTarget(start)};
+  for(let i=0;i<28;i++){
+    const d=addDays(start,i), ds=fmtDate(d), ov=S.days[ds]||null, sh=getEffectiveShift(ds);
+    const onLeave=(S.plannedLeave||[]).some(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
+    if(onLeave||CYCLE_LEAVE_CREDIT.includes(sh.typeKey)){
+      // Leave is credited with the rostered shift's hours
+      if(ov&&ov.start&&ov.end&&!onLeave){ r.leave+=calcHrs(ov.start,ov.end)||0; }
+      else { const rf=ruleRawFacts(ds,getRaw(getLinkForWeek(getMonday(d)),dayIdx(d))); if(rf.work&&rf.end!=null) r.leave+=(rf.end-rf.start)/3600000; }
+    } else {
+      const f=ruleDayFacts(ds);
+      // Available days and shifts with no finish time yet count at the roster's average shift
+      // A cancelled working that wasn't re-booked isn't worked — its 4-hour credit replaces it
+      if(f.att&&!(ov&&ov.alt&&ov.alt.kind==='cancel4')){ if(f.work&&f.end!=null) r.worked+=(f.end-f.start)/3600000; else { r.worked+=avgShiftHours(); r.est++; } }
+    }
+    if(ov&&ov.alt&&ov.alt.credit){ if(dayIsLeisureRoster(ds)) r.leisureAlt+=+ov.alt.credit; else r.alt+=+ov.alt.credit; }
+  }
+  r.total=r.worked+r.leave+r.alt;
+  r.excess=Math.max(0,r.total-r.target);
+  return r;
+}
+function fmtH(h){ return (Math.round(h*100)/100).toFixed(2).replace(/\.?0+$/,'')+'h'; }
+function cycleSummaryText(c){
+  return 'Cycle '+fmtDDMM(c.start)+'–'+fmtDDMM(c.end)+'\n\n'+
+    'Shifts and available days: '+fmtH(c.worked)+(c.est?' (includes '+c.est+' day'+(c.est>1?'s':'')+' with no times yet, counted at the roster average of '+fmtH(avgShiftHours())+')':'')+'\n'+
+    'Leave (rostered hours): '+fmtH(c.leave)+'\n'+
+    'Roster alterations: '+fmtH(c.alt)+'\n'+
+    'Total credited: '+fmtH(c.total)+' of '+c.target+'h\n'+
+    (c.excess>0?'Over by '+fmtH(c.excess)+' — paid at your BLP rate ('+(S.settings.blpRate||175)+'%) at the end of the cycle.':'Not over '+c.target+'h, so no extra pay.')+
+    (c.leisureAlt?'\n\nAlterations on leisure days: '+fmtH(c.leisureAlt)+' paid at 175% (not credited).':'')+
+    '\n\nEstimate only — check your payslip.';
+}
+function showCycleInfo(ds){ alert(cycleSummaryText(cycleHours(cycleStartFor(parseDate(ds))))); }
+// EBA 91: hours credited for a roster alteration
+function altCredit(kind,origStart,newStart){
+  if(kind==='cancel4') return 4;
+  if(kind==='cancel1') return 1;
+  const o=parseTime(origStart), n=parseTime(newStart);
+  if(o==null||n==null) return null;
+  let diff=n-o; if(diff>720) diff-=1440; if(diff<-720) diff+=1440;
+  const m=Math.abs(diff);
+  if(kind==='brought') return Math.max(m,60)*0.5/60;           // 91.4–91.5: 50%, less than 1 hour counts as 1 hour
+  if(kind==='deferred') return (Math.min(m,120)+Math.max(0,m-120)*0.5)/60; // 91.7
+  return null;
+}
+function onAltChange(auto){
+  const kind=document.getElementById('sm-alt-kind').value;
+  const box=document.getElementById('sm-alt-fields');
+  box.style.display=kind?'block':'none';
+  document.getElementById('sm-alt-orig-row').style.display=(kind==='brought'||kind==='deferred')?'':'none';
+  if(!kind) return;
+  const c=altCredit(kind,document.getElementById('sm-alt-orig').value,document.getElementById('sm-start').value);
+  const cr=document.getElementById('sm-alt-credit');
+  if(auto!==false&&c!=null) cr.value=(Math.round(c*100)/100);
+  const leis=shiftModalDate&&dayIsLeisureRoster(shiftModalDate);
+  const hints={brought:'EBA 91.4–91.5: 50% of the time brought forward (less than 1 hour counts as 1 hour). Not sure how yours is paid? Change the hours to match your payslip.',
+    deferred:'EBA 91.7: all of the first 2 hours later, plus 50% of anything beyond 2 hours.',
+    cancel4:'EBA 91.11: cancelled and not re-booked within 8 hours of your rostered sign-on.',
+    cancel1:'EBA 91.12: cancelled and re-booked within 8 hours of your rostered sign-on.'};
+  document.getElementById('sm-alt-hint').textContent=(hints[kind]||'')+(leis?' This is a leisure day, so it is paid at 175% instead of credited (91.2).':' Credited to your cycle hours; only time over the cycle total is paid.');
 }
 
 // EBA 80.4: Saturday / Sunday shifts in the year from 1 September
@@ -3543,7 +3660,7 @@ const RULES=[
  {g:'check',c:'90.7',t:'Sign-on brought forward',b:'After the roster is posted, sign-on can be brought forward by no more than 2 hours unless you agree, and altered no more than 3 times.'},
  {g:'check',c:'93.5',t:'Monday after a weekend off',b:'After a Saturday and Sunday BLP in a row, you will not start before 04:00 on Monday unless you agree.'},
  {g:'check',c:'91.20',t:'Swap rules',b:'Before the 58-hour roster is final: 5 attendances for 5, or 4 for 4; BLP for BLP; single days are fine; swaps are not granted if long leave is already approved. Swaps must keep the 12-hour break between shifts (91.18).'},
- {g:'check',c:'93.2',t:'Leisure days per cycle',b:'At least 9 leisure days (BLP/SLP) and no more than 19 attendances in each 4-week cycle (80.1). Your cycles start from Monday 7 September 2026.'},
+ {g:'check',c:'93.2',t:'Leisure days per cycle',b:'At least 9 leisure days (BLP/SLP) and no more than 19 attendances in each 4-week cycle (80.1). Cycles count from the start date in Settings → Pay Settings (Monday 7 September 2026 unless you change it).'},
  {g:'check',c:'93.3',t:'Nine-day fortnight (from 31 Dec 2026)',b:'From 31 December 2026: at least 5 leisure days and no more than 9 attendances in each fortnight, with 152 ordinary hours per 4 weeks (80.2).'},
  {g:'check',c:'80.4',t:'Weekend shift limits',b:'Full-time drivers and guards: no more than 26 shifts starting on a Saturday and 18 starting on a Sunday in a year, counted from 1 September. Tutors, TOIs and TOGs: 18 and 18 (80.5).'},
  {g:'hours',c:'79.1',t:'Guaranteed hours',b:'Full-time: paid 160 ordinary hours per 4-week cycle, as 80 hours a fortnight. From 31 December 2026: 152 hours (76 a fortnight) with the hourly rate raised so fortnightly pay stays the same. Leave balances are kept in hours at the changeover.'},
@@ -4251,6 +4368,19 @@ function renderCal(){
   const link=getLinkForWeek(mon);
   document.getElementById('cal-link-badge').textContent=link||'?';
   document.getElementById('cal-wc-info').textContent='';
+  // Work cycles in this month, with hours credited so far
+  (function(){
+    const el=document.getElementById('cal-cycles'); if(!el) return;
+    if(noRoster){ el.innerHTML=''; return; }
+    const first=new Date(yr,mo,1), last=new Date(yr,mo+1,0);
+    let c=cycleStartFor(first), html='';
+    while(c<=last){
+      const ch=cycleHours(c), over=ch.excess>0;
+      html+='<button class="cal-cycle-chip'+(over?' over':'')+'" onclick="showCycleInfo(\''+fmtDate(c)+'\')">Cycle '+fmtDDMM(ch.start)+'–'+fmtDDMM(ch.end)+' · <b>'+fmtH(ch.total)+'</b> / '+ch.target+'h'+(over?' · +'+fmtH(ch.excess):'')+'</button>';
+      c=addDays(c,28);
+    }
+    el.innerHTML=html;
+  })();
 
   // Shift finder status for this month — reflects current sff-type selection
   const pmStatusEl=document.getElementById('cal-pm-status');
@@ -4327,6 +4457,7 @@ function renderCalCell(d, otherMonth){
   const weekHasSwap=S.swaps.some(function(sw){ return sw.wc===fmtDate(mon0)&&sw.scope==='week'; });
 
   let cls='cal-cell';
+  if(fmtDate(cycleStartFor(d))===ds) cls+=' cycle-start';
   if(isToday) cls+=' today';
   if(otherMonth) cls+=' other-month';
   if(isSwapOv||weekHasSwap) cls+=' modified';
@@ -4734,6 +4865,12 @@ function openShiftModal(ds){
   (function(){ const h=document.getElementById('sm-jobcard-hint'); if(h) h.textContent=''; })();
   document.getElementById('sm-guards').value=ov.guards||'';
   document.getElementById('sm-notes').value=ov.notes||'';
+  const alt=ov.alt||{};
+  document.getElementById('sm-alt-kind').value=alt.kind||'';
+  document.getElementById('sm-alt-orig').value=alt.orig||sh.time||'';
+  document.getElementById('sm-alt-credit').value=alt.credit!=null?alt.credit:'';
+  document.getElementById('sm-alt-claim').checked=!alt.kind;
+  onAltChange(false);
 
   onShiftTypeChange();
   updateShiftDuration();
@@ -4759,6 +4896,7 @@ function onShiftTypeChange(){
 }
 
 function updateShiftDuration(){
+  if(document.getElementById('sm-alt-kind')&&document.getElementById('sm-alt-kind').value) onAltChange();
   const s=document.getElementById('sm-start').value;
   const e=document.getElementById('sm-end').value;
   document.getElementById('sm-duration').textContent=calcDur(s,e)||'';
@@ -4800,6 +4938,11 @@ function saveShift(){
 
   const existingOv=S.days[ds]||{};
   const d={type,start,end,job,guards,notes};
+  const altKind=document.getElementById('sm-alt-kind').value;
+  if(altKind){
+    const cr=parseFloat(document.getElementById('sm-alt-credit').value);
+    d.alt={kind:altKind,orig:document.getElementById('sm-alt-orig').value,credit:isNaN(cr)?0:cr};
+  }
 
   if(type==='single_day_swap'){
     d.sdsDriver=document.getElementById('sm-sds-driver').value.trim();
@@ -4810,13 +4953,21 @@ function saveShift(){
 
   // Only save if meaningful
   const hadOv=Object.prototype.hasOwnProperty.call(S.days,ds), oldOv=S.days[ds];
-  if(type==='normal'&&!start&&!end&&!job&&!guards&&!notes){ delete S.days[ds]; }
+  if(type==='normal'&&!start&&!end&&!job&&!guards&&!notes&&!d.alt){ delete S.days[ds]; }
   else S.days[ds]=d;
   // Roster rule check (EBA): warn before saving a shift that breaks a rule
   const ruleIssues=dayRuleIssues(ds);
   if(ruleIssues.length&&!confirm(ruleConfirmText(ruleIssues))){
     if(hadOv) S.days[ds]=oldOv; else delete S.days[ds];
     return;
+  }
+
+  // Alteration claim: brought forward / deferred go on the Claims list once
+  if(d.alt&&document.getElementById('sm-alt-claim').checked){
+    const ctype=d.alt.kind==='brought'?'brought':d.alt.kind==='deferred'?'deferred':'emergency';
+    if(!S.claims.some(function(c){ return c.date===ds&&c.type===ctype; }))
+      S.claims.push({id:uid(),type:ctype,date:ds,job:job||'',incident:'',submitted:false,subDate:'',notes:(d.alt.kind.indexOf('cancel')===0?'Cancelled working — ':'')+'Credit '+d.alt.credit+'h (EBA 91)'});
+    if(typeof updateClaimsBadge==='function') updateClaimsBadge();
   }
 
   // Auto-deduct sick leave hours from Personal balance
@@ -6471,12 +6622,10 @@ function getFortnightDates(offsetFortnights){
   // Current fortnight: from last even Monday (pay period is 2 weeks)
   const now=today();
   const mon=getMonday(now);
-  // Work out which fortnight we're in based on anchor
-  if(!S.anchorDate) return {start:mon, end:addDays(mon,13)};
-  const anchor=parseDate(S.anchorDate);
-  const anchorMon=getMonday(anchor);
-  const weeksDiff=Math.round((mon-anchorMon)/(7*24*60*60*1000));
-  const fnStart=weeksDiff%2===0?mon:addDays(mon,-7);
+  // Pay fortnights line up with the 4-week work cycle (cycle start in Pay Settings)
+  const a=parseDate(cycleAnchorDs());
+  const days=Math.round((mon-a)/86400000);
+  const fnStart=addDays(a,Math.floor(days/14)*14);
   const offset=(offsetFortnights||0)*14;
   return {start:addDays(fnStart,offset), end:addDays(fnStart,offset+13)};
 }
@@ -6530,6 +6679,16 @@ function calcPayProjection(offsetFortnights){
     cur=addDays(cur,1);
   }
 
+  // ── CYCLE: excess over the cycle total, paid at the BLP rate at the end of the cycle ──
+  const cyc=cycleHours(cycleStartFor(start));
+  let excessHrs=0;
+  if(fmtDate(cyc.end)===fmtDate(end)) excessHrs=cyc.excess;
+  const excessGross=excessHrs*cph*((S.settings.blpRate||175)/100);
+  // Alterations on leisure days: paid at 175%, not credited (EBA 91.2/91.13)
+  let altLeisHrs=0;
+  for(let dd=new Date(start);dd<=end;dd=addDays(dd,1)){ const ods=fmtDate(dd), oov=S.days[ods]; if(oov&&oov.alt&&oov.alt.credit&&dayIsLeisureRoster(ods)) altLeisHrs+=+oov.alt.credit; }
+  const altLeisGross=altLeisHrs*cph*1.75;
+
   // ── GROSS EARNINGS ──
   const baseGross=80*cph;                          // guaranteed 80h
   const blpGross=blpHrs*cph*1.75;                  // full 175% (BLP hours replace ordinary hours)
@@ -6537,7 +6696,7 @@ function calcPayProjection(offsetFortnights){
   const sunGross=sunHrs*cph*1.00;                 // 100% extra
   const phGross=phHrs*cph*((S.settings.phRate||150)/100);  // configurable PH rate
   const alWkndGross=alWkndHrs*cph*0.50;           // AL on rostered weekend
-  const totalGross=baseGross+blpGross+satGross+sunGross+phGross+alWkndGross;
+  const totalGross=baseGross+blpGross+satGross+sunGross+phGross+alWkndGross+excessGross+altLeisGross;
 
   // ── PRE-TAX DEDUCTIONS — from customDeductions ──
   const preDeds=(S.customDeductions||[]).filter(function(d){ return d.taxType==='pre'; });
@@ -6564,6 +6723,7 @@ function calcPayProjection(offsetFortnights){
   return {
     baseGross,blpHrs,blpGross,satHrs,satGross,sunHrs,sunGross,
     phHrs,phGross,alWkndHrs,alWkndGross,totalGross,
+    cyc,excessHrs,excessGross,altLeisHrs,altLeisGross,
     fleetPre,salarySac,volSuper,qri,totalPreTax,
     fnTax,mediLevy,totalTax,
     sgSuper,resc,totalSuper,
@@ -6662,6 +6822,9 @@ function renderPayProjection(){
   if(p.sunHrs>0) html+=payRow('Wknd Pnlty TC SUN',p.sunHrs.toFixed(2),'100%',fmt$(p.sunGross),'var(--early)');
   if(p.phHrs>0) html+=payRow('Public Holiday Wrkd',p.phHrs.toFixed(2),'50%',fmt$(p.phGross),'var(--early)');
   if(p.alWkndHrs>0) html+=payRow('AL Wknd Penalty',p.alWkndHrs.toFixed(2),'50%',fmt$(p.alWkndGross),'var(--early)');
+  if(p.excessHrs>0) html+=payRow('Excess time (cycle over '+p.cyc.target+'h)',p.excessHrs.toFixed(2),(S.settings.blpRate||175)+'%',fmt$(p.excessGross),'var(--early)');
+  if(p.altLeisHrs>0) html+=payRow('Alteration on leisure day',p.altLeisHrs.toFixed(2),'175%',fmt$(p.altLeisGross),'var(--early)');
+  html+='<div style="font-size:11px;color:var(--muted);padding:6px 0;cursor:pointer;" onclick="showCycleInfo(\''+fmtDate(p.cyc.start)+'\')">Cycle '+fmtDDMM(p.cyc.start)+'–'+fmtDDMM(p.cyc.end)+': <b>'+fmtH(p.cyc.total)+'</b> of '+p.cyc.target+'h credited'+(p.cyc.excess>0?' · '+fmtH(p.cyc.excess)+' over (paid at the end of the cycle)':'')+' ⓘ</div>';
 
   html+='<div style="display:flex;justify-content:space-between;padding:8px 0;margin-bottom:8px;">'+
     '<div style="font-size:13px;font-weight:800;">Total Gross</div>'+
@@ -7472,6 +7635,7 @@ function loadSettingsUI(){
   document.getElementById('set-ot').value=S.settings.otMult;
   document.getElementById('set-guar').value=S.settings.guarHrs;
   document.getElementById('set-cycle').value=S.settings.cycleHrs;
+  if(document.getElementById('set-cyclestart')) document.getElementById('set-cyclestart').value=cycleAnchorDs();
   document.getElementById('set-sat').value=S.settings.satLoad;
   document.getElementById('set-sun').value=S.settings.sunLoad;
   document.getElementById('set-blp').value=S.settings.blpRate;
@@ -7517,6 +7681,8 @@ function savePaySettings(){
   S.settings.otMult=f('set-ot',1.5);
   S.settings.guarHrs=f('set-guar',80);
   S.settings.cycleHrs=f('set-cycle',80.43);
+  const csEl=document.getElementById('set-cyclestart');
+  if(csEl&&csEl.value) S.settings.cycleStart=fmtDate(getMonday(parseDate(csEl.value)));
   S.settings.satLoad=f('set-sat',150);
   S.settings.sunLoad=f('set-sun',200);
   S.settings.blpRate=f('set-blp',175);
