@@ -1539,7 +1539,15 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 ════════════════════════════════════════ -->
 <div id="screen-tools" class="screen">
   <div class="screen-header"><div class="screen-title">🧰 Tools</div><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
+  <div class="tab-row">
+    <button class="tab-btn active" id="tools-tab-time" onclick="setToolsView('time')">⏱ Time check</button>
+    <button class="tab-btn" id="tools-tab-rules" onclick="setToolsView('rules')">📘 Rules</button>
+  </div>
   <div id="tools-content"></div>
+  <div id="tools-rules" style="display:none;">
+    <input type="search" class="form-input" id="tools-rules-search" placeholder="Search rules, e.g. swap, 12 hours, meal, walk" oninput="renderRules('tools-rules-list',this.value)" style="margin-bottom:12px;">
+    <div id="tools-rules-list"></div>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════
@@ -3601,10 +3609,11 @@ function openRules(q){
   if(typeof closeDayPanel==='function'&&dayPanelDate) closeDayPanel();
   showScreen('rules');
 }
-function renderRules(){
-  const el=document.getElementById('rules-content'); if(!el) return;
+function renderRules(elId,query){
+  const el=document.getElementById(elId||'rules-content'); if(!el) return;
+  if(query==null) query=rulesQuery;
   let html='';
-  if(!rulesQuery){
+  if(!query){
     // Summary of the checks for the current period
     const p=rulePeriodFor(today()), w=ruleWeekendCounts();
     const upcoming=[];
@@ -3620,7 +3629,7 @@ function renderRules(){
       '<div style="font-size:11px;color:var(--muted);margin-top:6px;">Checks only what is in your calendar. Finish times come from your edits or job cards.</div>'+
     '</div>';
   }
-  const q=rulesQuery.trim().toLowerCase();
+  const q=query.trim().toLowerCase();
   const words=q?q.split(/\s+/):[];
   const match=function(r){ const s=(r.c+' '+r.t+' '+r.b+' '+(r.html||'').replace(/<[^>]+>/g,' ')).toLowerCase(); return words.every(function(w){ return s.indexOf(w)>-1; }); };
   let found=0;
@@ -3634,7 +3643,7 @@ function renderRules(){
         '<div style="font-size:13px;margin-top:4px;line-height:1.45;">'+escHtml(r.b)+'</div>'+(r.html?'<div class="rule-table-wrap">'+r.html+'</div>':'')+'</div>';
     }).join('');
   });
-  if(q&&!found) html+='<div class="empty-state">Nothing matches "'+escHtml(rulesQuery)+'".</div>';
+  if(q&&!found) html+='<div class="empty-state">Nothing matches "'+escHtml(query)+'".</div>';
   html+='<div style="font-size:11px;color:var(--muted);margin:14px 2px;line-height:1.5;">Plain-English summary of the Queensland Rail Traincrew Enterprise Agreement 2024 and the SEQ Operations Roster Protocols (MD-20-140 v4.1). Always check the full documents or ask your delegate before relying on it.</div>';
   el.innerHTML=html;
 }
@@ -3830,6 +3839,19 @@ function tcResetMy(){
   S.myTimes={walk:{},run:{}}; saveState(); TC.steps.forEach(function(s){ s.m=null; }); tcSave(); renderTools(); toast('Times reset');
 }
 
+// Tools has two views: the time check and the rules list
+function setToolsView(v){
+  if(v){ try{ localStorage.setItem('tools_view',v); }catch(e){} }
+  else { try{ v=localStorage.getItem('tools_view'); }catch(e){} }
+  if(v!=='rules') v='time';
+  document.getElementById('tools-tab-time').classList.toggle('active',v==='time');
+  document.getElementById('tools-tab-rules').classList.toggle('active',v==='rules');
+  document.getElementById('tools-content').style.display=v==='time'?'':'none';
+  document.getElementById('tools-rules').style.display=v==='rules'?'':'none';
+  if(v==='time') renderTools();
+  else renderRules('tools-rules-list',(document.getElementById('tools-rules-search')||{}).value||'');
+}
+
 // ── Rules card on the Dash ──
 function renderDashRules(){
   const el=document.getElementById('dash-rules'); if(!el) return;
@@ -3866,7 +3888,7 @@ function showScreen(name){
   if(name==='contacts') renderContacts();
   if(name==='stats'){ renderStats(); renderPayHistory(); }
   if(name==='rules') renderRules();
-  if(name==='tools') renderTools();
+  if(name==='tools') setToolsView();
   if(name==='settings'){ loadSettingsUI(); updateSyncUI(); updateRosterImportStatus(); }
 }
 
