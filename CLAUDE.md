@@ -17,5 +17,8 @@ https://woodk3-hue.github.io/-Roster/ . Real people use the root copy every day.
   `index.html` and `test/sw.js` → `sw.js` byte for byte. Bump the cache number in `sw.js`
   (`PREFIX+'3'` → `'4'`, …) when cached files change. `test/manifest.json` stays different
   (test name).
+- With each release, set `APP_VERSION` (the release date) and the `WHATS_NEW` list in `index.html` to
+  what changed, in plain words. Users see an "update ready — Refresh" banner (the new `sw.js` triggers
+  it) and then the What's new card once.
 - Validate before pushing: `node --check sw.js`, load the page in headless Chromium
   (`/opt/pw-browsers/chromium`) and check there are no page errors.
