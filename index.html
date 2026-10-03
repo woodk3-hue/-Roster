@@ -848,6 +848,17 @@ details.show-more{margin:4px 0 10px;}
 .rule-box{margin-top:10px;padding:8px 10px;border:1px solid rgba(239,68,68,.45);background:rgba(239,68,68,.08);border-radius:8px;}
 .rule-box-title{font-size:10px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
 .rule-line{font-size:12px;line-height:1.45;margin-top:4px;}
+.jc-search{margin-top:14px;border-top:1px solid var(--border);padding-top:6px;}
+.jcs-days{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;}
+.jcs-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:6px;}
+.jcs-item>summary{cursor:pointer;list-style:none;font-size:13px;}
+.jcs-item>summary::-webkit-details-marker{display:none;}
+.jcs-item>summary span{color:var(--muted);margin-left:6px;}
+.jcs-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.job-decode{font-size:13px;font-weight:600;color:var(--text);margin-top:10px;padding:8px 10px;background:var(--surface2);border-left:3px solid var(--accent);border-radius:8px;line-height:1.4;}
+.meal-type{flex-wrap:wrap;margin-top:6px;display:flex;align-items:center;gap:6px;font-size:11px;}
+.meal-chip{padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:11px;cursor:pointer;}
+.meal-chip.on{border-color:var(--accent);color:var(--accent);font-weight:700;}
 .rule-agreed{margin-top:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted);}
 .rule-ref{color:var(--accent);font-weight:700;white-space:nowrap;text-decoration:none;}
 .rule-card{padding:10px 12px;margin-bottom:8px;}
@@ -857,6 +868,11 @@ details.show-more{margin:4px 0 10px;}
 .rule-table th{color:var(--muted);font-weight:700;}
 .rule-clause{font-size:10px;font-weight:800;color:var(--accent);white-space:nowrap;}
 .disclaimer-note{font-size:11px;line-height:1.45;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:12px 0 6px;}
+#update-banner{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:12px;right:12px;z-index:9500;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;background:var(--accent);color:#111;font-size:13px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.4);}
+#update-banner span{flex:1;}
+#update-banner button{background:#111;color:#fff;border:none;border-radius:10px;padding:7px 12px;font-weight:700;cursor:pointer;}
+#update-banner .ub-x{background:none;color:#111;font-size:18px;padding:0 4px;}
+.whats-new{margin-bottom:10px;border-color:var(--accent);}
 .lg-head{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 4px;}
 .lg-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;}
 .lg-item{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);}
@@ -1044,6 +1060,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- Backup reminder (shown by updateBackupReminder) -->
+  <div id="whats-new"></div>
   <div id="backup-reminder" class="owner-only" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
     <div style="font-size:13px;font-weight:700;">💾 Time to back up</div>
     <div id="backup-reminder-text" style="font-size:12px;color:var(--muted);margin:3px 0 10px;"></div>
@@ -1384,6 +1401,13 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <button class="tab-btn" onclick="setClaimsTab('all',this)">All</button>
   </div>
   <div id="claims-list"></div>
+
+  <details class="show-more jc-search" ontoggle="if(this.open)renderJobCardSearch()">
+    <summary>🗂 Job card search</summary>
+    <input type="search" class="form-input" id="jcs-q" placeholder="Job number or start time, e.g. PB019, EA6, 16:30" oninput="renderJobCardSearch()" style="margin:6px 0 8px;">
+    <div class="jcs-days" id="jcs-days"></div>
+    <div id="jcs-results"></div>
+  </details>
 </div>
 
 <!-- ═══════════════════════════════════════
@@ -2555,7 +2579,7 @@ function updateJobCardsStatus(){
 function fillFromJobCard(job,isTheirJob){
   const hint=document.getElementById('sm-jobcard-hint');
   const c=jobCardFor(job);
-  if(!c){ if(hint) hint.textContent=''; return; }
+  if(!c){ const st=(document.getElementById(isTheirJob?'sm-sds-their-start':'sm-start')||{}).value||''; if(hint) hint.textContent=jobDecodeText(job,st)?'ℹ '+jobDecodeText(job,st):''; return; }
   if(isTheirJob){
     const ts=document.getElementById('sm-sds-their-start'); if(ts&&c.on) ts.value=c.on;
     const mj=document.getElementById('sm-job'); if(mj&&!mj.value.trim()) mj.value=job.trim();
@@ -2571,7 +2595,8 @@ function jobCardHtml(job){
   const c=jobCardFor(job); if(!c) return '';
   const dur=(c.on&&c.off)?calcDur(c.on,c.off):'';
   return '<div style="margin-top:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;">'+
-    '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Job card '+escHtml(String(job).split('-')[0])+'</div>'+
+    '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Job card '+escHtml(String(job).split('-')[0])+
+      (function(){ const d=decodeJob(job); return d&&d.sector?' · '+escHtml(d.sector.replace(' drivers','').replace('North or South sector','North or South sector')):''; })()+'</div>'+
     '<div style="font-size:13px;margin-top:3px;"><b>Sign on</b> '+(c.on||'—')+' &nbsp;·&nbsp; <b>Sign off</b> '+(c.off||'—')+(dur?' &nbsp;·&nbsp; '+dur:'')+'</div>'+
     '<details class="show-more" style="margin:4px 0 0;"><summary>Full job card</summary><pre class="jobcard-pre">'+escHtml(c.text)+'</pre></details>'+
   '</div>';
@@ -3186,6 +3211,9 @@ function loadState(){
       if(p.leaveAutoTo) S.leaveAutoTo = p.leaveAutoTo;
       if(p.ruleAcks) S.ruleAcks = p.ruleAcks;
       if(p.nonRevJobs) S.nonRevJobs = p.nonRevJobs;
+      // The first version's switch was easy to tap by mistake: clear marks once (EA jobs are non-revenue by default anyway)
+      if(S.nonRevJobs&&!p.nonRevReset1){ S.nonRevJobs={}; S.nonRevReset1=true; }
+      if(p.nonRevReset1) S.nonRevReset1=true;
     }
   }catch(e){}
   purgeBin();
@@ -3634,33 +3662,137 @@ function swapRuleIssues(mon,received,scope,idx){
   return out;
 }
 
-// EBA 85.1 meal windows for a shift, shown in the day panel
-// Non-revenue job cards (Control "as required" EA jobs, or ones the user marks) get one 60-minute meal (EBA 85.4)
-function jobBase(job){ return String(job||'').split('-')[0].trim().toUpperCase(); }
-function isNonRevenueJob(job){
-  const b=jobBase(job); if(!b) return false;
-  if(S.nonRevJobs&&S.nonRevJobs[b]!=null) return !!S.nonRevJobs[b];
-  return /^EA/.test(b);
+// ── Job card search (Claims tab) ──
+let jcsDay='';
+function setJcsDay(d){ jcsDay=(jcsDay===d?'':d); renderJobCardSearch(); }
+function renderJobCardSearch(){
+  const res=document.getElementById('jcs-results'); if(!res) return;
+  const daysEl=document.getElementById('jcs-days');
+  if(daysEl) daysEl.innerHTML=['Mon–Thu','Friday','Saturday','Sunday'].map(function(d){
+    return '<button class="meal-chip'+(jcsDay===d?' on':'')+'" onclick="setJcsDay(\''+d+'\')">'+(d==='Friday'?'Fri':d==='Saturday'?'Sat':d==='Sunday'?'Sun':d)+'</button>';
+  }).join('');
+  const ids=Object.keys(JOBCARDS||{});
+  if(!ids.length){ res.innerHTML='<div class="empty-state" style="padding:12px;">Import the job card PDF in Settings to search it.</div>'; return; }
+  const raw=(document.getElementById('jcs-q').value||'').trim().toUpperCase();
+  // A time: "16:30", "1630" or "16" (that hour); otherwise part of a job number
+  let tm=null;
+  const m=raw.match(/^(\d{1,2})(?::?(\d{2}))?$/);
+  if(m&&+m[1]<24) tm={h:+m[1],min:m[2]!=null?+m[2]:null};
+  let list=ids.filter(function(id){
+    const c=JOBCARDS[id];
+    if(jcsDay){ const d=decodeJob(id); if(!d||d.days!==jcsDay) return false; }
+    if(!raw) return true;
+    if(tm){ const on=parseTime(c.on); if(on==null) return false; const h=Math.floor(on/60), mi=on%60; return h===tm.h&&(tm.min==null||mi===tm.min); }
+    return id.indexOf(raw.replace(/-\d+$/,''))>-1;
+  });
+  list.sort(function(a,b){ return tm?(parseTime(JOBCARDS[a].on)-parseTime(JOBCARDS[b].on))||a.localeCompare(b):a.localeCompare(b); });
+  const total=list.length;
+  if(!raw&&!jcsDay){ res.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 0;">'+ids.length+' job cards loaded. Type a job number or a start time.</div>'; return; }
+  if(!total){ res.innerHTML='<div class="empty-state" style="padding:12px;">No job cards match.</div>'; return; }
+  list=list.slice(0,40);
+  res.innerHTML='<div style="font-size:11px;color:var(--muted);margin-bottom:6px;">'+total+' match'+(total===1?'':'es')+(total>40?' — showing the first 40':'')+'</div>'+list.map(function(id){
+    const c=JOBCARDS[id], d=decodeJob(id), dur=(c.on&&c.off)?calcDur(c.on,c.off):'';
+    return '<details class="jcs-item"><summary><b>'+escHtml(id)+'</b> <span>'+(c.on||'—')+'–'+(c.off||'—')+(dur?' · '+dur:'')+'</span>'+
+      (d?'<div class="jcs-sub">'+escHtml(d.type+(d.days?' · '+d.days:'')+(d.sector?' · '+d.sector:''))+'</div>':'')+'</summary>'+
+      '<pre class="jobcard-pre">'+escHtml(c.text||'')+'</pre></details>';
+  }).join('');
 }
-function toggleNonRevenue(job){
-  const b=jobBase(job); if(!b) return;
+
+// ── Job card numbers (SEQ Roster Protocols 2.13) ──
+// 1st–2nd letters = type, next digit = which days (0–3 weekday, 4–6 Saturday, 7–9 Sunday), last letter on
+// electric cards = sector (N North, S South, A all). meal: rev = EBA 85.1, nonrev = 85.4, loco = 85.6.
+function jobBase(job){ return String(job||'').split('-')[0].trim().toUpperCase(); }
+const JOB_TYPES=[
+ [/^[EP]F/,'Electric passenger','rev','F'],
+ [/^[EP]B/,'Electric passenger','rev','B'],
+ [/^FP0/,'Shuttle (Elimbah / Shorncliffe)','rev','FRI'],
+ [/^EP[047]0/,'Shuttle (Elimbah / Shorncliffe)','rev','D'],
+ [/^EA20[1-3]/,'Assistant ETD allocation','nonrev','ALL'],
+ [/^EA/,'As required (Control) or shunt / prep','nonrev','D'],
+ [/^SPA/,'Allocation driver assist','nonrev','WK'],
+ [/^ET/,'Electric (additional)','rev','D'],
+ [/^EX/,'Electric (exhibition)','rev','D'],
+ [/^CE/,'Electric (SCAS)','rev','D'],
+ [/^CD/,'Electric (altered — non-similar solution)','rev','D'],
+ [/^GX/,'Heritage','rev','D'],
+ [/^TT/,'Electric test train','nonrev','D'],
+ [/^TU/,'Electric tuition','nonrev','D'],
+ [/^BTR/,'Electric brake test','nonrev','D'],
+ [/^TR/,'Electric infrastructure patrol','nonrev','D'],
+ [/^H0W/,'Electric wash train','nonrev','ALL'],
+ [/^DS\dX/,'Electric assist (diesel wash train)','nonrev','D'],
+ [/^DS\dW/,'Diesel wash train','loco','D'],
+ [/^DS\dS/,'Diesel Mayne Yard shunt','loco','D'],
+ [/^DZ/,'Diesel tuition / test train','loco','D'],
+ [/^D0/,'Diesel','loco','D0'],
+ [/^C\dT/,'Electric assist (diesel ETD shunt)','nonrev','D'],
+ [/^C\dS/,'Diesel ETD shunt','loco','D'],
+ [/^V[NSU]/,'Projects (network / test / training)','nonrev','D'],
+ [/^I[BRSZ]/,'Infrastructure (ballast, rail, spoil, track machine)','loco','D']
+];
+// Shunt / prep cards sign on at fixed times; other EA jobs are As required (Control)
+const SHUNT_PREP_TIMES=['00:01','03:00','06:00','10:00','14:00','18:00'];
+function decodeJob(job,start){
+  const b=jobBase(job); if(!b) return null;
+  const t=JOB_TYPES.find(function(x){ return x[0].test(b); }); if(!t) return null;
+  let type=t[1];
+  if(/^EA/.test(b)&&!/^EA20[1-3]/.test(b)&&start){
+    const st=String(start).match(/(\d{1,2}):(\d{2})/), hm=st?pad(+st[1])+':'+st[2]:'';
+    type=SHUNT_PREP_TIMES.indexOf(hm)>-1?'Shunt / prep':'As required (Control)';
+  }
+  const dm=b.match(/^[A-Z]+(\d)/), dig=dm?+dm[1]:null;
+  let days='';
+  if(t[3]==='ALL') days='any day';
+  else if(t[3]==='WK') days='Mon–Fri';
+  else if(t[3]==='FRI') days='Friday';
+  else if(t[3]==='F') days='Friday';
+  else if(t[3]==='D0'){ const d=+(b.match(/^D0(\d)/)||[])[1]; days=d<=5?'Mon–Fri':d===6?'Saturday':'Sunday'; }
+  else if(dig!=null) days=dig<=3?(t[3]==='B'||/^EP/.test(b)?'Mon–Thu':'Mon–Fri'):dig<=6?'Saturday':'Sunday';
+  if(type==='Shunt / prep'&&dig!=null&&dig<=3) days=''; // EA0–3 shunt / prep cards can be weekday or weekend (RP 2.13)
+  const sec=(t[3]==='B'||t[3]==='F')?({N:'North sector drivers',S:'South sector drivers',A:'North or South sector drivers'})[b.slice(-1)]||'':'';
+  return {base:b,type:type,meal:t[2],days:days,sector:sec};
+}
+function jobDecodeText(job,start){
+  const d=decodeJob(job,start); if(!d) return '';
+  return d.base+': '+d.type+(d.days?' · '+d.days+' card':'')+(d.sector?' · '+d.sector:'');
+}
+// Meal rule for a job: the user's choice for that job number, otherwise from the job type
+function mealKindFor(job){
+  const b=jobBase(job); if(!b) return 'rev';
+  const o=S.nonRevJobs&&S.nonRevJobs[b];
+  if(o===true) return 'nonrev'; if(o===false) return 'rev'; if(o==='loco') return 'loco';
+  const d=decodeJob(b); return d?d.meal:'rev';
+}
+function isNonRevenueJob(job){ return mealKindFor(job)==='nonrev'; }
+function setMealKind(job,kind){
+  const b=jobBase(job); if(!b||mealKindFor(b)===kind) return;
+  const d=decodeJob(b);
+  if(!(d&&d.meal===kind)){
+    const what={rev:'a revenue (passenger) card — normal meal breaks (EBA 85.1)',nonrev:'a non-revenue card (as required, shunt, prep, tuition) — one 60-minute meal break (EBA 85.4)',loco:'a locomotive / track vehicle working — one 30–60 minute meal break (EBA 85.6)'}[kind];
+    if(!confirm('Treat '+b+' as '+what+'?\n\nThis applies to every '+b+' shift.')) return;
+  }
   if(!S.nonRevJobs) S.nonRevJobs={};
-  S.nonRevJobs[b]=!isNonRevenueJob(job);
+  if(d&&d.meal===kind) delete S.nonRevJobs[b]; else S.nonRevJobs[b]=(kind==='nonrev'?true:kind==='rev'?false:'loco');
+  S.nonRevReset1=true; // marks made with this switch are kept
   saveState(); if(dayPanelDate) renderDayPanel(dayPanelDate);
 }
+function setNonRevenue(job,on){ setMealKind(job,on?'nonrev':'rev'); }
+function toggleNonRevenue(job){ setNonRevenue(job,!isNonRevenueJob(job)); }
+// Meal windows for a shift (EBA 85.1 / 85.4 / 85.6), shown in the day panel
 function mealWindowsHtml(f,job){
   if(!f.work||f.end==null) return '';
   const s=parseTime(f.startStr), len=Math.round((f.end-f.start)/60000);
   const t=function(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
-  const nonRev=isNonRevenueJob(job);
-  const txt=nonRev
-    ?'one 60-minute break (non-revenue card), start after '+t(s+210)+', finished by '+t(s+330)
-    :len<=450
-      ?'one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330)
-      :'1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)';
+  const kind=mealKindFor(job);
+  let txt, cl;
+  if(kind==='nonrev'){ txt='one 60-minute break (non-revenue card), start after '+t(s+210)+', finished by '+t(s+330); cl='85.4'; }
+  else if(kind==='loco'){ txt=len<=540?'one 30–60 minute break (loco / track working), start after '+t(s+210)+', finished by '+t(s+330):'one 30–60 minute break (loco / track working), start after '+t(s+270)+', finished by '+t(s+450); cl='85.6'; }
+  else if(len<=450){ txt='one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330); cl='85.1'; }
+  else { txt='1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)'; cl='85.1'; }
   const b=jobBase(job);
-  return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA '+(nonRev?'85.4':'85.1')+'</a>'+
-    (b&&syncRole!=='partner'?'<br><a href="#" class="rule-ref" style="font-weight:600;" onclick="toggleNonRevenue(\''+b+'\');return false;">'+(nonRev?'Not a non-revenue card? Use normal meal breaks':b+' is non-revenue (as required, shunt, prep)? Use one 60-minute break')+'</a>':'')+'</div>';
+  const chip=function(k,l){ return '<button class="meal-chip'+(kind===k?' on':'')+'" onclick="setMealKind(\''+b+'\',\''+k+'\')">'+l+'</button>'; };
+  return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA '+cl+'</a>'+
+    (b&&syncRole!=='partner'?'<div class="meal-type">Card type: '+chip('rev','Revenue')+chip('nonrev','Non-revenue')+chip('loco','Loco / track')+'</div>':'')+'</div>';
 }
 function ruleIssuesHtml(list,ds){
   if(!list.length) return '';
@@ -3735,6 +3867,20 @@ const RULES=[
  {g:'leave',c:'48.2',t:'Long service leave',b:'364 hours after 7 years (345.8 on the 152-hour cycle), then 52 hours a year (49.4). Can be cashed out after 7 years if you keep 4 weeks (48.6).'},
  {g:'leave',c:'49.1',t:'Personal / carer\'s leave',b:'10 days a year (80 hours, or 76 on the 152-hour cycle). Evidence is needed for more than 2 consecutive working days off (49.14). Plus 2 days unpaid carer\'s leave per occasion (49.10).'},
  {g:'rp',c:'RP 2',t:'Sign on and off',b:'Rail traffic crew sign on and sign off at the same depot. Mayne signs on at BHAB / A Block.'},
+ {g:'rp',c:'RP 2.13',t:'Job card numbers',b:'The letters say what kind of job it is, the first digit says which days it runs (0–3 weekdays, 4–6 Saturday, 7–9 Sunday), and on electric passenger cards the last letter is the sector: N = North sector drivers, S = South, A = either. Drivers qualified on the whole network (QN) can work all cards. The app shows this when you tap a day and picks the meal rule from it.',
+  html:'<table class="rule-table"><tr><th>Starts with</th><th>Job</th><th>Days</th><th>Meal</th></tr>'+
+  '<tr><td>PB / EB 0–3</td><td>Electric passenger</td><td>Mon–Thu</td><td>85.1</td></tr>'+
+  '<tr><td>PF / EF 0–3</td><td>Electric passenger</td><td>Friday</td><td>85.1</td></tr>'+
+  '<tr><td>PB / EB 4–6 · 7–9</td><td>Electric passenger</td><td>Sat · Sun</td><td>85.1</td></tr>'+
+  '<tr><td>EP / FP</td><td>Elimbah / Shorncliffe shuttle</td><td>EP0 Mon–Thu · FP0 Fri · EP4 Sat · EP7 Sun</td><td>85.1</td></tr>'+
+  '<tr><td>EA 0–3 · 6 · 7</td><td>Shunt / prep if it signs on at 00:01, 03:00, 06:00, 10:00, 14:00 or 18:00 — otherwise As required (Control)</td><td>Weekday · Sat · Sun</td><td>60 min (85.4)</td></tr>'+
+  '<tr><td>EA201–203</td><td>Assistant ETD allocation</td><td>Any day</td><td>60 min</td></tr>'+
+  '<tr><td>SPA</td><td>Allocation driver assist</td><td>Mon–Fri</td><td>60 min</td></tr>'+
+  '<tr><td>ET · EX · CE · CD</td><td>Electric additional · exhibition · SCAS · non-similar altered card</td><td>by digit</td><td>85.1</td></tr>'+
+  '<tr><td>TU · TT · BTR · TR · H0W</td><td>Tuition · test train · brake test · infrastructure patrol · wash train</td><td>by digit</td><td>60 min</td></tr>'+
+  '<tr><td>D0 · DS · DZ · C1S</td><td>Diesel workings, shunts, wash train, tuition</td><td>D00–05 Mon–Fri · 06 Sat · 07 Sun</td><td>30–60 min (85.6)</td></tr>'+
+  '<tr><td>I… · V…</td><td>Infrastructure / track machines · projects</td><td>by digit</td><td>85.6 · 60 min</td></tr>'+
+  '<tr><td>GX</td><td>Heritage</td><td>by digit</td><td>—</td></tr></table>'},
  {g:'rp',c:'RP 2.3.1',t:'Turnbacks and dwells',b:'Turnback at least 3 minutes with a turnback driver, 8 minutes without. No more than 20 minutes at a platform with no meal facility, and no more than 90 minutes on a train with no toilet. Long turnbacks allow 10 minutes to secure and 10 minutes for a pre-departure check.'},
  {g:'rp',c:'RP 2.3.2',t:'Similar solution',b:'Altered job cards stay within 1 hour either side of sign-on, 30 minutes after sign-off, and no longer than the master link. Cards outside this are renumbered as CD cards (EBA 88–89).'},
  {g:'length',c:'RP 2.4.1',t:'Shift length',b:'Minimum 6 hours, maximum 9. "As required" is added where a card is more than 30 minutes short of 6 hours. Mon–Fri 00:00–04:00 and Mon–Thu after 17:00 revenue cards: 7h30m maximum. Weekend cards: 6 to 9 hours.'},
@@ -4178,7 +4324,7 @@ function renderDash(){
     }
   })();
   // Roster rule checks (EBA) for the next 4 weeks and this/next cycle
-  if(syncRole!=='partner'&&S.anchorLink){
+  if(syncRole!=='partner'&&S.anchorLink&&ROSTER&&Object.keys(ROSTER).length){
     for(let i=0;i<28;i++){
       const ds=fmtDate(addDays(now,i));
       activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') alerts.push({dot:'dot-red',msg:'⚠ <b>'+ruleDayName(ds)+'</b>: '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+ds+'-'+x.c+'-'+x.msg.length}); });
@@ -4778,6 +4924,8 @@ function renderDayPanel(ds){
   const cardJob=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job;
   if(sh.time&&cardJob&&!leaveTypeKey) html+=jobCardHtml(cardJob);
   if(!leaveTypeKey){
+    // What the job number means — only when there's no job card to show (the card shows the sector)
+    if(sh.time&&cardJob&&!jobCardFor(cardJob)&&jobDecodeText(cardJob,sh.time)) html+='<div class="job-decode">🔎 '+escHtml(jobDecodeText(cardJob,sh.time))+' <a href="#" class="rule-ref" style="font-size:11px;" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
     html+=mealWindowsHtml(ruleDayFacts(ds),cardJob);
     const allIss=dayRuleIssues(ds), acks=ruleAcksFor(ds);
     const act=allIss.filter(function(x){ return acks.indexOf(x.c)<0; }), agreed=allIss.filter(function(x){ return acks.indexOf(x.c)>-1; });
@@ -4786,7 +4934,7 @@ function renderDayPanel(ds){
       '<a href="#" class="rule-ref" onclick="ackRuleIssues(\''+ds+'\',false);return false;">Undo</a></div>';
   }
   // Job cards are loaded but this day can't show one: say why
-  if(sh.time&&!leaveTypeKey&&Object.keys(JOBCARDS||{}).length&&!(cardJob&&jobCardFor(cardJob))&&!/^EA/.test(jobBase(cardJob))){
+  if(sh.time&&!leaveTypeKey&&Object.keys(JOBCARDS||{}).length&&!(cardJob&&jobCardFor(cardJob))&&!(decodeJob(cardJob)&&decodeJob(cardJob).meal!=='rev')&&!/^EA/.test(jobBase(cardJob))){
     html+='<div style="font-size:11px;color:var(--muted);margin-top:8px;">'+(cardJob
       ?'No job card found for '+escHtml(String(cardJob).split('-')[0])+'.'
       :'No job number for this day. Type one in Edit Shift, or import the roster PDF again to add job numbers to every day.')+'</div>';
@@ -8031,12 +8179,47 @@ function toast(msg){
 });
 
 // ═══════════════════════════════════════════════════════════
+// WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
+// ═══════════════════════════════════════════════════════════
+const APP_VERSION='2026-10-03';
+const WHATS_NEW=[
+  'Tap a day: the job card header shows the sector, and jobs with no card (e.g. EA603) say what they are — As required (Control), Shunt / prep, brake test, diesel and more.',
+  'Meal breaks follow the job type: passenger cards 40 min (or 2 × 30), non-revenue cards one 60-minute break, diesel / track 30–60 min. Change a job with "Card type".',
+  'Job card search in the Claims tab — by job number or start time, with Mon–Thu / Fri / Sat / Sun filters.',
+  'You\'ll now be told when an update is ready, with a Refresh button.'
+];
+function showWhatsNew(){
+  let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
+  if(seen===APP_VERSION) return;
+  try{ localStorage.setItem('app_version_seen',APP_VERSION); }catch(e){}
+  if(!seen&&!S.anchorLink) return; // a brand-new install doesn't need the update notes
+  const el=document.getElementById('whats-new'); if(!el) return;
+  el.innerHTML='<div class="card whats-new"><div style="display:flex;align-items:center;margin-bottom:6px;"><b>✨ What\'s new in this update</b><button onclick="document.getElementById(\'whats-new\').innerHTML=\'\'" style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">×</button></div>'+
+    '<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.5;">'+WHATS_NEW.map(function(x){ return '<li>'+escHtml(x)+'</li>'; }).join('')+'</ul></div>';
+}
+
+// ═══════════════════════════════════════════════════════════
 // SERVICE WORKER (offline)
 // ═══════════════════════════════════════════════════════════
 let deferredPrompt=null;
+function showUpdateBanner(){
+  if(document.getElementById('update-banner')) return;
+  const b=document.createElement('div');
+  b.id='update-banner';
+  b.innerHTML='<span>🔄 A new version of Shift Roster is ready</span><button onclick="location.reload()">Refresh</button><button class="ub-x" onclick="this.parentNode.remove()" aria-label="Later">×</button>';
+  document.body.appendChild(b);
+}
 if('serviceWorker' in navigator){
   // Offline support lives in sw.js next to this page
-  navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(function(e){ console.warn('Offline support unavailable:',e); });
+  const hadController=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(function(reg){
+    // Look for a new release whenever the app is opened or brought back, and every 30 minutes
+    const check=function(){ reg.update().catch(function(){}); };
+    document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') check(); });
+    setInterval(check,30*60*1000);
+  }).catch(function(e){ console.warn('Offline support unavailable:',e); });
+  // A release changes sw.js; when the new one takes over, offer a refresh (not on the very first install)
+  navigator.serviceWorker.addEventListener('controllerchange',function(){ if(hadController) showUpdateBanner(); });
 
   // Prompt user to install if not already installed
   window.addEventListener('beforeinstallprompt',e=>{
@@ -8103,6 +8286,7 @@ function initApp(){
   // Leave accrual / leave taken since the app was last opened
   if(runLeaveAuto()){ try{ localStorage.setItem(STATE_KEY,JSON.stringify(S)); }catch(e){} }
   showScreen('dash');
+  showWhatsNew();
   applyRoleUI();
   showSetupIfNeeded();
   restoreFromDeviceBackupIfEmpty().then(function(restored){
