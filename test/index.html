@@ -868,6 +868,11 @@ details.show-more{margin:4px 0 10px;}
 .rule-table th{color:var(--muted);font-weight:700;}
 .rule-clause{font-size:10px;font-weight:800;color:var(--accent);white-space:nowrap;}
 .disclaimer-note{font-size:11px;line-height:1.45;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:12px 0 6px;}
+#update-banner{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:12px;right:12px;z-index:9500;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;background:var(--accent);color:#111;font-size:13px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.4);}
+#update-banner span{flex:1;}
+#update-banner button{background:#111;color:#fff;border:none;border-radius:10px;padding:7px 12px;font-weight:700;cursor:pointer;}
+#update-banner .ub-x{background:none;color:#111;font-size:18px;padding:0 4px;}
+.whats-new{margin-bottom:10px;border-color:var(--accent);}
 .lg-head{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 4px;}
 .lg-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;}
 .lg-item{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);}
@@ -1055,6 +1060,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- Backup reminder (shown by updateBackupReminder) -->
+  <div id="whats-new"></div>
   <div id="backup-reminder" class="owner-only" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
     <div style="font-size:13px;font-weight:700;">💾 Time to back up</div>
     <div id="backup-reminder-text" style="font-size:12px;color:var(--muted);margin:3px 0 10px;"></div>
@@ -4318,7 +4324,7 @@ function renderDash(){
     }
   })();
   // Roster rule checks (EBA) for the next 4 weeks and this/next cycle
-  if(syncRole!=='partner'&&S.anchorLink){
+  if(syncRole!=='partner'&&S.anchorLink&&ROSTER&&Object.keys(ROSTER).length){
     for(let i=0;i<28;i++){
       const ds=fmtDate(addDays(now,i));
       activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') alerts.push({dot:'dot-red',msg:'⚠ <b>'+ruleDayName(ds)+'</b>: '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+ds+'-'+x.c+'-'+x.msg.length}); });
@@ -8173,12 +8179,47 @@ function toast(msg){
 });
 
 // ═══════════════════════════════════════════════════════════
+// WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
+// ═══════════════════════════════════════════════════════════
+const APP_VERSION='2026-10-04';
+const WHATS_NEW=[
+  'Tap a day: the job card header shows the sector, and jobs with no card (e.g. EA603) say what they are — As required (Control), Shunt / prep, brake test, diesel and more.',
+  'Meal breaks follow the job type: passenger cards 40 min (or 2 × 30), non-revenue cards one 60-minute break, diesel / track 30–60 min. Change a job with "Card type".',
+  'Job card search in the Claims tab — by job number or start time, with Mon–Thu / Fri / Sat / Sun filters.',
+  'You\'ll now be told when an update is ready, with a Refresh button.'
+];
+function showWhatsNew(){
+  let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
+  if(seen===APP_VERSION) return;
+  try{ localStorage.setItem('app_version_seen',APP_VERSION); }catch(e){}
+  if(!seen&&!S.anchorLink) return; // a brand-new install doesn't need the update notes
+  const el=document.getElementById('whats-new'); if(!el) return;
+  el.innerHTML='<div class="card whats-new"><div style="display:flex;align-items:center;margin-bottom:6px;"><b>✨ What\'s new in this update</b><button onclick="document.getElementById(\'whats-new\').innerHTML=\'\'" style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">×</button></div>'+
+    '<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.5;">'+WHATS_NEW.map(function(x){ return '<li>'+escHtml(x)+'</li>'; }).join('')+'</ul></div>';
+}
+
+// ═══════════════════════════════════════════════════════════
 // SERVICE WORKER (offline)
 // ═══════════════════════════════════════════════════════════
 let deferredPrompt=null;
+function showUpdateBanner(){
+  if(document.getElementById('update-banner')) return;
+  const b=document.createElement('div');
+  b.id='update-banner';
+  b.innerHTML='<span>🔄 A new version of Shift Roster is ready</span><button onclick="location.reload()">Refresh</button><button class="ub-x" onclick="this.parentNode.remove()" aria-label="Later">×</button>';
+  document.body.appendChild(b);
+}
 if('serviceWorker' in navigator){
   // Offline support lives in sw.js next to this page
-  navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(function(e){ console.warn('Offline support unavailable:',e); });
+  const hadController=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(function(reg){
+    // Look for a new release whenever the app is opened or brought back, and every 30 minutes
+    const check=function(){ reg.update().catch(function(){}); };
+    document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') check(); });
+    setInterval(check,30*60*1000);
+  }).catch(function(e){ console.warn('Offline support unavailable:',e); });
+  // A release changes sw.js; when the new one takes over, offer a refresh (not on the very first install)
+  navigator.serviceWorker.addEventListener('controllerchange',function(){ if(hadController) showUpdateBanner(); });
 
   // Prompt user to install if not already installed
   window.addEventListener('beforeinstallprompt',e=>{
@@ -8245,6 +8286,7 @@ function initApp(){
   // Leave accrual / leave taken since the app was last opened
   if(runLeaveAuto()){ try{ localStorage.setItem(STATE_KEY,JSON.stringify(S)); }catch(e){} }
   showScreen('dash');
+  showWhatsNew();
   applyRoleUI();
   showSetupIfNeeded();
   restoreFromDeviceBackupIfEmpty().then(function(restored){
