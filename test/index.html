@@ -848,6 +848,9 @@ details.show-more{margin:4px 0 10px;}
 .rule-box{margin-top:10px;padding:8px 10px;border:1px solid rgba(239,68,68,.45);background:rgba(239,68,68,.08);border-radius:8px;}
 .rule-box-title{font-size:10px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
 .rule-line{font-size:12px;line-height:1.45;margin-top:4px;}
+.meal-type{margin-top:6px;display:flex;align-items:center;gap:6px;font-size:11px;}
+.meal-chip{padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:11px;cursor:pointer;}
+.meal-chip.on{border-color:var(--accent);color:var(--accent);font-weight:700;}
 .rule-agreed{margin-top:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted);}
 .rule-ref{color:var(--accent);font-weight:700;white-space:nowrap;text-decoration:none;}
 .rule-card{padding:10px 12px;margin-bottom:8px;}
@@ -3186,6 +3189,9 @@ function loadState(){
       if(p.leaveAutoTo) S.leaveAutoTo = p.leaveAutoTo;
       if(p.ruleAcks) S.ruleAcks = p.ruleAcks;
       if(p.nonRevJobs) S.nonRevJobs = p.nonRevJobs;
+      // The first version's switch was easy to tap by mistake: clear marks once (EA jobs are non-revenue by default anyway)
+      if(S.nonRevJobs&&!p.nonRevReset1){ S.nonRevJobs={}; S.nonRevReset1=true; }
+      if(p.nonRevReset1) S.nonRevReset1=true;
     }
   }catch(e){}
   purgeBin();
@@ -3642,12 +3648,14 @@ function isNonRevenueJob(job){
   if(S.nonRevJobs&&S.nonRevJobs[b]!=null) return !!S.nonRevJobs[b];
   return /^EA/.test(b);
 }
-function toggleNonRevenue(job){
-  const b=jobBase(job); if(!b) return;
+function setNonRevenue(job,on){
+  const b=jobBase(job); if(!b||isNonRevenueJob(b)===on) return;
+  if(on&&!confirm('Treat '+b+' as a non-revenue card (as required, shunt, prep, tuition)?\n\nEvery '+b+' shift will then show one 60-minute meal break instead of the normal breaks (EBA 85.4).')) return;
   if(!S.nonRevJobs) S.nonRevJobs={};
-  S.nonRevJobs[b]=!isNonRevenueJob(job);
+  S.nonRevJobs[b]=on; S.nonRevReset1=true; // marks made with the new switch are kept
   saveState(); if(dayPanelDate) renderDayPanel(dayPanelDate);
 }
+function toggleNonRevenue(job){ setNonRevenue(job,!isNonRevenueJob(job)); }
 function mealWindowsHtml(f,job){
   if(!f.work||f.end==null) return '';
   const s=parseTime(f.startStr), len=Math.round((f.end-f.start)/60000);
@@ -3660,7 +3668,9 @@ function mealWindowsHtml(f,job){
       :'1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)';
   const b=jobBase(job);
   return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA '+(nonRev?'85.4':'85.1')+'</a>'+
-    (b&&syncRole!=='partner'?'<br><a href="#" class="rule-ref" style="font-weight:600;" onclick="toggleNonRevenue(\''+b+'\');return false;">'+(nonRev?'Not a non-revenue card? Use normal meal breaks':b+' is non-revenue (as required, shunt, prep)? Use one 60-minute break')+'</a>':'')+'</div>';
+    (b&&syncRole!=='partner'?'<div class="meal-type">Card type: '+
+      '<button class="meal-chip'+(nonRev?'':' on')+'" onclick="setNonRevenue(\''+b+'\',false)">Revenue</button>'+
+      '<button class="meal-chip'+(nonRev?' on':'')+'" onclick="setNonRevenue(\''+b+'\',true)">Non-revenue</button></div>':'')+'</div>';
 }
 function ruleIssuesHtml(list,ds){
   if(!list.length) return '';
