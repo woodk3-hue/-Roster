@@ -848,7 +848,14 @@ details.show-more{margin:4px 0 10px;}
 .rule-box{margin-top:10px;padding:8px 10px;border:1px solid rgba(239,68,68,.45);background:rgba(239,68,68,.08);border-radius:8px;}
 .rule-box-title{font-size:10px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
 .rule-line{font-size:12px;line-height:1.45;margin-top:4px;}
-.job-decode{font-size:11px;color:var(--muted);margin-top:6px;}
+.jc-search{margin-top:14px;border-top:1px solid var(--border);padding-top:6px;}
+.jcs-days{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;}
+.jcs-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:6px;}
+.jcs-item>summary{cursor:pointer;list-style:none;font-size:13px;}
+.jcs-item>summary::-webkit-details-marker{display:none;}
+.jcs-item>summary span{color:var(--muted);margin-left:6px;}
+.jcs-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.job-decode{font-size:13px;font-weight:600;color:var(--text);margin-top:10px;padding:8px 10px;background:var(--surface2);border-left:3px solid var(--accent);border-radius:8px;line-height:1.4;}
 .meal-type{flex-wrap:wrap;margin-top:6px;display:flex;align-items:center;gap:6px;font-size:11px;}
 .meal-chip{padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:11px;cursor:pointer;}
 .meal-chip.on{border-color:var(--accent);color:var(--accent);font-weight:700;}
@@ -1388,6 +1395,13 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <button class="tab-btn" onclick="setClaimsTab('all',this)">All</button>
   </div>
   <div id="claims-list"></div>
+
+  <details class="show-more jc-search" ontoggle="if(this.open)renderJobCardSearch()">
+    <summary>🗂 Job card search</summary>
+    <input type="search" class="form-input" id="jcs-q" placeholder="Job number or start time, e.g. PB019, EA6, 16:30" oninput="renderJobCardSearch()" style="margin:6px 0 8px;">
+    <div class="jcs-days" id="jcs-days"></div>
+    <div id="jcs-results"></div>
+  </details>
 </div>
 
 <!-- ═══════════════════════════════════════
@@ -2559,7 +2573,7 @@ function updateJobCardsStatus(){
 function fillFromJobCard(job,isTheirJob){
   const hint=document.getElementById('sm-jobcard-hint');
   const c=jobCardFor(job);
-  if(!c){ if(hint) hint.textContent=jobDecodeText(job)?'ℹ '+jobDecodeText(job):''; return; }
+  if(!c){ const st=(document.getElementById(isTheirJob?'sm-sds-their-start':'sm-start')||{}).value||''; if(hint) hint.textContent=jobDecodeText(job,st)?'ℹ '+jobDecodeText(job,st):''; return; }
   if(isTheirJob){
     const ts=document.getElementById('sm-sds-their-start'); if(ts&&c.on) ts.value=c.on;
     const mj=document.getElementById('sm-job'); if(mj&&!mj.value.trim()) mj.value=job.trim();
@@ -3641,6 +3655,42 @@ function swapRuleIssues(mon,received,scope,idx){
   return out;
 }
 
+// ── Job card search (Claims tab) ──
+let jcsDay='';
+function setJcsDay(d){ jcsDay=(jcsDay===d?'':d); renderJobCardSearch(); }
+function renderJobCardSearch(){
+  const res=document.getElementById('jcs-results'); if(!res) return;
+  const daysEl=document.getElementById('jcs-days');
+  if(daysEl) daysEl.innerHTML=['Mon–Thu','Friday','Saturday','Sunday'].map(function(d){
+    return '<button class="meal-chip'+(jcsDay===d?' on':'')+'" onclick="setJcsDay(\''+d+'\')">'+(d==='Friday'?'Fri':d==='Saturday'?'Sat':d==='Sunday'?'Sun':d)+'</button>';
+  }).join('');
+  const ids=Object.keys(JOBCARDS||{});
+  if(!ids.length){ res.innerHTML='<div class="empty-state" style="padding:12px;">Import the job card PDF in Settings to search it.</div>'; return; }
+  const raw=(document.getElementById('jcs-q').value||'').trim().toUpperCase();
+  // A time: "16:30", "1630" or "16" (that hour); otherwise part of a job number
+  let tm=null;
+  const m=raw.match(/^(\d{1,2})(?::?(\d{2}))?$/);
+  if(m&&+m[1]<24) tm={h:+m[1],min:m[2]!=null?+m[2]:null};
+  let list=ids.filter(function(id){
+    const c=JOBCARDS[id];
+    if(jcsDay){ const d=decodeJob(id); if(!d||d.days!==jcsDay) return false; }
+    if(!raw) return true;
+    if(tm){ const on=parseTime(c.on); if(on==null) return false; const h=Math.floor(on/60), mi=on%60; return h===tm.h&&(tm.min==null||mi===tm.min); }
+    return id.indexOf(raw.replace(/-\d+$/,''))>-1;
+  });
+  list.sort(function(a,b){ return tm?(parseTime(JOBCARDS[a].on)-parseTime(JOBCARDS[b].on))||a.localeCompare(b):a.localeCompare(b); });
+  const total=list.length;
+  if(!raw&&!jcsDay){ res.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 0;">'+ids.length+' job cards loaded. Type a job number or a start time.</div>'; return; }
+  if(!total){ res.innerHTML='<div class="empty-state" style="padding:12px;">No job cards match.</div>'; return; }
+  list=list.slice(0,40);
+  res.innerHTML='<div style="font-size:11px;color:var(--muted);margin-bottom:6px;">'+total+' match'+(total===1?'':'es')+(total>40?' — showing the first 40':'')+'</div>'+list.map(function(id){
+    const c=JOBCARDS[id], d=decodeJob(id), dur=(c.on&&c.off)?calcDur(c.on,c.off):'';
+    return '<details class="jcs-item"><summary><b>'+escHtml(id)+'</b> <span>'+(c.on||'—')+'–'+(c.off||'—')+(dur?' · '+dur:'')+'</span>'+
+      (d?'<div class="jcs-sub">'+escHtml(d.type+(d.days?' · '+d.days:'')+(d.sector?' · '+d.sector:''))+'</div>':'')+'</summary>'+
+      '<pre class="jobcard-pre">'+escHtml(c.text||'')+'</pre></details>';
+  }).join('');
+}
+
 // ── Job card numbers (SEQ Roster Protocols 2.13) ──
 // 1st–2nd letters = type, next digit = which days (0–3 weekday, 4–6 Saturday, 7–9 Sunday), last letter on
 // electric cards = sector (N North, S South, A all). meal: rev = EBA 85.1, nonrev = 85.4, loco = 85.6.
@@ -3673,9 +3723,16 @@ const JOB_TYPES=[
  [/^V[NSU]/,'Projects (network / test / training)','nonrev','D'],
  [/^I[BRSZ]/,'Infrastructure (ballast, rail, spoil, track machine)','loco','D']
 ];
-function decodeJob(job){
+// Shunt / prep cards sign on at fixed times; other EA jobs are As required (Control)
+const SHUNT_PREP_TIMES=['00:01','03:00','06:00','10:00','14:00','18:00'];
+function decodeJob(job,start){
   const b=jobBase(job); if(!b) return null;
   const t=JOB_TYPES.find(function(x){ return x[0].test(b); }); if(!t) return null;
+  let type=t[1];
+  if(/^EA/.test(b)&&!/^EA20[1-3]/.test(b)&&start){
+    const st=String(start).match(/(\d{1,2}):(\d{2})/), hm=st?pad(+st[1])+':'+st[2]:'';
+    type=SHUNT_PREP_TIMES.indexOf(hm)>-1?'Shunt / prep':'As required (Control)';
+  }
   const dm=b.match(/^[A-Z]+(\d)/), dig=dm?+dm[1]:null;
   let days='';
   if(t[3]==='ALL') days='any day';
@@ -3684,11 +3741,12 @@ function decodeJob(job){
   else if(t[3]==='F') days='Friday';
   else if(t[3]==='D0'){ const d=+(b.match(/^D0(\d)/)||[])[1]; days=d<=5?'Mon–Fri':d===6?'Saturday':'Sunday'; }
   else if(dig!=null) days=dig<=3?(t[3]==='B'||/^EP/.test(b)?'Mon–Thu':'Mon–Fri'):dig<=6?'Saturday':'Sunday';
+  if(type==='Shunt / prep'&&dig!=null&&dig<=3) days=''; // EA0–3 shunt / prep cards can be weekday or weekend (RP 2.13)
   const sec=(t[3]==='B'||t[3]==='F')?({N:'North sector drivers',S:'South sector drivers',A:'North or South sector drivers'})[b.slice(-1)]||'':'';
-  return {base:b,type:t[1],meal:t[2],days:days,sector:sec};
+  return {base:b,type:type,meal:t[2],days:days,sector:sec};
 }
-function jobDecodeText(job){
-  const d=decodeJob(job); if(!d) return '';
+function jobDecodeText(job,start){
+  const d=decodeJob(job,start); if(!d) return '';
   return d.base+': '+d.type+(d.days?' · '+d.days+' card':'')+(d.sector?' · '+d.sector:'');
 }
 // Meal rule for a job: the user's choice for that job number, otherwise from the job type
@@ -3808,7 +3866,7 @@ const RULES=[
   '<tr><td>PF / EF 0–3</td><td>Electric passenger</td><td>Friday</td><td>85.1</td></tr>'+
   '<tr><td>PB / EB 4–6 · 7–9</td><td>Electric passenger</td><td>Sat · Sun</td><td>85.1</td></tr>'+
   '<tr><td>EP / FP</td><td>Elimbah / Shorncliffe shuttle</td><td>EP0 Mon–Thu · FP0 Fri · EP4 Sat · EP7 Sun</td><td>85.1</td></tr>'+
-  '<tr><td>EA 0–3 · 6 · 7</td><td>As required (Control), shunt / prep</td><td>Weekday · Sat · Sun</td><td>60 min (85.4)</td></tr>'+
+  '<tr><td>EA 0–3 · 6 · 7</td><td>Shunt / prep if it signs on at 00:01, 03:00, 06:00, 10:00, 14:00 or 18:00 — otherwise As required (Control)</td><td>Weekday · Sat · Sun</td><td>60 min (85.4)</td></tr>'+
   '<tr><td>EA201–203</td><td>Assistant ETD allocation</td><td>Any day</td><td>60 min</td></tr>'+
   '<tr><td>SPA</td><td>Allocation driver assist</td><td>Mon–Fri</td><td>60 min</td></tr>'+
   '<tr><td>ET · EX · CE · CD</td><td>Electric additional · exhibition · SCAS · non-similar altered card</td><td>by digit</td><td>85.1</td></tr>'+
@@ -4859,7 +4917,7 @@ function renderDayPanel(ds){
   const cardJob=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job;
   if(sh.time&&cardJob&&!leaveTypeKey) html+=jobCardHtml(cardJob);
   if(!leaveTypeKey){
-    if(sh.time&&cardJob&&jobDecodeText(cardJob)) html+='<div class="job-decode">ℹ '+escHtml(jobDecodeText(cardJob))+' <a href="#" class="rule-ref" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
+    if(sh.time&&cardJob&&jobDecodeText(cardJob,sh.time)) html+='<div class="job-decode">🔎 '+escHtml(jobDecodeText(cardJob,sh.time))+' <a href="#" class="rule-ref" style="font-size:11px;" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
     html+=mealWindowsHtml(ruleDayFacts(ds),cardJob);
     const allIss=dayRuleIssues(ds), acks=ruleAcksFor(ds);
     const act=allIss.filter(function(x){ return acks.indexOf(x.c)<0; }), agreed=allIss.filter(function(x){ return acks.indexOf(x.c)>-1; });
