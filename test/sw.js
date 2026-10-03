@@ -4,7 +4,7 @@
 // (Firebase, pdf.js, pako) are served from the cache once they have been fetched once.
 // The real app and the test copy (/test/) share one website, so each keeps its own cache
 const PREFIX=/\/test\//.test(self.location.pathname)?'shift-roster-test-v':'shift-roster-v';
-const CACHE=PREFIX+'10';
+const CACHE=PREFIX+'11';
 const CORE=['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png'];
 
 self.addEventListener('install',function(e){
