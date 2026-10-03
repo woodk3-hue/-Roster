@@ -2126,6 +2126,7 @@ async function importRosterPDF(input){
     if(linkNow&&linkNow>newSize) msg+='<br><span style="color:#ef4444;">Link '+linkNow+' is not in the new roster — please set your link.</span>';
     if(statusEl) statusEl.innerHTML='<span style="color:#16a34a;">'+msg+'</span>';
     toast(count+' roster links imported ✓');
+    updateJobCardsStatus();
     renderDash();
     if(currentScreen==='cal') renderCal();
   }catch(e){
@@ -2453,7 +2454,8 @@ async function importJobCards(input){
     // How many rostered jobs now have a card
     let jobs=0, matched=0;
     Object.keys(ROSTER||{}).forEach(function(l){ (ROSTER[l]||[]).forEach(function(c){ const j=String(c||'').split('|')[1]; if(j&&/^P[BF]\d/.test(j)){ jobs++; if(jobCardFor(j)) matched++; } }); });
-    say('<span style="color:#16a34a;">✓ '+count+' job cards imported'+(jobs?' · '+matched+' of '+jobs+' rostered PB/PF jobs matched':'')+'</span>');
+    say('<span style="color:#16a34a;">✓ '+count+' job cards imported'+(jobs?' · '+matched+' of '+jobs+' rostered PB/PF jobs matched':'')+'</span>'+
+      (jobs?'':'<br><span style="color:#f59e0b;">Your saved roster has no job numbers, so days can\'t show their job card yet. Import the roster PDF again (Import Roster File above) to add them.</span>'));
     toast(count+' job cards imported ✓');
     pushJobCardsTable(); scheduleAutoBackup();
     if(dayPanelDate) renderDayPanel(dayPanelDate);
@@ -2466,7 +2468,10 @@ async function importJobCards(input){
 function updateJobCardsStatus(){
   const el=document.getElementById('jobcards-import-status'); if(!el) return;
   const n=Object.keys(JOBCARDS||{}).length;
-  el.innerHTML=n?'<span style="color:#16a34a;">✓ '+n+' job cards loaded</span>':'<span style="color:var(--muted);">No job cards imported yet</span>';
+  let jobs=0; Object.keys(ROSTER||{}).forEach(function(l){ (ROSTER[l]||[]).forEach(function(c){ if(String(c||'').split('|')[1]) jobs++; }); });
+  el.innerHTML=n?'<span style="color:#16a34a;">✓ '+n+' job cards loaded</span>'+
+    (Object.keys(ROSTER||{}).length&&!jobs?'<br><span style="color:#f59e0b;">Your saved roster has no job numbers, so days can\'t show their job card yet. Import the roster PDF again (Import Roster File above) to add them.</span>':'')
+    :'<span style="color:var(--muted);">No job cards imported yet</span>';
 }
 // Typing a job number in Edit Shift fills the times from its job card
 function fillFromJobCard(job,isTheirJob){
@@ -4001,6 +4006,12 @@ function renderDayPanel(ds){
   // Job card: a typed job number (or a single-day swap's 'their job') wins over the roster's
   const cardJob=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job;
   if(sh.time&&cardJob&&!leaveTypeKey) html+=jobCardHtml(cardJob);
+  // Job cards are loaded but this day can't show one: say why
+  if(sh.time&&!leaveTypeKey&&Object.keys(JOBCARDS||{}).length&&!(cardJob&&jobCardFor(cardJob))){
+    html+='<div style="font-size:11px;color:var(--muted);margin-top:8px;">'+(cardJob
+      ?'No job card found for '+escHtml(String(cardJob).split('-')[0])+'.'
+      :'No job number for this day. Type one in Edit Shift, or import the roster PDF again to add job numbers to every day.')+'</div>';
+  }
   if(sh.guards&&sh.guards.trim()){
     const lines=sh.guards.trim().split('\n').filter(Boolean);
     html+='<div style="margin-top:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;">';
