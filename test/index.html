@@ -3664,7 +3664,7 @@ const TC_WALK={'BHAB|BHI':5,'ABLK|BHAB':15,'BHAB|ETF':15,'BHAB|ETS':15,'BHAB|YNY
 // Runs, one direction (minutes) — typical times from the job cards
 const TC_RUN={'BHI>ETF':9,'ETF>BHI':9,'BHI>ETS':20,'ETS>BHI':20,'BHI>YNY':10,'YNY>BHI':10};
 const TC_STEPS={
- signonat:{l:'Sign on at… (15 + walk)'},signoffat:{l:'Sign off at… (walk + 15)'},
+ signoffat:{l:'Sign off at… (walk + 15)'},signonat:{l:'Sign on at… (15 + walk)'},
  signon:{l:'Sign on',m:15},signoff:{l:'Sign off',m:15},
  prep6:{l:'Prep 6-car',m:40},prep3:{l:'Prep 3-car',m:20},pdt:{l:'Pre-departure test',m:10},
  ends:{l:'Change ends',m:8},shunt:{l:'Shunt (ETS/ESY)',m:6},stow:{l:'Stow',m:10},handover:{l:'Handover',m:5},
@@ -3802,6 +3802,7 @@ function renderTools(){
     '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcResetMy()">Reset to document times</button>'+
     '<div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5;">Fixed: sign on/off 15 · prep 6-car 40, 3-car 20 · pre-departure test 10 · change ends 8 · stow 10 · shunt at ETS/ESY 6 · handover 5 (RP 2.11, 2.15; traincrew times card).</div>'+
    '</div>';
+  tcOnAddKind();
   tcCalc();
 }
 function tcMyTimesHtml(){
