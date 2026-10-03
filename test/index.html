@@ -848,7 +848,8 @@ details.show-more{margin:4px 0 10px;}
 .rule-box{margin-top:10px;padding:8px 10px;border:1px solid rgba(239,68,68,.45);background:rgba(239,68,68,.08);border-radius:8px;}
 .rule-box-title{font-size:10px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
 .rule-line{font-size:12px;line-height:1.45;margin-top:4px;}
-.meal-type{margin-top:6px;display:flex;align-items:center;gap:6px;font-size:11px;}
+.job-decode{font-size:11px;color:var(--muted);margin-top:6px;}
+.meal-type{flex-wrap:wrap;margin-top:6px;display:flex;align-items:center;gap:6px;font-size:11px;}
 .meal-chip{padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:11px;cursor:pointer;}
 .meal-chip.on{border-color:var(--accent);color:var(--accent);font-weight:700;}
 .rule-agreed{margin-top:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted);}
@@ -2558,7 +2559,7 @@ function updateJobCardsStatus(){
 function fillFromJobCard(job,isTheirJob){
   const hint=document.getElementById('sm-jobcard-hint');
   const c=jobCardFor(job);
-  if(!c){ if(hint) hint.textContent=''; return; }
+  if(!c){ if(hint) hint.textContent=jobDecodeText(job)?'ℹ '+jobDecodeText(job):''; return; }
   if(isTheirJob){
     const ts=document.getElementById('sm-sds-their-start'); if(ts&&c.on) ts.value=c.on;
     const mj=document.getElementById('sm-job'); if(mj&&!mj.value.trim()) mj.value=job.trim();
@@ -3640,37 +3641,93 @@ function swapRuleIssues(mon,received,scope,idx){
   return out;
 }
 
-// EBA 85.1 meal windows for a shift, shown in the day panel
-// Non-revenue job cards (Control "as required" EA jobs, or ones the user marks) get one 60-minute meal (EBA 85.4)
+// ── Job card numbers (SEQ Roster Protocols 2.13) ──
+// 1st–2nd letters = type, next digit = which days (0–3 weekday, 4–6 Saturday, 7–9 Sunday), last letter on
+// electric cards = sector (N North, S South, A all). meal: rev = EBA 85.1, nonrev = 85.4, loco = 85.6.
 function jobBase(job){ return String(job||'').split('-')[0].trim().toUpperCase(); }
-function isNonRevenueJob(job){
-  const b=jobBase(job); if(!b) return false;
-  if(S.nonRevJobs&&S.nonRevJobs[b]!=null) return !!S.nonRevJobs[b];
-  return /^EA/.test(b);
+const JOB_TYPES=[
+ [/^[EP]F/,'Electric passenger','rev','F'],
+ [/^[EP]B/,'Electric passenger','rev','B'],
+ [/^FP0/,'Shuttle (Elimbah / Shorncliffe)','rev','FRI'],
+ [/^EP[047]0/,'Shuttle (Elimbah / Shorncliffe)','rev','D'],
+ [/^EA20[1-3]/,'Assistant ETD allocation','nonrev','ALL'],
+ [/^EA/,'As required (Control) or shunt / prep','nonrev','D'],
+ [/^SPA/,'Allocation driver assist','nonrev','WK'],
+ [/^ET/,'Electric (additional)','rev','D'],
+ [/^EX/,'Electric (exhibition)','rev','D'],
+ [/^CE/,'Electric (SCAS)','rev','D'],
+ [/^CD/,'Electric (altered — non-similar solution)','rev','D'],
+ [/^GX/,'Heritage','rev','D'],
+ [/^TT/,'Electric test train','nonrev','D'],
+ [/^TU/,'Electric tuition','nonrev','D'],
+ [/^BTR/,'Electric brake test','nonrev','D'],
+ [/^TR/,'Electric infrastructure patrol','nonrev','D'],
+ [/^H0W/,'Electric wash train','nonrev','ALL'],
+ [/^DS\dX/,'Electric assist (diesel wash train)','nonrev','D'],
+ [/^DS\dW/,'Diesel wash train','loco','D'],
+ [/^DS\dS/,'Diesel Mayne Yard shunt','loco','D'],
+ [/^DZ/,'Diesel tuition / test train','loco','D'],
+ [/^D0/,'Diesel','loco','D0'],
+ [/^C\dT/,'Electric assist (diesel ETD shunt)','nonrev','D'],
+ [/^C\dS/,'Diesel ETD shunt','loco','D'],
+ [/^V[NSU]/,'Projects (network / test / training)','nonrev','D'],
+ [/^I[BRSZ]/,'Infrastructure (ballast, rail, spoil, track machine)','loco','D']
+];
+function decodeJob(job){
+  const b=jobBase(job); if(!b) return null;
+  const t=JOB_TYPES.find(function(x){ return x[0].test(b); }); if(!t) return null;
+  const dm=b.match(/^[A-Z]+(\d)/), dig=dm?+dm[1]:null;
+  let days='';
+  if(t[3]==='ALL') days='any day';
+  else if(t[3]==='WK') days='Mon–Fri';
+  else if(t[3]==='FRI') days='Friday';
+  else if(t[3]==='F') days='Friday';
+  else if(t[3]==='D0'){ const d=+(b.match(/^D0(\d)/)||[])[1]; days=d<=5?'Mon–Fri':d===6?'Saturday':'Sunday'; }
+  else if(dig!=null) days=dig<=3?(t[3]==='B'||/^EP/.test(b)?'Mon–Thu':'Mon–Fri'):dig<=6?'Saturday':'Sunday';
+  const sec=(t[3]==='B'||t[3]==='F')?({N:'North sector drivers',S:'South sector drivers',A:'North or South sector drivers'})[b.slice(-1)]||'':'';
+  return {base:b,type:t[1],meal:t[2],days:days,sector:sec};
 }
-function setNonRevenue(job,on){
-  const b=jobBase(job); if(!b||isNonRevenueJob(b)===on) return;
-  if(on&&!confirm('Treat '+b+' as a non-revenue card (as required, shunt, prep, tuition)?\n\nEvery '+b+' shift will then show one 60-minute meal break instead of the normal breaks (EBA 85.4).')) return;
+function jobDecodeText(job){
+  const d=decodeJob(job); if(!d) return '';
+  return d.base+': '+d.type+(d.days?' · '+d.days+' card':'')+(d.sector?' · '+d.sector:'');
+}
+// Meal rule for a job: the user's choice for that job number, otherwise from the job type
+function mealKindFor(job){
+  const b=jobBase(job); if(!b) return 'rev';
+  const o=S.nonRevJobs&&S.nonRevJobs[b];
+  if(o===true) return 'nonrev'; if(o===false) return 'rev'; if(o==='loco') return 'loco';
+  const d=decodeJob(b); return d?d.meal:'rev';
+}
+function isNonRevenueJob(job){ return mealKindFor(job)==='nonrev'; }
+function setMealKind(job,kind){
+  const b=jobBase(job); if(!b||mealKindFor(b)===kind) return;
+  const d=decodeJob(b);
+  if(!(d&&d.meal===kind)){
+    const what={rev:'a revenue (passenger) card — normal meal breaks (EBA 85.1)',nonrev:'a non-revenue card (as required, shunt, prep, tuition) — one 60-minute meal break (EBA 85.4)',loco:'a locomotive / track vehicle working — one 30–60 minute meal break (EBA 85.6)'}[kind];
+    if(!confirm('Treat '+b+' as '+what+'?\n\nThis applies to every '+b+' shift.')) return;
+  }
   if(!S.nonRevJobs) S.nonRevJobs={};
-  S.nonRevJobs[b]=on; S.nonRevReset1=true; // marks made with the new switch are kept
+  if(d&&d.meal===kind) delete S.nonRevJobs[b]; else S.nonRevJobs[b]=(kind==='nonrev'?true:kind==='rev'?false:'loco');
+  S.nonRevReset1=true; // marks made with this switch are kept
   saveState(); if(dayPanelDate) renderDayPanel(dayPanelDate);
 }
+function setNonRevenue(job,on){ setMealKind(job,on?'nonrev':'rev'); }
 function toggleNonRevenue(job){ setNonRevenue(job,!isNonRevenueJob(job)); }
+// Meal windows for a shift (EBA 85.1 / 85.4 / 85.6), shown in the day panel
 function mealWindowsHtml(f,job){
   if(!f.work||f.end==null) return '';
   const s=parseTime(f.startStr), len=Math.round((f.end-f.start)/60000);
   const t=function(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
-  const nonRev=isNonRevenueJob(job);
-  const txt=nonRev
-    ?'one 60-minute break (non-revenue card), start after '+t(s+210)+', finished by '+t(s+330)
-    :len<=450
-      ?'one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330)
-      :'1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)';
+  const kind=mealKindFor(job);
+  let txt, cl;
+  if(kind==='nonrev'){ txt='one 60-minute break (non-revenue card), start after '+t(s+210)+', finished by '+t(s+330); cl='85.4'; }
+  else if(kind==='loco'){ txt=len<=540?'one 30–60 minute break (loco / track working), start after '+t(s+210)+', finished by '+t(s+330):'one 30–60 minute break (loco / track working), start after '+t(s+270)+', finished by '+t(s+450); cl='85.6'; }
+  else if(len<=450){ txt='one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330); cl='85.1'; }
+  else { txt='1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)'; cl='85.1'; }
   const b=jobBase(job);
-  return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA '+(nonRev?'85.4':'85.1')+'</a>'+
-    (b&&syncRole!=='partner'?'<div class="meal-type">Card type: '+
-      '<button class="meal-chip'+(nonRev?'':' on')+'" onclick="setNonRevenue(\''+b+'\',false)">Revenue</button>'+
-      '<button class="meal-chip'+(nonRev?' on':'')+'" onclick="setNonRevenue(\''+b+'\',true)">Non-revenue</button></div>':'')+'</div>';
+  const chip=function(k,l){ return '<button class="meal-chip'+(kind===k?' on':'')+'" onclick="setMealKind(\''+b+'\',\''+k+'\')">'+l+'</button>'; };
+  return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA '+cl+'</a>'+
+    (b&&syncRole!=='partner'?'<div class="meal-type">Card type: '+chip('rev','Revenue')+chip('nonrev','Non-revenue')+chip('loco','Loco / track')+'</div>':'')+'</div>';
 }
 function ruleIssuesHtml(list,ds){
   if(!list.length) return '';
@@ -3745,6 +3802,20 @@ const RULES=[
  {g:'leave',c:'48.2',t:'Long service leave',b:'364 hours after 7 years (345.8 on the 152-hour cycle), then 52 hours a year (49.4). Can be cashed out after 7 years if you keep 4 weeks (48.6).'},
  {g:'leave',c:'49.1',t:'Personal / carer\'s leave',b:'10 days a year (80 hours, or 76 on the 152-hour cycle). Evidence is needed for more than 2 consecutive working days off (49.14). Plus 2 days unpaid carer\'s leave per occasion (49.10).'},
  {g:'rp',c:'RP 2',t:'Sign on and off',b:'Rail traffic crew sign on and sign off at the same depot. Mayne signs on at BHAB / A Block.'},
+ {g:'rp',c:'RP 2.13',t:'Job card numbers',b:'The letters say what kind of job it is, the first digit says which days it runs (0–3 weekdays, 4–6 Saturday, 7–9 Sunday), and on electric passenger cards the last letter is the sector: N = North sector drivers, S = South, A = either. Drivers qualified on the whole network (QN) can work all cards. The app shows this when you tap a day and picks the meal rule from it.',
+  html:'<table class="rule-table"><tr><th>Starts with</th><th>Job</th><th>Days</th><th>Meal</th></tr>'+
+  '<tr><td>PB / EB 0–3</td><td>Electric passenger</td><td>Mon–Thu</td><td>85.1</td></tr>'+
+  '<tr><td>PF / EF 0–3</td><td>Electric passenger</td><td>Friday</td><td>85.1</td></tr>'+
+  '<tr><td>PB / EB 4–6 · 7–9</td><td>Electric passenger</td><td>Sat · Sun</td><td>85.1</td></tr>'+
+  '<tr><td>EP / FP</td><td>Elimbah / Shorncliffe shuttle</td><td>EP0 Mon–Thu · FP0 Fri · EP4 Sat · EP7 Sun</td><td>85.1</td></tr>'+
+  '<tr><td>EA 0–3 · 6 · 7</td><td>As required (Control), shunt / prep</td><td>Weekday · Sat · Sun</td><td>60 min (85.4)</td></tr>'+
+  '<tr><td>EA201–203</td><td>Assistant ETD allocation</td><td>Any day</td><td>60 min</td></tr>'+
+  '<tr><td>SPA</td><td>Allocation driver assist</td><td>Mon–Fri</td><td>60 min</td></tr>'+
+  '<tr><td>ET · EX · CE · CD</td><td>Electric additional · exhibition · SCAS · non-similar altered card</td><td>by digit</td><td>85.1</td></tr>'+
+  '<tr><td>TU · TT · BTR · TR · H0W</td><td>Tuition · test train · brake test · infrastructure patrol · wash train</td><td>by digit</td><td>60 min</td></tr>'+
+  '<tr><td>D0 · DS · DZ · C1S</td><td>Diesel workings, shunts, wash train, tuition</td><td>D00–05 Mon–Fri · 06 Sat · 07 Sun</td><td>30–60 min (85.6)</td></tr>'+
+  '<tr><td>I… · V…</td><td>Infrastructure / track machines · projects</td><td>by digit</td><td>85.6 · 60 min</td></tr>'+
+  '<tr><td>GX</td><td>Heritage</td><td>by digit</td><td>—</td></tr></table>'},
  {g:'rp',c:'RP 2.3.1',t:'Turnbacks and dwells',b:'Turnback at least 3 minutes with a turnback driver, 8 minutes without. No more than 20 minutes at a platform with no meal facility, and no more than 90 minutes on a train with no toilet. Long turnbacks allow 10 minutes to secure and 10 minutes for a pre-departure check.'},
  {g:'rp',c:'RP 2.3.2',t:'Similar solution',b:'Altered job cards stay within 1 hour either side of sign-on, 30 minutes after sign-off, and no longer than the master link. Cards outside this are renumbered as CD cards (EBA 88–89).'},
  {g:'length',c:'RP 2.4.1',t:'Shift length',b:'Minimum 6 hours, maximum 9. "As required" is added where a card is more than 30 minutes short of 6 hours. Mon–Fri 00:00–04:00 and Mon–Thu after 17:00 revenue cards: 7h30m maximum. Weekend cards: 6 to 9 hours.'},
@@ -4788,6 +4859,7 @@ function renderDayPanel(ds){
   const cardJob=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job;
   if(sh.time&&cardJob&&!leaveTypeKey) html+=jobCardHtml(cardJob);
   if(!leaveTypeKey){
+    if(sh.time&&cardJob&&jobDecodeText(cardJob)) html+='<div class="job-decode">ℹ '+escHtml(jobDecodeText(cardJob))+' <a href="#" class="rule-ref" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
     html+=mealWindowsHtml(ruleDayFacts(ds),cardJob);
     const allIss=dayRuleIssues(ds), acks=ruleAcksFor(ds);
     const act=allIss.filter(function(x){ return acks.indexOf(x.c)<0; }), agreed=allIss.filter(function(x){ return acks.indexOf(x.c)>-1; });
@@ -4796,7 +4868,7 @@ function renderDayPanel(ds){
       '<a href="#" class="rule-ref" onclick="ackRuleIssues(\''+ds+'\',false);return false;">Undo</a></div>';
   }
   // Job cards are loaded but this day can't show one: say why
-  if(sh.time&&!leaveTypeKey&&Object.keys(JOBCARDS||{}).length&&!(cardJob&&jobCardFor(cardJob))&&!/^EA/.test(jobBase(cardJob))){
+  if(sh.time&&!leaveTypeKey&&Object.keys(JOBCARDS||{}).length&&!(cardJob&&jobCardFor(cardJob))&&!(decodeJob(cardJob)&&decodeJob(cardJob).meal!=='rev')&&!/^EA/.test(jobBase(cardJob))){
     html+='<div style="font-size:11px;color:var(--muted);margin-top:8px;">'+(cardJob
       ?'No job card found for '+escHtml(String(cardJob).split('-')[0])+'.'
       :'No job number for this day. Type one in Edit Shift, or import the roster PDF again to add job numbers to every day.')+'</div>';
