@@ -207,6 +207,21 @@ html,body{
   transform:scale(1.15);
 }
 .nav-btn span{font-size:10px;font-weight:600;}
+#bottom-nav .nav-btn{padding:8px 1px;min-width:0;}
+#bottom-nav .nav-btn span{font-size:9.5px;white-space:nowrap;}
+.tc-title{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+.tc-head,.tc-row{display:grid;grid-template-columns:1fr 58px 52px 26px;gap:6px;align-items:center;}
+.tc-head{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;margin:6px 0 2px;}
+.tc-row{padding:4px 0;border-bottom:1px solid var(--border);}
+.tc-lbl{font-size:13px;}
+.tc-min{padding:6px 6px !important;text-align:center;min-height:0 !important;}
+.tc-missing{border-color:#f59e0b !important;background:rgba(245,158,11,.12) !important;}
+.tc-at{font-size:13px;font-weight:700;text-align:right;}
+.tc-x{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;}
+.tc-add{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.tc-add select{flex:1;min-width:120px;}
+.tc-result{margin-top:10px;padding:10px;border-radius:8px;background:var(--surface2);font-size:13px;}
+.tc-table td:last-child{width:70px;}
 
 /* ── CARDS ── */
 .card{
@@ -1067,6 +1082,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <div class="owner-only">
     <div class="section-label">Alerts</div>
     <div id="dash-alerts"><div class="empty-state" style="padding:16px;">No alerts — all good! 👍</div></div>
+    <div id="dash-rules"></div>
   </div>
 </div>
 
@@ -1519,6 +1535,14 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 </div>
 
 <!-- ═══════════════════════════════════════
+     TOOLS (time check)
+════════════════════════════════════════ -->
+<div id="screen-tools" class="screen">
+  <div class="screen-header"><div class="screen-title">🧰 Tools</div><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
+  <div id="tools-content"></div>
+</div>
+
+<!-- ═══════════════════════════════════════
      RULES (EBA + Roster Protocols)
 ════════════════════════════════════════ -->
 <div id="screen-rules" class="screen">
@@ -1763,6 +1787,10 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <button class="nav-btn bnav-item" id="nav-stats" onclick="showScreen('stats')">
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     <span>Stats</span>
+  </button>
+  <button class="nav-btn bnav-item" id="nav-tools" onclick="showScreen('tools')">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>
+    <span>Tools</span>
   </button>
 </nav>
 
@@ -2928,7 +2956,7 @@ function updateSyncUI(){
   if(pinEl&&syncPin) pinEl.value=syncPin;
   document.body.classList.toggle('partner-view',!!(syncEnabled&&syncRole==='partner'));
   // Show/hide tabs based on role
-  const partnerHiddenTabs=['nav-swaps','nav-claims','nav-pay','nav-contacts','nav-stats'];
+  const partnerHiddenTabs=['nav-swaps','nav-claims','nav-pay','nav-contacts','nav-stats','nav-tools'];
   partnerHiddenTabs.forEach(function(id){
     const el=document.getElementById(id);
     if(el) el.style.display=(syncEnabled&&syncRole==='partner')?'none':'';
@@ -3131,6 +3159,7 @@ function loadState(){
       if(p.payHistory) S.payHistory = p.payHistory;
       if(p.appointments) S.appointments = p.appointments;
       if(p.leaveAdjBase) S.leaveAdjBase = p.leaveAdjBase;
+      if(p.myTimes) S.myTimes = p.myTimes;
     }
   }catch(e){}
   purgeBin();
@@ -3361,7 +3390,7 @@ function ruleRawFacts(ds,raw){
   const sh=parseShift(raw||'');
   return ruleFacts(ds,sh.time,'',sh.job,sh.typeKey,sh.code);
 }
-function ruleGap(m){ return Math.floor(m/60)+'h'+(m%60?' '+pad(m%60)+'m':''); }
+function ruleGap(m){ return m<60?m+' min':Math.floor(m/60)+'h'+(m%60?' '+pad(m%60)+'m':''); }
 function ruleDayName(ds){ const d=parseDate(ds); return DAY3[dayIdx(d)]+' '+fmtDDMM(d); }
 // Minutes off between two working days, if it is under the 12 hours EBA 82.1 needs
 function ruleShortRest(prev,next){
@@ -3611,6 +3640,200 @@ function renderRules(){
 }
 
 // ═══════════════════════════════════════════════════════════
+// TOOLS — Time check: add up walk, prep, run, stow and sign-off times (Mayne)
+// Figures from the SEQ Roster Protocols (2.11, 2.12, 2.15), the traincrew times card and the job cards.
+// ═══════════════════════════════════════════════════════════
+const TC_LOCS=[
+ ['BHAB','BHAB (Bowen Hills sign-on)'],['BHI','Bowen Hills platform'],['ABLK','A Block'],['CBLK','C Block'],['EBLK','E Block'],
+ ['ETD','ETD (senior drivers)'],['ETF','ETF'],['ETS','ETS / ESY'],['YNY','Mayne Yard North']
+];
+// Walks, either direction (minutes). Missing pairs are set by the user in My times.
+const TC_WALK={'BHAB|BHI':5,'ABLK|BHAB':15,'BHAB|ETF':15,'BHAB|ETS':15,'BHAB|ETD':15,'BHAB|YNY':35,
+ 'BHI|ETF':15,'BHI|ETS':15,'BHI|ETD':15,'ABLK|BHI':15,'ABLK|ETF':10,'ABLK|ETS':10,'ABLK|YNY':20,
+ 'ETF|ETS':10,'ETD|ETF':10,'ETD|ETS':10};
+// Runs, one direction (minutes) — typical times from the job cards
+const TC_RUN={'BHI>ETF':9,'ETF>BHI':9,'BHI>ETS':20,'ETS>BHI':20,'BHI>YNY':10,'YNY>BHI':10};
+const TC_STEPS={
+ signon:{l:'Sign on',m:15},signoff:{l:'Sign off',m:15},
+ prep6:{l:'Prep 6-car',m:40},prep3:{l:'Prep 3-car',m:20},pdt:{l:'Pre-departure test',m:10},
+ ends:{l:'Change ends',m:8},shunt:{l:'Shunt (ETS/ESY)',m:6},stow:{l:'Stow',m:10},handover:{l:'Handover',m:5},
+ walk:{l:'Walk to'},run:{l:'Run to'},custom:{l:'Other'}
+};
+const TC_PRESETS=[
+ {n:'Walk to ETD, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETD'},{k:'prep6'},{k:'run',to:'BHI'}]},
+ {n:'Walk to ETF, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETF'},{k:'prep6'},{k:'run',to:'BHI'}]},
+ {n:'Walk to ETS, prep a 6-car, bring it to BHI',start:'BHI',steps:[{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'},{k:'run',to:'BHI'}]},
+ {n:'From BHI: run to ETF, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETF'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff'}]},
+ {n:'From BHI: run to ETS, shunt, stow, walk to BHAB, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'BHAB'},{k:'signoff'}]},
+ {n:'From BHI: run to ETS, stow, walk to ETD, sign off',start:'BHI',steps:[{k:'run',to:'ETS'},{k:'shunt'},{k:'stow'},{k:'walk',to:'ETD'},{k:'signoff'}]},
+ {n:'Sign on at BHAB, walk to ETF, prep a 6-car',start:'BHAB',steps:[{k:'signon'},{k:'walk',to:'ETF'},{k:'prep6'}]},
+ {n:'Sign on at A Block, walk to ETS, prep a 6-car',start:'ABLK',steps:[{k:'signon'},{k:'walk',to:'ETS'},{k:'prep6'},{k:'shunt'}]}
+];
+let TC={start:'',from:'BHI',due:'',steps:[]};
+function tcLocName(k){ const l=TC_LOCS.find(function(x){ return x[0]===k; }); return l?l[1]:k; }
+function tcMy(){ if(!S.myTimes) S.myTimes={walk:{},run:{}}; return S.myTimes; }
+function tcWalk(a,b){
+  if(a===b) return 0;
+  const k=[a,b].sort().join('|'), my=tcMy().walk;
+  if(my[k]!=null&&my[k]!=='') return +my[k];
+  return TC_WALK[k]!=null?TC_WALK[k]:null;
+}
+function tcRun(a,b){
+  const k=a+'>'+b, my=tcMy().run;
+  if(my[k]!=null&&my[k]!=='') return +my[k];
+  return TC_RUN[k]!=null?TC_RUN[k]:null;
+}
+function tcSave(){ try{ localStorage.setItem('tc_state',JSON.stringify(TC)); }catch(e){} }
+function tcLoad(){ try{ const v=JSON.parse(localStorage.getItem('tc_state')||'null'); if(v&&v.steps) TC=v; }catch(e){} }
+function tcHM(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); }
+function tcLocOptions(sel){ return TC_LOCS.map(function(l){ return '<option value="'+l[0]+'"'+(l[0]===sel?' selected':'')+'>'+l[1]+'</option>'; }).join(''); }
+function tcPreset(i){
+  const p=TC_PRESETS[i]; if(!p) return;
+  TC.from=p.start; TC.steps=p.steps.map(function(s){ return {k:s.k,to:s.to||'',m:null}; });
+  tcSave(); renderTools();
+}
+function tcAddStep(){
+  const k=document.getElementById('tc-add-kind').value, to=document.getElementById('tc-add-to').value;
+  TC.steps.push({k:k,to:(k==='walk'||k==='run')?to:'',m:null,label:''}); tcSave(); renderTools();
+}
+function tcRemove(i){ TC.steps.splice(i,1); tcSave(); renderTools(); }
+function tcClear(){ TC.steps=[]; TC.due=''; tcSave(); renderTools(); }
+function tcSetMins(i,v){
+  const st=TC.steps[i]; if(!st) return;
+  const n=v===''?null:Math.max(0,parseInt(v,10)||0);
+  // A walk or run with no known time: remember what was typed in My times
+  if((st.k==='walk'||st.k==='run')&&n!=null&&st.base==null){
+    const my=tcMy();
+    if(st.k==='walk') my.walk[[st.fromLoc,st.to].sort().join('|')]=n; else my.run[st.fromLoc+'>'+st.to]=n;
+    saveState(); toast('Saved to My times');
+  }
+  st.m=n; tcSave(); tcCalc();
+}
+function tcOnAddKind(){
+  const k=document.getElementById('tc-add-kind').value;
+  document.getElementById('tc-add-to').style.display=(k==='walk'||k==='run')?'':'none';
+}
+// Works out each step's minutes and clock time, then compares with the time given
+function tcCalc(){
+  TC.start=(document.getElementById('tc-start')||{}).value||TC.start;
+  TC.from=(document.getElementById('tc-from')||{}).value||TC.from;
+  TC.due=(document.getElementById('tc-due')||{}).value||'';
+  tcSave();
+  let loc=TC.from, t=parseTime(TC.start), total=0, broken=false;
+  TC.steps.forEach(function(st,i){
+    st.fromLoc=loc;
+    let base=null;
+    if(st.k==='walk'){ base=tcWalk(loc,st.to); loc=st.to; }
+    else if(st.k==='run'){ base=tcRun(loc,st.to); loc=st.to; }
+    else if(TC_STEPS[st.k]&&TC_STEPS[st.k].m!=null) base=TC_STEPS[st.k].m;
+    st.base=base;
+    const m=st.m!=null?st.m:base;
+    const minEl=document.getElementById('tc-m-'+i), atEl=document.getElementById('tc-at-'+i);
+    if(minEl&&document.activeElement!==minEl) minEl.value=m!=null?m:'';
+    if(minEl) minEl.classList.toggle('tc-missing',m==null);
+    if(m==null) broken=true; else total+=m;
+    if(atEl) atEl.textContent=(t==null||broken)?'—':tcHM(t+total);
+  });
+  const res=document.getElementById('tc-result'); if(!res) return;
+  if(!TC.steps.length){ res.innerHTML='<span style="color:var(--muted);">Pick a quick start or add steps below.</span>'; return; }
+  if(broken){ res.innerHTML='<span style="color:#f59e0b;">Type the minutes for the step marked in orange — it isn\'t in the roster documents yet. The app remembers it in My times.</span>'; return; }
+  let html='Total <b>'+ruleGap(total)+'</b>';
+  if(t!=null) html+=' · done at <b>'+tcHM(t+total)+'</b> at '+escHtml(tcLocName(loc));
+  const due=parseTime(TC.due);
+  if(t!=null&&due!=null){
+    let spare=due-(t+total)%1440; if(spare>720) spare-=1440; if(spare<-720) spare+=1440;
+    html+='<div style="margin-top:6px;font-size:15px;font-weight:800;color:'+(spare>=0?'var(--early)':'#ef4444')+';">'+
+      (spare>=0?'✓ Enough time — '+ruleGap(spare)+' spare':'⚠ Not enough time — '+ruleGap(-spare)+' short')+'</div>';
+  }
+  res.innerHTML=html;
+}
+function tcStepLabel(st,fromLoc){
+  if(st.k==='walk') return 'Walk '+tcLocName(fromLoc)+' → '+tcLocName(st.to);
+  if(st.k==='run') return 'Run '+tcLocName(fromLoc)+' → '+tcLocName(st.to);
+  return (TC_STEPS[st.k]||{l:st.k}).l;
+}
+function renderTools(){
+  const el=document.getElementById('tools-content'); if(!el) return;
+  tcLoad();
+  if(!TC.start){ const n=new Date(); TC.start=pad(n.getHours())+':'+pad(n.getMinutes()); }
+  // Labels need each step's starting location, so walk the list once
+  let loc=TC.from;
+  const rows=TC.steps.map(function(st,i){
+    const lbl=tcStepLabel(st,loc); if(st.k==='walk'||st.k==='run') loc=st.to;
+    return '<div class="tc-row"><div class="tc-lbl">'+escHtml(lbl)+'</div>'+
+      '<input type="number" inputmode="numeric" min="0" class="form-input tc-min" id="tc-m-'+i+'" oninput="tcSetMins('+i+',this.value)" aria-label="minutes">'+
+      '<div class="tc-at" id="tc-at-'+i+'">—</div>'+
+      '<button class="tc-x" onclick="tcRemove('+i+')" aria-label="Remove step">×</button></div>';
+  }).join('');
+  el.innerHTML=
+   '<div class="card" style="margin-bottom:12px;">'+
+    '<div class="tc-title">⏱ Time check</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Asked to walk somewhere, prep a train and bring it in? Add up the steps and see if the time you were given is enough.</div>'+
+    '<select class="form-select" onchange="if(this.value!==\'\')tcPreset(+this.value)" style="margin-bottom:8px;"><option value="">Quick start…</option>'+
+      TC_PRESETS.map(function(p,i){ return '<option value="'+i+'">'+escHtml(p.n)+'</option>'; }).join('')+'</select>'+
+    '<div class="form-row"><div class="form-group"><label class="form-label">Start time</label><input type="time" class="form-input" id="tc-start" value="'+TC.start+'" oninput="tcCalc()"></div>'+
+    '<div class="form-group"><label class="form-label">Starting at</label><select class="form-select" id="tc-from" onchange="tcCalc();renderTools()">'+tcLocOptions(TC.from)+'</select></div></div>'+
+    '<div class="tc-head"><span>Step</span><span>Min</span><span>Time</span><span></span></div>'+
+    (rows||'<div style="font-size:12px;color:var(--muted);padding:6px 0;">No steps yet.</div>')+
+    '<div class="tc-add"><select class="form-select" id="tc-add-kind" onchange="tcOnAddKind()">'+
+      Object.keys(TC_STEPS).map(function(k){ const s=TC_STEPS[k]; return '<option value="'+k+'">'+s.l+(s.m!=null?' ('+s.m+')':'')+'</option>'; }).join('')+'</select>'+
+      '<select class="form-select" id="tc-add-to" style="display:none;">'+tcLocOptions('BHI')+'</select>'+
+      '<button class="btn btn-accent" onclick="tcAddStep()">+ Add</button></div>'+
+    '<div class="form-group" style="margin-top:10px;"><label class="form-label">Time given (when you need to be there)</label><input type="time" class="form-input" id="tc-due" value="'+(TC.due||'')+'" oninput="tcCalc()"></div>'+
+    '<div id="tc-result" class="tc-result"></div>'+
+    '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcClear()">Clear steps</button>'+
+   '</div>'+
+   '<div class="card" style="margin-bottom:12px;">'+
+    '<div class="tc-title">My times</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Walks and runs used above. Filled in from the Roster Protocols, the traincrew times card and your job cards; blank ones aren\'t in those documents. Change any to match what you know — saved on this phone.</div>'+
+    tcMyTimesHtml()+
+    '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcResetMy()">Reset to document times</button>'+
+    '<div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5;">Fixed: sign on/off 15 · prep 6-car 40, 3-car 20 · pre-departure test 10 · change ends 8 · stow 10 · shunt at ETS/ESY 6 · handover 5 (RP 2.11, 2.15; traincrew times card).</div>'+
+   '</div>';
+  tcCalc();
+}
+function tcMyTimesHtml(){
+  const my=tcMy(), keys=TC_LOCS.map(function(l){ return l[0]; });
+  let walk='', i, j;
+  for(i=0;i<keys.length;i++) for(j=i+1;j<keys.length;j++){
+    const k=[keys[i],keys[j]].sort().join('|'), v=(my.walk[k]!=null&&my.walk[k]!=='')?my.walk[k]:(TC_WALK[k]!=null?TC_WALK[k]:'');
+    walk+='<tr><td>'+tcLocName(keys[i])+' ↔ '+tcLocName(keys[j])+'</td><td><input type="number" inputmode="numeric" min="0" class="form-input tc-min'+(v===''?' tc-missing':'')+'" value="'+v+'" onchange="tcSetMy(\'walk\',\''+k+'\',this.value)"></td></tr>';
+  }
+  const runPairs=['BHI>ETF','ETF>BHI','BHI>ETS','ETS>BHI','BHI>YNY','YNY>BHI','BHI>ETD','ETD>BHI'];
+  const run=runPairs.map(function(k){
+    const p=k.split('>'), v=(my.run[k]!=null&&my.run[k]!=='')?my.run[k]:(TC_RUN[k]!=null?TC_RUN[k]:'');
+    return '<tr><td>'+tcLocName(p[0])+' → '+tcLocName(p[1])+'</td><td><input type="number" inputmode="numeric" min="0" class="form-input tc-min'+(v===''?' tc-missing':'')+'" value="'+v+'" onchange="tcSetMy(\'run\',\''+k+'\',this.value)"></td></tr>';
+  }).join('');
+  return '<details class="show-more" open><summary>Run times (from the job cards)</summary><table class="rule-table tc-table">'+run+'</table></details>'+
+    '<details class="show-more"><summary>Walk times</summary><table class="rule-table tc-table">'+walk+'</table></details>';
+}
+function tcSetMy(kind,k,v){
+  const my=tcMy();
+  if(v===''){ delete my[kind][k]; } else my[kind][k]=Math.max(0,parseInt(v,10)||0);
+  saveState(); TC.steps.forEach(function(s){ if(s.k===kind) s.m=null; }); tcSave(); tcCalc(); toast('Saved');
+}
+function tcResetMy(){
+  if(!confirm('Put all walk and run times back to the document figures?')) return;
+  S.myTimes={walk:{},run:{}}; saveState(); TC.steps.forEach(function(s){ s.m=null; }); tcSave(); renderTools(); toast('Times reset');
+}
+
+// ── Rules card on the Dash ──
+function renderDashRules(){
+  const el=document.getElementById('dash-rules'); if(!el) return;
+  if(!S.anchorLink||!ROSTER||!Object.keys(ROSTER).length){ el.innerHTML=''; return; }
+  const p=rulePeriodFor(today()), w=ruleWeekendCounts();
+  let probs=0; for(let i=0;i<28;i++) dayRuleIssues(fmtDate(addDays(today(),i))).forEach(function(x){ if(x.side!=='after') probs++; });
+  const ok=function(b){ return b?'<span style="color:var(--early);">✓</span>':'<span style="color:#ef4444;">⚠</span>'; };
+  el.innerHTML='<div class="card" style="margin-top:12px;">'+
+    '<div style="display:flex;align-items:center;margin-bottom:4px;"><div class="tc-title" style="margin:0;">📘 Rules &amp; EBA</div><a href="#" class="rule-ref" style="margin-left:auto;" onclick="openRules();return false;">See all ›</a></div>'+
+    '<div class="rule-line">'+ok(p.leis>=p.minLeis&&p.att<=p.maxAtt)+' '+p.name+': '+p.leis+' leisure days (min '+p.minLeis+') · '+p.att+' attendances (max '+p.maxAtt+')</div>'+
+    '<div class="rule-line">'+ok(w.sat<=w.maxSat&&w.sun<=w.maxSun)+' Weekend shifts this year: Sat '+w.sat+' of '+w.maxSat+' · Sun '+w.sun+' of '+w.maxSun+'</div>'+
+    '<div class="rule-line">'+ok(!probs)+' '+(probs?probs+' rule problem'+(probs>1?'s':'')+' in the next 4 weeks (see Alerts)':'No rule problems in the next 4 weeks')+'</div>'+
+    '<input type="search" class="form-input" placeholder="Search rules, e.g. swap, meal, walk" style="margin-top:8px;" onkeydown="if(event.key===\'Enter\'){openRules(this.value);this.value=\'\';}" onchange="if(this.value){openRules(this.value);this.value=\'\';}">'+
+  '</div>';
+}
+
+// ═══════════════════════════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════════════════════════
 let currentScreen='dash';
@@ -3630,6 +3853,7 @@ function showScreen(name){
   if(name==='contacts') renderContacts();
   if(name==='stats'){ renderStats(); renderPayHistory(); }
   if(name==='rules') renderRules();
+  if(name==='tools') renderTools();
   if(name==='settings'){ loadSettingsUI(); updateSyncUI(); updateRosterImportStatus(); }
 }
 
@@ -3778,6 +4002,8 @@ function renderDash(){
   } else {
     alEl.innerHTML='<div class="empty-state" style="padding:16px;">No alerts — all good! ✓</div>';
   }
+
+  renderDashRules();
 
   // Today's shift
   renderDashShift('today');
