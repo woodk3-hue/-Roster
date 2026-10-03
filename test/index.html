@@ -830,6 +830,13 @@ body.partner-view .partner-only{display:block;}
 
 /* "Show N more" toggles and collapsed sections */
 details.show-more{margin:4px 0 10px;}
+.rule-box{margin-top:10px;padding:8px 10px;border:1px solid rgba(239,68,68,.45);background:rgba(239,68,68,.08);border-radius:8px;}
+.rule-box-title{font-size:10px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+.rule-line{font-size:12px;line-height:1.45;margin-top:4px;}
+.rule-ref{color:var(--accent);font-weight:700;white-space:nowrap;text-decoration:none;}
+.rule-card{padding:10px 12px;margin-bottom:8px;}
+.rule-clause{font-size:10px;font-weight:800;color:var(--accent);white-space:nowrap;}
+.cal-rule-flag{font-size:10px;color:#ef4444;font-weight:800;margin-top:auto;line-height:1;}
 details.show-more>summary{cursor:pointer;list-style:none;font-size:12px;font-weight:700;color:var(--accent);padding:6px 2px;}
 details.show-more>summary::-webkit-details-marker{display:none;}
 details.show-more>summary::before{content:'▸ ';}
@@ -999,7 +1006,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="screen-title">🚂 Shift Roster</div>
       <div class="screen-subtitle" id="dash-date-sub">—</div>
     </div>
-    <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
+    <button class="owner-only" onclick="openRules()" title="Rules" style="background:none;border:none;font-size:19px;cursor:pointer;padding:0;line-height:1;margin-left:auto;margin-right:14px;">📘</button>
+    <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
   </div>
 
   <!-- Backup reminder (shown by updateBackupReminder) -->
@@ -1507,6 +1515,15 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 </div>
 
 <!-- ═══════════════════════════════════════
+     RULES (EBA + Roster Protocols)
+════════════════════════════════════════ -->
+<div id="screen-rules" class="screen">
+  <div class="screen-header"><div class="screen-title">📘 Rules</div><button onclick="showScreen('dash')" style="background:none;border:none;font-size:14px;font-weight:700;cursor:pointer;padding:0;color:var(--accent);margin-left:auto;">Done</button></div>
+  <input type="search" class="form-input" id="rules-search" placeholder="Search rules, e.g. swap, 12 hours, meal, 91.20" oninput="rulesQuery=this.value;renderRules()" style="margin-bottom:12px;">
+  <div id="rules-content"></div>
+</div>
+
+<!-- ═══════════════════════════════════════
      SETTINGS
 ════════════════════════════════════════ -->
 <div id="screen-settings" class="screen">
@@ -1637,6 +1654,12 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div id="export-status" style="font-size:11px;color:var(--muted);margin-top:2px;">—</div>
       <div style="font-size:11px;color:var(--muted);margin-top:8px;">Clearing the browser's data or deleting the app removes both copies — tap <b>Export Backup</b> now and then and keep the file safe.</div>
     </div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">Rules &amp; EBA</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">The Traincrew Enterprise Agreement 2024 and SEQ Roster Protocols in plain English. The app warns you when a swap or edited shift breaks a rule.</div>
+    <button class="btn" style="width:100%;" onclick="openRules()">📘 Open Rules</button>
   </div>
 
   <div class="partner-only" style="font-size:12px;color:var(--muted);margin:0 0 10px;">You're viewing your partner's roster through Family Sync. Their settings stay on their phone.</div>
@@ -3295,6 +3318,273 @@ if(t==='sick')    return {code:'SL',time:null,typeKey:'sl',link,idx,ov,guards:ov
 }
 
 // ═══════════════════════════════════════════════════════════
+// ROSTER RULES — 2024 Traincrew Enterprise Agreement (EBA) and SEQ Roster Protocols
+// Checks what is in the calendar against the rules below; the Rules screen lists them in plain English.
+// ═══════════════════════════════════════════════════════════
+const CYCLE_START='2026-09-07';       // a Monday that starts a 4-week work cycle
+const NINE_DAY_FN_FROM='2026-12-31';  // EBA 80.2 / 93.3: nine-day fortnight starts
+const RULE_LEAVE_TYPES=['al','lsl','sl','repro','lwop','mbo','cbo','ph_booked_off'];
+const RULE_LEISURE_WORKED=['blp_worked','slp_worked','ot'];
+const RULE_AVAILABLE=['afa','afp','am1','am2','am3','pm1','pm2','pm3'];
+
+// What a day means for the rules: working (with start/finish times), an attendance, a leisure day
+function ruleFacts(ds,time,endStr,job,typeKey,code){
+  const f={ds:ds,work:false,att:false,leisure:false,start:null,end:null,startStr:'',endStr:''};
+  if(time){
+    f.work=true;
+    f.leisure=RULE_LEISURE_WORKED.includes(typeKey);
+    f.att=!f.leisure;
+    const base=parseDate(ds).getTime(), sm=parseTime(time);
+    f.startStr=time; f.start=base+sm*60000;
+    if(!endStr){ const c=jobCardFor(job); if(c&&c.off) endStr=c.off; }
+    if(endStr){ let em=parseTime(endStr); if(em<=sm) em+=1440; f.endStr=endStr; f.end=base+em*60000; }
+  } else if(['blp','slp','blp_kept'].includes(typeKey)||/^(BLP|SLP|RDO)$/i.test(code||'')) f.leisure=true;
+  else if(RULE_AVAILABLE.includes(typeKey)) f.att=true;
+  return f;
+}
+function ruleDayFacts(ds){
+  const sh=getEffectiveShift(ds), ov=S.days[ds]||null;
+  const onLeave=(S.plannedLeave||[]).some(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
+  if(onLeave||RULE_LEAVE_TYPES.includes(sh.typeKey)) return ruleFacts(ds,null,'','','leave','');
+  const tk=sh.typeKey==='swap'?(sh.swapInnerType||'normal'):sh.typeKey;
+  let job=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job||'';
+  // Sign-on moved but no finish or job typed: the roster job card's finish no longer applies
+  if(ov&&!ov.job&&ov.start&&sh.origTime&&ov.start!==sh.origTime) job='';
+  return ruleFacts(ds,sh.time,(ov&&ov.end)||sh.endTime||'',job,tk,sh.code);
+}
+// The same, for a roster cell that is not (yet) in the calendar — e.g. the other link in a swap
+function ruleRawFacts(ds,raw){
+  const sh=parseShift(raw||'');
+  return ruleFacts(ds,sh.time,'',sh.job,sh.typeKey,sh.code);
+}
+function ruleGap(m){ return Math.floor(m/60)+'h'+(m%60?' '+pad(m%60)+'m':''); }
+function ruleDayName(ds){ const d=parseDate(ds); return DAY3[dayIdx(d)]+' '+fmtDDMM(d); }
+// Minutes off between two working days, if it is under the 12 hours EBA 82.1 needs
+function ruleShortRest(prev,next){
+  if(!prev.work||!next.work||prev.end==null||next.start==null) return null;
+  const gap=Math.round((next.start-prev.end)/60000);
+  return gap<720?gap:null;
+}
+
+// Rule problems for one day: [{c:'82.1', msg:'…', side:'after'?}]
+function dayRuleIssues(ds){
+  const out=[], f=ruleDayFacts(ds);
+  if(!f.work) return out;
+  const d=parseDate(ds);
+  const prevDs=fmtDate(addDays(d,-1)), nextDs=fmtDate(addDays(d,1));
+  const prev=ruleDayFacts(prevDs), next=ruleDayFacts(nextDs);
+  let g=ruleShortRest(prev,f);
+  if(g!==null) out.push({c:'82.1',msg:'Only '+ruleGap(Math.max(g,0))+' off after the '+ruleDayName(prevDs)+' shift (finishes '+prev.endStr+'). You need 12 hours between shifts.'});
+  g=ruleShortRest(f,next);
+  if(g!==null) out.push({c:'82.1',side:'after',msg:'Only '+ruleGap(Math.max(g,0))+' off before the '+ruleDayName(nextDs)+' shift (starts '+next.startStr+'). You need 12 hours between shifts.'});
+  if(f.end!=null){
+    const len=Math.round((f.end-f.start)/60000);
+    if(len>540) out.push({c:'81.1',msg:'Shift is '+ruleGap(len)+' long. The maximum is 9 hours sign-on to sign-off.'});
+    else if(len<360) out.push({c:'81.1',msg:'Shift is only '+ruleGap(len)+' long. The minimum is 6 hours.'});
+  }
+  // Altered shift (EBA 89.6 / 90.7): compare an edited normal day with the roster
+  const ov=S.days[ds], sh=getEffectiveShift(ds);
+  if(ov&&(!ov.type||ov.type==='normal')&&ov.start&&sh.origTime&&ov.start!==sh.origTime){
+    let diff=parseTime(ov.start)-parseTime(sh.origTime);
+    if(diff>720) diff-=1440; if(diff<-720) diff+=1440;
+    if(Math.abs(diff)>60) out.push({c:'89.6',msg:'Sign-on is '+ruleGap(Math.abs(diff))+(diff<0?' earlier':' later')+' than rostered ('+sh.origTime+'). Changes are limited to 1 hour either way unless you agree.'+(diff<-120?' Bringing it forward more than 2 hours also needs your agreement (EBA 90.7).':'')});
+    const orig=parseShift(getRaw(sh.link,sh.idx)), oc=jobCardFor(orig.job);
+    if(oc&&oc.off&&f.end!=null){
+      const base=parseDate(ds).getTime(), os=parseTime(orig.time);
+      let oe=parseTime(oc.off); if(oe<=os) oe+=1440;
+      const origEnd=base+oe*60000, origLen=oe-os, newLen=Math.round((f.end-f.start)/60000);
+      const late=Math.round((f.end-origEnd)/60000);
+      if(late>30) out.push({c:'89.6',msg:'Finishes '+ruleGap(late)+' after the rostered sign-off ('+oc.off+'). The limit is 30 minutes later unless you agree.'});
+      if(newLen>origLen) out.push({c:'89.6',msg:'Shift is longer than the rostered one ('+ruleGap(origLen)+'). An altered shift can be shorter but not longer unless you agree.'});
+    }
+  }
+  // EBA 93.5: no start before 04:00 Monday after a Saturday and Sunday off
+  if(dayIdx(d)===0&&parseTime(f.startStr)<240){
+    const sat=ruleDayFacts(fmtDate(addDays(d,-2))), sun=prev;
+    if(sat.leisure&&!sat.work&&sun.leisure&&!sun.work) out.push({c:'93.5',msg:'Starts before 04:00 on Monday after a Saturday and Sunday off. Not allowed unless you agree.'});
+  }
+  return out;
+}
+
+// 4-week cycle (or, from the nine-day fortnight, the fortnight) holding a date, with its counts
+function rulePeriodFor(d){
+  const a=parseDate(CYCLE_START);
+  const days=Math.round((getMonday(d)-a)/86400000);
+  let start=addDays(a,Math.floor(days/28)*28), len=28;
+  const fnStart=addDays(a,Math.floor(days/14)*14);
+  const nine=fmtDate(fnStart)>=NINE_DAY_FN_FROM;
+  if(nine){ start=fnStart; len=14; }
+  let att=0, leis=0;
+  for(let i=0;i<len;i++){ const f=ruleDayFacts(fmtDate(addDays(start,i))); if(f.att) att++; if(f.leisure) leis++; }
+  const p={start:start,end:addDays(start,len-1),len:len,att:att,leis:leis,
+    maxAtt:nine?9:19, minLeis:nine?5:9, c:nine?'93.3':'93.2', label:nine?'fortnight':'4-week cycle', issues:[]};
+  p.name=(nine?'Fortnight ':'Cycle ')+fmtDDMM(p.start)+'–'+fmtDDMM(p.end);
+  if(att>p.maxAtt) p.issues.push({c:nine?'93.3':'80.1',msg:p.name+': '+att+' attendances. The maximum is '+p.maxAtt+' per '+p.label+'.'});
+  if(leis<p.minLeis) p.issues.push({c:p.c,msg:p.name+': only '+leis+' leisure days (BLP/SLP). You need at least '+p.minLeis+' per '+p.label+'.'});
+  return p;
+}
+
+// EBA 80.4: Saturday / Sunday shifts in the year from 1 September
+function ruleWeekendCounts(){
+  const now=today();
+  const y=now.getMonth()>=8?now.getFullYear():now.getFullYear()-1;
+  const start=new Date(y,8,1), end=new Date(y+1,7,31);
+  const todayStr=fmtDate(now);
+  const r={from:start,to:end,satSoFar:0,sunSoFar:0,sat:0,sun:0,maxSat:26,maxSun:18};
+  for(let d=new Date(start);d<=end;d=addDays(d,1)){
+    const di=dayIdx(d); if(di<5) continue;
+    const ds=fmtDate(d), f=ruleDayFacts(ds);
+    if(!f.att||!f.work) continue;
+    if(di===5){ r.sat++; if(ds<=todayStr) r.satSoFar++; } else { r.sun++; if(ds<=todayStr) r.sunSoFar++; }
+  }
+  return r;
+}
+
+// Swap checks (EBA 91.18 / 91.20): attendances match, breaks either side, no long leave in the way
+function swapRuleIssues(mon,received,scope,idx){
+  const out=[], myLink=getLinkForWeek(mon);
+  const theirs=ROSTER[String(received)]||[], mine=ROSTER[String(myLink)]||[];
+  const from=scope==='week'?0:idx, to=scope==='week'?6:idx;
+  if(scope==='week'){
+    const count=function(days){ let n=0; for(let i=0;i<7;i++){ const f=ruleRawFacts(fmtDate(addDays(mon,i)),days[i]); if(f.att) n++; } return n; };
+    const a=count(mine), b=count(theirs);
+    if(a!==b) out.push({c:'91.20',msg:'You give '+a+' attendances and get '+b+'. Swaps before the 58-hour roster is final should be '+a+' for '+a+'.'});
+  }
+  const before=fmtDate(addDays(mon,from-1)), first=fmtDate(addDays(mon,from));
+  const last=fmtDate(addDays(mon,to)), after=fmtDate(addDays(mon,to+1));
+  let g=ruleShortRest(ruleDayFacts(before),ruleRawFacts(first,theirs[from]));
+  if(g!==null) out.push({c:'82.1',msg:'Only '+ruleGap(Math.max(g,0))+' off between your '+ruleDayName(before)+' shift and their '+ruleDayName(first)+' shift. You need 12 hours.'});
+  g=ruleShortRest(ruleRawFacts(last,theirs[to]),ruleDayFacts(after));
+  if(g!==null) out.push({c:'82.1',msg:'Only '+ruleGap(Math.max(g,0))+' off between their '+ruleDayName(last)+' shift and your '+ruleDayName(after)+' shift. You need 12 hours.'});
+  const lv=(S.plannedLeave||[]).find(function(l){ return (l.type==='al'||l.type==='lsl')&&l.start<=last&&(l.end||l.start)>=first; });
+  if(lv) out.push({c:'91.20',msg:'You have '+(lv.type==='lsl'?'long service':'annual')+' leave booked in this period. Swaps are not granted over pre-approved long leave.'});
+  return out;
+}
+
+function ruleIssuesHtml(list){
+  if(!list.length) return '';
+  return '<div class="rule-box"><div class="rule-box-title">⚠ Roster rule check</div>'+list.map(function(i){
+    return '<div class="rule-line">'+escHtml(i.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+i.c+'\');return false;">EBA '+i.c+'</a></div>';
+  }).join('')+'</div>';
+}
+function ruleConfirmText(list){
+  return '⚠ Roster rule check\n\n'+list.map(function(i){ return '• '+i.msg+' (EBA '+i.c+')'; }).join('\n')+'\n\nSave anyway?';
+}
+
+// ── Rules screen ──
+const RULE_GROUPS=[
+ ['check','Checked by the app'],
+ ['hours','Hours and shift limits'],
+ ['changes','Roster changes'],
+ ['swaps','Swaps'],
+ ['leisure','Leisure periods (BLP / SLP)'],
+ ['pay','Pay and penalties'],
+ ['leave','Leave'],
+ ['rp','SEQ Roster Protocols (MD-20-140) — summary']
+];
+const RULES=[
+ {g:'check',c:'82.1',t:'12 hours between shifts',b:'At least 12 hours off between any shifts at your home depot. The app checks each day against the days either side, using finish times from your edits or job cards.'},
+ {g:'check',c:'81.1',t:'Shift length 6 to 9 hours',b:'SEQ drivers and guards: shifts are at least 6 hours and no more than 9 hours sign-on to sign-off.'},
+ {g:'check',c:'89.6',t:'Altered shifts',b:'An altered shift should be as close as possible to the original: sign-on moved no more than 1 hour either way, sign-off no more than 30 minutes later, and no longer than the rostered shift (it can be shorter). More than this only by agreement.'},
+ {g:'check',c:'90.7',t:'Sign-on brought forward',b:'After the roster is posted, sign-on can be brought forward by no more than 2 hours unless you agree, and altered no more than 3 times.'},
+ {g:'check',c:'93.5',t:'Monday after a weekend off',b:'After a Saturday and Sunday BLP in a row, you will not start before 04:00 on Monday unless you agree.'},
+ {g:'check',c:'91.20',t:'Swap rules',b:'Before the 58-hour roster is final: 5 attendances for 5, or 4 for 4; BLP for BLP; single days are fine; swaps are not granted if long leave is already approved. Swaps must keep the 12-hour break between shifts (91.18).'},
+ {g:'check',c:'93.2',t:'Leisure days per cycle',b:'At least 9 leisure days (BLP/SLP) and no more than 19 attendances in each 4-week cycle (80.1). Your cycles start from Monday 7 September 2026.'},
+ {g:'check',c:'93.3',t:'Nine-day fortnight (from 31 Dec 2026)',b:'From 31 December 2026: at least 5 leisure days and no more than 9 attendances in each fortnight, with 152 ordinary hours per 4 weeks (80.2).'},
+ {g:'check',c:'80.4',t:'Weekend shift limits',b:'Full-time drivers and guards: no more than 26 shifts starting on a Saturday and 18 starting on a Sunday in a year, counted from 1 September. Tutors, TOIs and TOGs: 18 and 18 (80.5).'},
+ {g:'hours',c:'79.1',t:'Guaranteed hours',b:'Full-time: paid 160 ordinary hours per 4-week cycle, as 80 hours a fortnight. From 31 December 2026: 152 hours (76 a fortnight) with the hourly rate raised so fortnightly pay stays the same. Leave balances are kept in hours at the changeover.'},
+ {g:'hours',c:'80.1',t:'Ordinary hours',b:'SEQ full-time: 160 hours across 4 weeks, with a maximum of 19 attendances. From 31 December 2026: 152 hours including a nine-day fortnight (80.2).'},
+ {g:'hours',c:'81.1',t:'Limitation of hours',b:'SEQ driver and guard: maximum rostered shift 9 hours, minimum 6 hours, maximum 8 hours footplate time. 2-person crews: 9 hours, relief at 8 hours where requested and available. Heritage SEQ: 10 hours.'},
+ {g:'hours',c:'81.2',t:'Minimum payment',b:'Except where listed above, minimum payment and rostered workings are 4 hours, credited to the cycle.'},
+ {g:'hours',c:'81.3',t:'Lay-off at a foreign depot',b:'At least 8 hours lay-off at a foreign depot (10 hours for later lay-offs on IML work trains). Time away from home should not go over 34 hours where practical (81.4).'},
+ {g:'hours',c:'82.1',t:'Minimum layoff at home',b:'At least 12 hours between any shifts at your home depot.'},
+ {g:'hours',c:'85.1',t:'Meal breaks',b:'Shifts up to 7h30m: one 40-minute break, starting after 3 hours and finished before 5h30m. Shifts of 7h31m to 9 hours: two 30-minute breaks, the first starting 2h30m–3h30m in and the second 5h30m–6h30m in, at least 2 hours apart. Walking time is not included.'},
+ {g:'hours',c:'85.2',t:'Working through a meal break',b:'During a network failure (bridge strike, fatality, points failure etc.) you can be directed to work through one of two rostered breaks. You are then paid a meal allowance (85.3).'},
+ {g:'hours',c:'85.4',t:'Non-passenger job cards',b:'One 60-minute meal break, taken after 3h30m and finished before 5h30m from sign-on.'},
+ {g:'hours',c:'86.2',t:'What counts towards the cycle',b:'All hours are credited to your work cycle except hours worked on a leisure period, travel, and some Regional extensions. If a master roster shift runs past midnight into a leisure day, the part on the leisure day is paid but not credited (86.3.3).'},
+ {g:'hours',c:'87.8',t:'Job card limits (SEQ)',b:'Mon–Fri midnight to 04:00 revenue job cards: no more than 7h30m. Mon–Thu revenue job cards signing on after 17:00: no more than 7h30m. Weekend job cards: 6 to 9 hours. Shunts, "as required" and diesel workings are excluded.'},
+ {g:'hours',c:'14.4',t:'Fatigue scores',b:'On request you can see the FAID fatigue scores for your roster.'},
+ {g:'changes',c:'89.1',t:'Posted roster',b:'Rosters are posted at least 106 hours before the day and cover 00:01 to 23:59. It is up to you to get your next working (89.3).'},
+ {g:'changes',c:'89.5',t:'Master roster entitlement',b:'If you are qualified for the job and have had the required time off, you must get the working shown in the master roster.'},
+ {g:'changes',c:'89.6',t:'Altered shifts',b:'Altered as close as possible to the original: up to 1 hour either side of sign-on, up to 30 minutes after sign-off, no longer shift (can be shorter), unless agreed. The same limits apply before posting (88 step 2).'},
+ {g:'changes',c:'90.3',t:'Can\'t be contacted',b:'If you can\'t be contacted about an altered sign-on time, your original working stands. Once you have reported for duty you can\'t be deferred to a later sign-on (90.4).'},
+ {g:'changes',c:'90.6',t:'Sign-on changes after posting',b:'Your sign-on can be altered earlier or later up to 3 times (including cancellations), and brought forward by no more than 2 hours unless you agree (90.7).'},
+ {g:'changes',c:'91.1',t:'Alteration payments',b:'Paid when your sign-on is altered within 58 hours. Brought forward less than 1 hour counts as 1 hour. Earlier by more than 1 hour: 50% of the altered time credited. Later: all altered time up to 2 hours credited, plus 50% beyond 2 hours. On a leisure period: paid at 175%, not credited.'},
+ {g:'changes',c:'91.10',t:'Changes you ask for',b:'If your sign-on changes because you asked, there is no alteration payment.'},
+ {g:'changes',c:'91.11',t:'Cancelled workings',b:'Cancelled and not re-booked within 8 hours of your original sign-on: 4 hours credited. Re-booked within 8 hours: 1 hour credited (91.12). On a leisure period: paid at 175%, not credited.'},
+ {g:'changes',c:'91.23',t:'Changing jobs on the day',b:'Your job card shows your workings, but for a genuine operational need you can be directed to work other services within your rostered shift length, as long as you still get your meal break.'},
+ {g:'swaps',c:'91.17',t:'Mutual swaps',b:'If the roster doesn\'t suit a personal commitment, you can arrange a mutual exchange of duties with another employee. Swaps must only affect the two of you and must keep the required breaks between shifts (91.18).'},
+ {g:'swaps',c:'91.20',t:'Before the 58-hour roster is final',b:'5 attendances a week for 5, or 4 for 4. No total shift length limits, including single days, up to 10 attendances. Not granted if long leave is already approved. BLP for BLP. Recorded by the Roster Office.'},
+ {g:'swaps',c:'91.21',t:'After the 58-hour roster is final',b:'BLP for BLP; ordinary for ordinary, with no total shift length limits. Recorded by the Roster Office.'},
+ {g:'swaps',c:'91.22',t:'Special requests',b:'You can ask the Roster Office for special consideration. It won\'t be unreasonably refused but depends on operational needs.'},
+ {g:'leisure',c:'93.2',t:'Leisure days',b:'At least 9 leisure days (BLP/SLP) in each 4-week cycle, with no more than 19 attendances. From 31 December 2026: at least 5 per fortnight and no more than 9 attendances (93.3).'},
+ {g:'leisure',c:'93.5',t:'After a weekend off',b:'After a Saturday and Sunday BLP in a row, no start before 04:00 Monday unless you agree.'},
+ {g:'leisure',c:'93.6',t:'Working your leisure days',b:'You can nominate Yes, No or Approach for working SLPs/BLPs, in writing, and won\'t be penalised either way. Working into a leisure period is your choice (93.9). Leisure hours are shared fairly (93.10).'},
+ {g:'leisure',c:'67.9',t:'Pay for working a leisure period',b:'All time worked on a leisure period is paid at 175%, as a standalone payment that is not credited to the cycle. If it is also a penalty day, you get the higher rate only (67.10).'},
+ {g:'pay',c:'67.1',t:'Excess time',b:'Time credited beyond your ordinary hours (or the maximum shifts per cycle) is paid at 170%, at the end of the 4-week cycle.'},
+ {g:'pay',c:'67.4',t:'Weekend penalties (SEQ)',b:'Saturday: extra 50%. Sunday: extra 100%. Not on leisure periods. Paid at the end of the fortnight. Also paid on annual leave for the weekend hours in the master roster (67.6), and on AFD days not required, using the average depot shift length (67.7).'},
+ {g:'pay',c:'59.5',t:'Working a public holiday',b:'Ordinary hours: all time credited plus an extra 50%. On a leisure period: 175%, standalone and not credited. Labour Day: extra 150%, or 250% on a leisure period (59.7–59.8).'},
+ {g:'pay',c:'59.2',t:'Fixed public holiday dates',b:'New Year\'s Eve from midday, New Year\'s Day, Australia Day, Anzac Day, Christmas Eve from 6pm, Christmas Day and Boxing Day are observed on the actual date. Also Good Friday to Easter Monday, Labour Day, the Sovereign\'s Birthday and show holidays (59.1).'},
+ {g:'pay',c:'74.1',t:'Meal allowance',b:'$48.38 from 1 March 2026; $49.83 from 1 March 2027. Away from home: 10 hours or more and you leave the depot. Detention: more than 2 hours past rostered sign-off. Emergency: less than 2 hours\' notice, or told after 22:00 for a start before 06:00, with more than 4 hours\' work.'},
+ {g:'leave',c:'47.1',t:'Annual leave',b:'5 weeks a year (200 hours, or 190 on the 152-hour cycle). You can cash out some after 12 months if you keep 4 weeks (47.10). Sick during annual leave: claim personal leave instead, with evidence (47.13).'},
+ {g:'leave',c:'48.2',t:'Long service leave',b:'364 hours after 7 years (345.8 on the 152-hour cycle), then 52 hours a year (49.4). Can be cashed out after 7 years if you keep 4 weeks (48.6).'},
+ {g:'leave',c:'49.1',t:'Personal / carer\'s leave',b:'10 days a year (80 hours, or 76 on the 152-hour cycle). Evidence is needed for more than 2 consecutive working days off (49.14). Plus 2 days unpaid carer\'s leave per occasion (49.10).'},
+ {g:'rp',c:'RP 2',t:'Sign on and off',b:'Rail traffic crew sign on and sign off at the same depot. Mayne signs on at BHAB / A Block.'},
+ {g:'rp',c:'RP 2.3.1',t:'Turnbacks and dwells',b:'Turnback at least 3 minutes with a turnback driver, 8 minutes without. No more than 20 minutes at a platform with no meal facility, and no more than 90 minutes on a train with no toilet. Long turnbacks allow 10 minutes to secure and 10 minutes for a pre-departure check.'},
+ {g:'rp',c:'RP 2.3.2',t:'Similar solution',b:'Altered job cards stay within 1 hour either side of sign-on, 30 minutes after sign-off, and no longer than the master link. Cards outside this are renumbered as CD cards (EBA 88–89).'},
+ {g:'rp',c:'RP 2.4.1',t:'Shift length',b:'Minimum 6 hours, maximum 9. "As required" is added where a card is more than 30 minutes short of 6 hours. Mon–Fri 00:00–04:00 and Mon–Thu after 17:00 revenue cards: 7h30m maximum. Weekend cards: 6 to 9 hours.'},
+ {g:'rp',c:'RP 2.5',t:'Meal periods',b:'As EBA 85.1. Diesel and track vehicle workings: 30–60 minutes, after 3h30m and before 5h30m (shifts up to 9 hours) or after 4 hours and before 7h30m (longer shifts). Non-revenue cards (as required, shunt and prep, tuition): one 60-minute break after 3h30m and before 5h30m.'},
+ {g:'rp',c:'RP 2.7',t:'Roster time frames',b:'Crew are rostered at least 106 hours ahead. Extra job cards are created 10 days before the day. Changes to posted job cards within 10 days need Team Leader approval (2.8).'},
+ {g:'rp',c:'RP 2.9',t:'Cancelled job cards',b:'Cancelled after the roster is posted: you are entitled to cancelled working, brought-forward or deferment payments. The card is marked AMEX.'},
+ {g:'rp',c:'RP 2.11',t:'Preparation',b:'Units have 24-hour prep dockets. A full prep is rostered for units stowed at Mayne or Wulkuraka unless already prepped; otherwise a 10-minute pre-departure check. Prep: 6-car 40 minutes, 3-car 20 minutes. Stow: 10 minutes.'},
+ {g:'rp',c:'RP 2.15',t:'Sign-on, walk and handover times',b:'Sign on and sign off: 15 minutes. Walks from Mayne A Block: 10 minutes to ETF/ETS, 15 to Bowen Hills, 20 to Mayne Yard North. 5-minute handover on terminating trains.'}
+];
+let rulesQuery='';
+function openRules(q){
+  rulesQuery=q||'';
+  const el=document.getElementById('rules-search'); if(el) el.value=rulesQuery;
+  if(typeof closeDayPanel==='function'&&dayPanelDate) closeDayPanel();
+  showScreen('rules');
+}
+function renderRules(){
+  const el=document.getElementById('rules-content'); if(!el) return;
+  let html='';
+  if(!rulesQuery){
+    // Summary of the checks for the current period
+    const p=rulePeriodFor(today()), w=ruleWeekendCounts();
+    const upcoming=[];
+    for(let i=0;i<28;i++){ const ds=fmtDate(addDays(today(),i)); dayRuleIssues(ds).forEach(function(x){ if(x.side!=='after') upcoming.push({ds:ds,i:x}); }); }
+    const ok=function(b){ return b?'<span style="color:var(--early);">✓</span>':'<span style="color:#ef4444;">⚠</span>'; };
+    html+='<div class="card" style="margin-bottom:12px;">'+
+      '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Your roster check</div>'+
+      '<div class="rule-line">'+ok(p.leis>=p.minLeis&&p.att<=p.maxAtt)+' '+p.name+': '+p.leis+' leisure days (min '+p.minLeis+') · '+p.att+' attendances (max '+p.maxAtt+')</div>'+
+      '<div class="rule-line">'+ok(w.sat<=w.maxSat&&w.sun<=w.maxSun)+' Weekend shifts since 1 Sep: Sat '+w.satSoFar+' · Sun '+w.sunSoFar+'. For the year to 31 Aug: Sat '+w.sat+' of '+w.maxSat+' · Sun '+w.sun+' of '+w.maxSun+'</div>'+
+      (upcoming.length
+        ?firstFewThenMore(upcoming.map(function(u){ return '<div class="rule-line"><span style="color:#ef4444;">⚠</span> <b>'+ruleDayName(u.ds)+'</b>: '+escHtml(u.i.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+u.i.c+'\');return false;">EBA '+u.i.c+'</a></div>'; }),3)
+        :'<div class="rule-line">'+ok(true)+' No rule problems found in the next 4 weeks</div>')+
+      '<div style="font-size:11px;color:var(--muted);margin-top:6px;">Checks only what is in your calendar. Finish times come from your edits or job cards.</div>'+
+    '</div>';
+  }
+  const q=rulesQuery.trim().toLowerCase();
+  const words=q?q.split(/\s+/):[];
+  const match=function(r){ const s=(r.c+' '+r.t+' '+r.b).toLowerCase(); return words.every(function(w){ return s.indexOf(w)>-1; }); };
+  let found=0;
+  RULE_GROUPS.forEach(function(gr){
+    const list=RULES.filter(function(r){ return r.g===gr[0]&&match(r); });
+    if(!list.length) return;
+    found+=list.length;
+    html+='<div class="section-label">'+gr[1]+'</div>';
+    html+=list.map(function(r){
+      return '<div class="card rule-card"><div style="display:flex;gap:8px;align-items:baseline;"><span class="rule-clause">'+(r.c.indexOf('RP')===0?r.c:'EBA '+r.c)+'</span><b style="font-size:14px;">'+escHtml(r.t)+'</b></div>'+
+        '<div style="font-size:13px;margin-top:4px;line-height:1.45;">'+escHtml(r.b)+'</div></div>';
+    }).join('');
+  });
+  if(q&&!found) html+='<div class="empty-state">Nothing matches "'+escHtml(rulesQuery)+'".</div>';
+  html+='<div style="font-size:11px;color:var(--muted);margin:14px 2px;line-height:1.5;">Plain-English summary of the Queensland Rail Traincrew Enterprise Agreement 2024 and the SEQ Operations Roster Protocols (MD-20-140 v4.1). Always check the full documents or ask your delegate before relying on it.</div>';
+  el.innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════════════════════════
 let currentScreen='dash';
@@ -3313,6 +3603,7 @@ function showScreen(name){
   if(name==='pay') renderPay();
   if(name==='contacts') renderContacts();
   if(name==='stats'){ renderStats(); renderPayHistory(); }
+  if(name==='rules') renderRules();
   if(name==='settings'){ loadSettingsUI(); updateSyncUI(); updateRosterImportStatus(); }
 }
 
@@ -3432,6 +3723,15 @@ function renderDash(){
       alerts.push({dot:'dot-orange',msg:'⚠ '+maxStreak+' consecutive working days — CBO may be required.',pri:1,key:'cbo-streak'});
     }
   })();
+  // Roster rule checks (EBA) for the next 4 weeks and this/next cycle
+  if(syncRole!=='partner'&&S.anchorLink){
+    for(let i=0;i<28;i++){
+      const ds=fmtDate(addDays(now,i));
+      dayRuleIssues(ds).forEach(function(x){ if(x.side!=='after') alerts.push({dot:'dot-red',msg:'⚠ <b>'+ruleDayName(ds)+'</b>: '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+ds+'-'+x.c+'-'+x.msg.length}); });
+    }
+    const p1=rulePeriodFor(now), p2=rulePeriodFor(addDays(p1.end,1));
+    p1.issues.concat(p2.issues).forEach(function(x){ alerts.push({dot:'dot-red',msg:'⚠ '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+x.msg}); });
+  }
   S.swaps.forEach(function(sw){
     const wcDate=parseDate(sw.wc);
     const sent=S.swapEmailSent&&S.swapEmailSent[sw.id];
@@ -3880,6 +4180,7 @@ function renderCalCell(d, otherMonth){
   }
 
   // Guard quick view handled inline in shift display blocks above
+  if(!leavePeriod&&dayRuleIssues(ds).length) inner+='<div class="cal-rule-flag" title="Roster rule check">⚠ rule</div>';
 
   return '<div class="'+cls+'" data-ds="'+ds+'">'+inner+'</div>';
 }
@@ -4006,6 +4307,7 @@ function renderDayPanel(ds){
   // Job card: a typed job number (or a single-day swap's 'their job') wins over the roster's
   const cardJob=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job;
   if(sh.time&&cardJob&&!leaveTypeKey) html+=jobCardHtml(cardJob);
+  if(!leaveTypeKey) html+=ruleIssuesHtml(dayRuleIssues(ds));
   // Job cards are loaded but this day can't show one: say why
   if(sh.time&&!leaveTypeKey&&Object.keys(JOBCARDS||{}).length&&!(cardJob&&jobCardFor(cardJob))){
     html+='<div style="font-size:11px;color:var(--muted);margin-top:8px;">'+(cardJob
@@ -4202,8 +4504,15 @@ function saveShift(){
 
 
   // Only save if meaningful
+  const hadOv=Object.prototype.hasOwnProperty.call(S.days,ds), oldOv=S.days[ds];
   if(type==='normal'&&!start&&!end&&!job&&!guards&&!notes){ delete S.days[ds]; }
   else S.days[ds]=d;
+  // Roster rule check (EBA): warn before saving a shift that breaks a rule
+  const ruleIssues=dayRuleIssues(ds);
+  if(ruleIssues.length&&!confirm(ruleConfirmText(ruleIssues))){
+    if(hadOv) S.days[ds]=oldOv; else delete S.days[ds];
+    return;
+  }
 
   // Auto-deduct sick leave hours from Personal balance
   syncSickLeaveDeduction(ds, S.days[ds]);
@@ -4943,6 +5252,8 @@ function onSwapLinkInput(){
       warnEl.style.display='block';
       warnEl.innerHTML='<span style="color:var(--early);">✓ BLP/SLP balanced ('+myB+' each)</span>';
     }
+    const ri=swapRuleIssues(mon,lnk,swapInlineScope,parseInt((document.getElementById('sw-day')||{}).value||'0'));
+    warnEl.innerHTML+=ri.length?ruleIssuesHtml(ri):'<div style="color:var(--early);margin-top:4px;">✓ Swap meets the EBA rules the app can check (12-hour breaks, attendances, leave)</div>';
   }
 }
 
@@ -4958,6 +5269,8 @@ function saveSwapInline(){
   const given=getLinkForWeek(mon)||HOME_LINK;
   const myBlp=countBlpSlp(given);
   const theirBlp=countBlpSlp(received);
+  const swapIssues=swapRuleIssues(mon,received,swapInlineScope,parseInt(document.getElementById('sw-day').value||'0'));
+  if(swapIssues.length&&!confirm(ruleConfirmText(swapIssues))) return;
   {
     const swapRec={id:uid(),wc:monStr,linkGiven:given,linkReceived:received,driver,scope:swapInlineScope,myBlp:myBlp,theirBlp:theirBlp,blpDiff:theirBlp-myBlp};
     S.swaps.push(swapRec);
