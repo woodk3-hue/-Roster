@@ -3238,6 +3238,7 @@ function loadState(){
       if(p.leaveAutoTo) S.leaveAutoTo = p.leaveAutoTo;
       if(p.ruleAcks) S.ruleAcks = p.ruleAcks;
       if(p.nonRevJobs) S.nonRevJobs = p.nonRevJobs;
+      if(p.mealKindDays) S.mealKindDays = p.mealKindDays;
       // The first version's switch was easy to tap by mistake: clear marks once (EA jobs are non-revenue by default anyway)
       if(S.nonRevJobs&&!p.nonRevReset1){ S.nonRevJobs={}; S.nonRevReset1=true; }
       if(p.nonRevReset1) S.nonRevReset1=true;
@@ -3816,15 +3817,22 @@ function mealWindowInfo(s,len,kind){
   if(len<=450) return {cl:'85.1',txt:'one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330)};
   return {cl:'85.1',txt:'1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)'};
 }
-function mealWindowsHtml(f,job){
+// A shift with times but no job number: the card type is picked for that day only
+function dayMealKind(ds){ const k=S.mealKindDays&&S.mealKindDays[ds]; return k==='nonrev'||k==='loco'?k:'rev'; }
+function setDayMealKind(ds,kind){
+  if(!S.mealKindDays) S.mealKindDays={};
+  if(kind==='rev') delete S.mealKindDays[ds]; else S.mealKindDays[ds]=kind;
+  saveState(); if(dayPanelDate) renderDayPanel(dayPanelDate);
+}
+function mealWindowsHtml(f,job,ds){
   if(!f.work||f.end==null) return '';
   const s=parseTime(f.startStr), len=Math.round((f.end-f.start)/60000);
-  const kind=mealKindFor(job);
+  const b=jobBase(job), byDay=!b&&ds;
+  const kind=byDay?dayMealKind(ds):mealKindFor(job);
   const mi=mealWindowInfo(s,len,kind), txt=mi.txt, cl=mi.cl;
-  const b=jobBase(job);
-  const chip=function(k,l){ return '<button class="meal-chip'+(kind===k?' on':'')+'" onclick="setMealKind(\''+b+'\',\''+k+'\')">'+l+'</button>'; };
+  const chip=function(k,l){ return '<button class="meal-chip'+(kind===k?' on':'')+'" onclick="'+(byDay?'setDayMealKind(\''+ds+'\'':'setMealKind(\''+b+'\'')+',\''+k+'\')">'+l+'</button>'; };
   return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA '+cl+'</a>'+
-    (b&&syncRole!=='partner'?'<div class="meal-type">Card type: '+chip('rev','Revenue')+chip('nonrev','Non-revenue')+chip('loco','Loco / track')+'</div>':'')+'</div>';
+    ((b||byDay)&&syncRole!=='partner'?'<div class="meal-type">Card type: '+chip('rev','Revenue')+chip('nonrev','Non-revenue')+chip('loco','Loco / track')+'</div>':'')+'</div>';
 }
 function ruleIssuesHtml(list,ds){
   if(!list.length) return '';
@@ -4990,7 +4998,7 @@ function renderDayPanel(ds){
   if(!leaveTypeKey){
     // What the job number means — only when there's no job card to show (the card shows the sector)
     if(sh.time&&cardJob&&!jobCardFor(cardJob)&&jobDecodeText(cardJob,sh.time)) html+='<div class="job-decode">🔎 '+escHtml(jobDecodeText(cardJob,sh.time))+' <a href="#" class="rule-ref" style="font-size:11px;" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
-    html+=mealWindowsHtml(ruleDayFacts(ds),cardJob);
+    html+=mealWindowsHtml(ruleDayFacts(ds),cardJob,ds);
     const allIss=dayRuleIssues(ds), acks=ruleAcksFor(ds);
     const act=allIss.filter(function(x){ return acks.indexOf(x.c)<0; }), agreed=allIss.filter(function(x){ return acks.indexOf(x.c)>-1; });
     if(act.length) html+=ruleIssuesHtml(act,ds);
