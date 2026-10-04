@@ -2801,6 +2801,7 @@ function registerUser(){
     const ref=db.ref('usage/'+deviceId);
     ref.once('value',function(snap){
       const data={lastSeen:todayStr,role:S.myRole||'driver',host:location.hostname||'file'};
+      if(localStorage.getItem('usage_owner')==='1') data.owner=true; // the app owner's phone isn't counted
       if(!snap.exists()) data.firstSeen=todayStr;
       ref.update(data).then(function(){ localStorage.setItem('usage_ping_day',todayStr); });
     });
@@ -2823,9 +2824,15 @@ function adminShowUsers(){
   if(!el) return;
   el.innerHTML='<div style="color:var(--muted);">Loading...</div>';
   try{
+    initFirebase();
     firebase.database().ref('usage').once('value',function(snap){
-      const rows=Object.values(snap.val()||{});
-      if(!rows.length){ el.innerHTML='<div style="color:var(--muted);">No check-ins yet.</div>'; return; }
+      const all=Object.values(snap.val()||{});
+      const mine=localStorage.getItem('usage_owner')==='1';
+      const rows=all.filter(function(u){ return !u.owner; });
+      const ownerN=all.length-rows.length;
+      const btn='<button class="btn btn-sm" style="width:100%;margin-top:12px;" onclick="adminMarkOwnPhone('+(mine?'false':'true')+')">'+(mine?'Count this phone again':'🙋 Don\'t count this phone (it\'s mine)')+'</button>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:4px;">'+(ownerN?ownerN+' phone'+(ownerN>1?'s':'')+' marked as yours '+(ownerN>1?'are':'is')+' left out of these numbers. ':'')+'Each phone is counted once; the test version is never counted.</div>';
+      if(!rows.length){ el.innerHTML='<div style="color:var(--muted);">No check-ins yet (other than yours).</div>'+btn; return; }
       const daysAgo=function(d){ return d?(Date.now()-parseDate(d).getTime())/864e5:9999; };
       const active7=rows.filter(function(u){ return daysAgo(u.lastSeen)<=7; }).length;
       const active30=rows.filter(function(u){ return daysAgo(u.lastSeen)<=30; }).length;
@@ -2836,9 +2843,23 @@ function adminShowUsers(){
         '<div>Active in the last 30 days: <b>'+active30+'</b></div>'+
         '<div style="margin-top:10px;font-weight:700;">By role</div>'+list(count('role'))+
         '<div style="margin-top:10px;font-weight:700;">By website</div>'+list(count('host'))+
-        '<div style="font-size:10px;color:var(--muted);margin-top:6px;">Any address other than your own means someone is running a copy of the app.</div>';
+        '<div style="font-size:10px;color:var(--muted);margin-top:6px;">Any address other than your own means someone is running a copy of the app.</div>'+btn;
     });
   }catch(e){ el.innerHTML='<div style="color:#ef4444;">Firebase not connected</div>'; }
+}
+
+// Mark (or unmark) this phone as the owner's so the usage numbers leave it out
+function adminMarkOwnPhone(on){
+  if(window.IS_TEST_BUILD){ toast('Do this in the real app — the test version is never counted'); return; }
+  try{
+    if(on) localStorage.setItem('usage_owner','1'); else localStorage.removeItem('usage_owner');
+    let deviceId=localStorage.getItem('device_id');
+    if(!deviceId){ deviceId='dev_'+Math.random().toString(36).substr(2,12); localStorage.setItem('device_id',deviceId); }
+    if(!initFirebase()){ toast('Saved — it will apply when online'); return; }
+    fbDb.ref('usage/'+deviceId).update({owner:on?true:null,lastSeen:fmtDate(today()),host:location.hostname||'file'})
+      .then(function(){ toast(on?'This phone won\'t be counted':'This phone is counted again'); adminShowUsers(); })
+      .catch(function(){ toast('Could not reach the database — try again online'); });
+  }catch(e){}
 }
 
 function adminShowErrors(){
@@ -3217,6 +3238,7 @@ function loadState(){
       if(p.leaveAutoTo) S.leaveAutoTo = p.leaveAutoTo;
       if(p.ruleAcks) S.ruleAcks = p.ruleAcks;
       if(p.nonRevJobs) S.nonRevJobs = p.nonRevJobs;
+      if(p.mealKindDays) S.mealKindDays = p.mealKindDays;
       // The first version's switch was easy to tap by mistake: clear marks once (EA jobs are non-revenue by default anyway)
       if(S.nonRevJobs&&!p.nonRevReset1){ S.nonRevJobs={}; S.nonRevReset1=true; }
       if(p.nonRevReset1) S.nonRevReset1=true;
@@ -3785,20 +3807,32 @@ function setMealKind(job,kind){
 function setNonRevenue(job,on){ setMealKind(job,on?'nonrev':'rev'); }
 function toggleNonRevenue(job){ setNonRevenue(job,!isNonRevenueJob(job)); }
 // Meal windows for a shift (EBA 85.1 / 85.4 / 85.6), shown in the day panel
-function mealWindowsHtml(f,job){
+// Meal break windows for a shift starting at minute s, len minutes long (EBA 85.1 / 85.4 / 85.6)
+function mealWindowInfo(s,len,kind){
+  // No sign-on time: show hours after sign on instead ("3h 30m")
+  const t=s==null?function(m){ return (Math.floor(m/60))+'h'+(m%60?' '+pad(m%60)+'m':''); }:function(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
+  s=s||0;
+  if(kind==='nonrev') return {cl:'85.4',txt:'one 60-minute break (non-revenue card), start after '+t(s+210)+', finished by '+t(s+330)};
+  if(kind==='loco') return {cl:'85.6',txt:len<=540?'one 30–60 minute break (loco / track working), start after '+t(s+210)+', finished by '+t(s+330):'one 30–60 minute break (loco / track working), start after '+t(s+270)+', finished by '+t(s+450)};
+  if(len<=450) return {cl:'85.1',txt:'one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330)};
+  return {cl:'85.1',txt:'1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)'};
+}
+// A shift with times but no job number: the card type is picked for that day only
+function dayMealKind(ds){ const k=S.mealKindDays&&S.mealKindDays[ds]; return k==='nonrev'||k==='loco'?k:'rev'; }
+function setDayMealKind(ds,kind){
+  if(!S.mealKindDays) S.mealKindDays={};
+  if(kind==='rev') delete S.mealKindDays[ds]; else S.mealKindDays[ds]=kind;
+  saveState(); if(dayPanelDate) renderDayPanel(dayPanelDate);
+}
+function mealWindowsHtml(f,job,ds){
   if(!f.work||f.end==null) return '';
   const s=parseTime(f.startStr), len=Math.round((f.end-f.start)/60000);
-  const t=function(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
-  const kind=mealKindFor(job);
-  let txt, cl;
-  if(kind==='nonrev'){ txt='one 60-minute break (non-revenue card), start after '+t(s+210)+', finished by '+t(s+330); cl='85.4'; }
-  else if(kind==='loco'){ txt=len<=540?'one 30–60 minute break (loco / track working), start after '+t(s+210)+', finished by '+t(s+330):'one 30–60 minute break (loco / track working), start after '+t(s+270)+', finished by '+t(s+450); cl='85.6'; }
-  else if(len<=450){ txt='one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330); cl='85.1'; }
-  else { txt='1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)'; cl='85.1'; }
-  const b=jobBase(job);
-  const chip=function(k,l){ return '<button class="meal-chip'+(kind===k?' on':'')+'" onclick="setMealKind(\''+b+'\',\''+k+'\')">'+l+'</button>'; };
+  const b=jobBase(job), byDay=!b&&ds;
+  const kind=byDay?dayMealKind(ds):mealKindFor(job);
+  const mi=mealWindowInfo(s,len,kind), txt=mi.txt, cl=mi.cl;
+  const chip=function(k,l){ return '<button class="meal-chip'+(kind===k?' on':'')+'" onclick="'+(byDay?'setDayMealKind(\''+ds+'\'':'setMealKind(\''+b+'\'')+',\''+k+'\')">'+l+'</button>'; };
   return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA '+cl+'</a>'+
-    (b&&syncRole!=='partner'?'<div class="meal-type">Card type: '+chip('rev','Revenue')+chip('nonrev','Non-revenue')+chip('loco','Loco / track')+'</div>':'')+'</div>';
+    ((b||byDay)&&syncRole!=='partner'?'<div class="meal-type">Card type: '+chip('rev','Revenue')+chip('nonrev','Non-revenue')+chip('loco','Loco / track')+'</div>':'')+'</div>';
 }
 function ruleIssuesHtml(list,ds){
   if(!list.length) return '';
@@ -4009,6 +4043,20 @@ function tcAddStep(){
   tcSave(); renderTools();
 }
 function tcRemove(i){ TC.steps.splice(i,1); tcSave(); renderTools(); }
+// Meal window calculator (Tools)
+// Tools meal window: non-revenue cards only (one 60-minute break, EBA 85.4)
+function mealCalc(){
+  const res=document.getElementById('mw-result'); if(!res) return;
+  const on=parseTime(document.getElementById('mw-on').value), off=parseTime(document.getElementById('mw-off').value);
+  if(on==null||off==null){ res.innerHTML='<span style="color:var(--muted);">Enter start and finish.</span>'; return; }
+  let len=off-on; if(len<=0) len+=1440;
+  const t=function(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
+  res.innerHTML='<div style="font-size:15px;font-weight:700;margin-bottom:6px;">⏱ '+ruleGap(len)+' shift</div>'+
+    '<div style="font-size:14px;font-weight:700;">🍽 60-minute meal break</div>'+
+    '<div style="font-size:13px;margin-top:2px;">Start between <b>'+t(on+210)+'</b> and <b>'+t(on+270)+'</b> · finished by <b>'+t(on+330)+'</b></div>'+
+    (len<330?'<div style="font-size:12px;color:var(--accent);margin-top:4px;">⚠ You finish at '+t(off)+', before the meal window ends — check with the roster office.</div>':'')+
+    '<div style="font-size:11px;color:var(--muted);margin-top:6px;">Non-revenue card, EBA 85.4 (break between 3h 30m and 5h 30m after start). Walking time is not part of the break.'+(len>540?' Shifts over 9 hours break the 9-hour limit (EBA 81.1).':'')+'</div>';
+}
 function tcSetMode(m){ TC.mode=m; tcSave(); renderTools(); }
 function tcClear(){ TC.steps=[]; TC.due=''; tcSave(); renderTools(); }
 function tcSetMins(i,v){
@@ -4124,6 +4172,13 @@ function renderTools(){
     '<div id="tc-result" class="tc-result"></div>'+
     '<div style="font-size:11px;color:var(--muted);margin-top:6px;">Typical times only — actual walk, prep and run times can differ. Always follow the times control gives you.</div>'+
     '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcClear()">Clear steps</button>'+
+   '</div>'+
+   '<div class="card" style="margin-bottom:12px;">'+
+    '<div class="tc-title">🍽 Meal window</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">For non-revenue cards (AR / control as required, shunt, prep…). Enter your start and finish to get the shift length and your 60-minute meal break.</div>'+
+    '<div class="form-row"><div class="form-group"><label class="form-label">Start</label><input type="time" class="form-input" id="mw-on" oninput="mealCalc()"></div>'+
+    '<div class="form-group"><label class="form-label">Finish</label><input type="time" class="form-input" id="mw-off" oninput="mealCalc()"></div></div>'+
+    '<div id="mw-result" class="tc-result"><span style="color:var(--muted);">Enter start and finish.</span></div>'+
    '</div>'+
    '<div class="card" style="margin-bottom:12px;">'+
     '<div class="tc-title">My times</div>'+
@@ -4932,7 +4987,7 @@ function renderDayPanel(ds){
   if(!leaveTypeKey){
     // What the job number means — only when there's no job card to show (the card shows the sector)
     if(sh.time&&cardJob&&!jobCardFor(cardJob)&&jobDecodeText(cardJob,sh.time)) html+='<div class="job-decode">🔎 '+escHtml(jobDecodeText(cardJob,sh.time))+' <a href="#" class="rule-ref" style="font-size:11px;" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
-    html+=mealWindowsHtml(ruleDayFacts(ds),cardJob);
+    html+=mealWindowsHtml(ruleDayFacts(ds),cardJob,ds);
     const allIss=dayRuleIssues(ds), acks=ruleAcksFor(ds);
     const act=allIss.filter(function(x){ return acks.indexOf(x.c)<0; }), agreed=allIss.filter(function(x){ return acks.indexOf(x.c)>-1; });
     if(act.length) html+=ruleIssuesHtml(act,ds);
@@ -8187,12 +8242,10 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-03';
+const APP_VERSION='2026-10-04';
 const WHATS_NEW=[
-  'Tap a day: the job card header shows the sector, and jobs with no card (e.g. EA603) say what they are — As required (Control), Shunt / prep, brake test, diesel and more.',
-  'Meal breaks follow the job type: passenger cards 40 min (or 2 × 30), non-revenue cards one 60-minute break, diesel / track 30–60 min. Change a job with "Card type".',
-  'Job card search in the Claims tab — by job number or start time, with Mon–Thu / Fri / Sat / Sun filters.',
-  'You\'ll now be told when an update is ready, with a Refresh button.'
+  'Tick boxes (Shift Finder, Claims, Edit Shift) now match the app\'s dark look instead of plain white, and turn orange with a ✓ when ticked.',
+  'Updates now tell you when they\'re ready — tap Refresh on the banner at the top.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
