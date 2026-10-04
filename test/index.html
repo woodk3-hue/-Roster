@@ -4044,27 +4044,18 @@ function tcAddStep(){
 }
 function tcRemove(i){ TC.steps.splice(i,1); tcSave(); renderTools(); }
 // Meal window calculator (Tools)
-// "7.30", "7.3", "7:30", "7h30", "7h 30m" = 7 h 30 min; "8" = 8 h
-function mealParseLen(v){
-  const m=String(v||'').trim().toLowerCase().match(/^(\d{1,2})(?:\s*[.:h]\s*(\d{1,2})?\s*m?)?$/);
-  if(!m) return null;
-  let mins=m[2]?parseInt(m[2],10):0; if(m[2]&&m[2].length===1) mins*=10;
-  if(mins>59) return null;
-  const len=parseInt(m[1],10)*60+mins;
-  return len>0&&len<=16*60?len:null;
-}
-function mealSetLen(v){ document.getElementById('mw-len').value=v; mealCalc(); }
+// Tools meal window: non-revenue cards only (one 60-minute break, EBA 85.4)
 function mealCalc(){
   const res=document.getElementById('mw-result'); if(!res) return;
-  const raw=document.getElementById('mw-len').value, len=mealParseLen(raw);
-  document.querySelectorAll('[data-len]').forEach(function(b){ b.classList.toggle('on',mealParseLen(b.dataset.len)===len); });
-  if(len==null){ res.innerHTML='<span style="color:var(--muted);">'+(raw.trim()?'Type the length as hours.minutes, e.g. 7.30 or 8.':'Pick a shift length.')+'</span>'; return; }
-  const on=parseTime(document.getElementById('mw-on').value);
-  const kind=document.getElementById('mw-kind').value, mi=mealWindowInfo(on,len,kind);
-  const offTxt=on!=null?' · sign off '+pad(Math.floor(((on+len)%1440)/60))+':'+pad((on+len)%60):'';
-  res.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Shift length '+ruleGap(len)+offTxt+'</div>'+
-    '<div style="font-size:14px;font-weight:700;">🍽 '+mi.txt.charAt(0).toUpperCase()+mi.txt.slice(1)+'.</div>'+
-    '<div style="font-size:11px;color:var(--muted);margin-top:4px;">'+(on==null?'Times are hours after sign on — add a sign-on time for clock times. ':'')+'EBA '+mi.cl+'. Walking time is not part of the break.'+(len>540&&kind==='rev'?' Shifts over 9 hours break the 9-hour limit (EBA 81.1).':'')+'</div>';
+  const on=parseTime(document.getElementById('mw-on').value), off=parseTime(document.getElementById('mw-off').value);
+  if(on==null||off==null){ res.innerHTML='<span style="color:var(--muted);">Enter start and finish.</span>'; return; }
+  let len=off-on; if(len<=0) len+=1440;
+  const t=function(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
+  res.innerHTML='<div style="font-size:15px;font-weight:700;margin-bottom:6px;">⏱ '+ruleGap(len)+' shift</div>'+
+    '<div style="font-size:14px;font-weight:700;">🍽 60-minute meal break</div>'+
+    '<div style="font-size:13px;margin-top:2px;">Start between <b>'+t(on+210)+'</b> and <b>'+t(on+270)+'</b> · finished by <b>'+t(on+330)+'</b></div>'+
+    (len<330?'<div style="font-size:12px;color:var(--accent);margin-top:4px;">⚠ You finish at '+t(off)+', before the meal window ends — check with the roster office.</div>':'')+
+    '<div style="font-size:11px;color:var(--muted);margin-top:6px;">Non-revenue card, EBA 85.4 (break between 3h 30m and 5h 30m after start). Walking time is not part of the break.'+(len>540?' Shifts over 9 hours break the 9-hour limit (EBA 81.1).':'')+'</div>';
 }
 function tcSetMode(m){ TC.mode=m; tcSave(); renderTools(); }
 function tcClear(){ TC.steps=[]; TC.due=''; tcSave(); renderTools(); }
@@ -4184,12 +4175,10 @@ function renderTools(){
    '</div>'+
    '<div class="card" style="margin-bottom:12px;">'+
     '<div class="tc-title">🍽 Meal window</div>'+
-    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Pick how long the shift is to see when your meal break can start and must be finished. Add a sign-on time to get clock times.</div>'+
-    '<div class="form-label">Shift length</div><div class="meal-type" style="margin:4px 0 8px;"><button class="meal-chip" data-len="6" onclick="mealSetLen(\'6\')">6h</button><button class="meal-chip" data-len="7" onclick="mealSetLen(\'7\')">7h</button><button class="meal-chip" data-len="7.30" onclick="mealSetLen(\'7.30\')">7h 30m</button><button class="meal-chip" data-len="8" onclick="mealSetLen(\'8\')">8h</button><button class="meal-chip" data-len="8.30" onclick="mealSetLen(\'8.30\')">8h 30m</button><button class="meal-chip" data-len="9" onclick="mealSetLen(\'9\')">9h</button></div>'+
-    '<div class="form-row"><div class="form-group"><label class="form-label">Or type it (e.g. 7.30)</label><input type="text" inputmode="decimal" class="form-input" id="mw-len" placeholder="hours.minutes" oninput="mealCalc()"></div>'+
-    '<div class="form-group"><label class="form-label">Sign on (optional)</label><input type="time" class="form-input" id="mw-on" oninput="mealCalc()"></div></div>'+
-    '<div class="form-group"><label class="form-label">Card type</label><select class="form-select" id="mw-kind" onchange="mealCalc()"><option value="rev">Passenger (revenue)</option><option value="nonrev">Non-revenue (AR, shunt, prep…)</option><option value="loco">Diesel / track</option></select></div>'+
-    '<div id="mw-result" class="tc-result"><span style="color:var(--muted);">Pick a shift length.</span></div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">For non-revenue cards (AR / control as required, shunt, prep…). Enter your start and finish to get the shift length and your 60-minute meal break.</div>'+
+    '<div class="form-row"><div class="form-group"><label class="form-label">Start</label><input type="time" class="form-input" id="mw-on" oninput="mealCalc()"></div>'+
+    '<div class="form-group"><label class="form-label">Finish</label><input type="time" class="form-input" id="mw-off" oninput="mealCalc()"></div></div>'+
+    '<div id="mw-result" class="tc-result"><span style="color:var(--muted);">Enter start and finish.</span></div>'+
    '</div>'+
    '<div class="card" style="margin-bottom:12px;">'+
     '<div class="tc-title">My times</div>'+
