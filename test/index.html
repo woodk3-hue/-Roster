@@ -3806,16 +3806,19 @@ function setMealKind(job,kind){
 function setNonRevenue(job,on){ setMealKind(job,on?'nonrev':'rev'); }
 function toggleNonRevenue(job){ setNonRevenue(job,!isNonRevenueJob(job)); }
 // Meal windows for a shift (EBA 85.1 / 85.4 / 85.6), shown in the day panel
+// Meal break windows for a shift starting at minute s, len minutes long (EBA 85.1 / 85.4 / 85.6)
+function mealWindowInfo(s,len,kind){
+  const t=function(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
+  if(kind==='nonrev') return {cl:'85.4',txt:'one 60-minute break (non-revenue card), start after '+t(s+210)+', finished by '+t(s+330)};
+  if(kind==='loco') return {cl:'85.6',txt:len<=540?'one 30–60 minute break (loco / track working), start after '+t(s+210)+', finished by '+t(s+330):'one 30–60 minute break (loco / track working), start after '+t(s+270)+', finished by '+t(s+450)};
+  if(len<=450) return {cl:'85.1',txt:'one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330)};
+  return {cl:'85.1',txt:'1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)'};
+}
 function mealWindowsHtml(f,job){
   if(!f.work||f.end==null) return '';
   const s=parseTime(f.startStr), len=Math.round((f.end-f.start)/60000);
-  const t=function(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
   const kind=mealKindFor(job);
-  let txt, cl;
-  if(kind==='nonrev'){ txt='one 60-minute break (non-revenue card), start after '+t(s+210)+', finished by '+t(s+330); cl='85.4'; }
-  else if(kind==='loco'){ txt=len<=540?'one 30–60 minute break (loco / track working), start after '+t(s+210)+', finished by '+t(s+330):'one 30–60 minute break (loco / track working), start after '+t(s+270)+', finished by '+t(s+450); cl='85.6'; }
-  else if(len<=450){ txt='one 40-minute break, start after '+t(s+180)+', finished by '+t(s+330); cl='85.1'; }
-  else { txt='1st 30-minute break starts '+t(s+150)+'–'+t(s+210)+' · 2nd starts '+t(s+330)+'–'+t(s+390)+' (at least 2 hours apart)'; cl='85.1'; }
+  const mi=mealWindowInfo(s,len,kind), txt=mi.txt, cl=mi.cl;
   const b=jobBase(job);
   const chip=function(k,l){ return '<button class="meal-chip'+(kind===k?' on':'')+'" onclick="setMealKind(\''+b+'\',\''+k+'\')">'+l+'</button>'; };
   return '<div style="font-size:12px;color:var(--muted);margin-top:8px;">🍽 Meal: '+txt+'. <a href="#" class="rule-ref" onclick="openRules(\'meal\');return false;">EBA '+cl+'</a>'+
@@ -4030,6 +4033,26 @@ function tcAddStep(){
   tcSave(); renderTools();
 }
 function tcRemove(i){ TC.steps.splice(i,1); tcSave(); renderTools(); }
+// Meal window calculator (Tools)
+function mealJobInput(){
+  const job=document.getElementById('mw-job').value;
+  if(jobBase(job)) document.getElementById('mw-kind').value=mealKindFor(job);
+  // A job card fills the times too
+  const c=jobCardFor(job);
+  if(c){ if(c.on) document.getElementById('mw-on').value=c.on; if(c.off) document.getElementById('mw-off').value=c.off; }
+  mealCalc();
+}
+function mealCalc(){
+  const res=document.getElementById('mw-result'); if(!res) return;
+  const on=parseTime(document.getElementById('mw-on').value), off=parseTime(document.getElementById('mw-off').value);
+  if(on==null||off==null){ res.innerHTML='<span style="color:var(--muted);">Enter both times.</span>'; return; }
+  let len=off-on; if(len<=0) len+=1440;
+  const kind=document.getElementById('mw-kind').value, mi=mealWindowInfo(on,len,kind);
+  const d=jobDecodeText(document.getElementById('mw-job').value,document.getElementById('mw-on').value);
+  res.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Shift length '+ruleGap(len)+(d?' · '+escHtml(d):'')+'</div>'+
+    '<div style="font-size:14px;font-weight:700;">🍽 '+mi.txt.charAt(0).toUpperCase()+mi.txt.slice(1)+'.</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-top:4px;">EBA '+mi.cl+'. Walking time is not part of the break.'+(len>540&&kind==='rev'?' Shifts over 9 hours break the 9-hour limit (EBA 81.1).':'')+'</div>';
+}
 function tcSetMode(m){ TC.mode=m; tcSave(); renderTools(); }
 function tcClear(){ TC.steps=[]; TC.due=''; tcSave(); renderTools(); }
 function tcSetMins(i,v){
@@ -4145,6 +4168,15 @@ function renderTools(){
     '<div id="tc-result" class="tc-result"></div>'+
     '<div style="font-size:11px;color:var(--muted);margin-top:6px;">Typical times only — actual walk, prep and run times can differ. Always follow the times control gives you.</div>'+
     '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcClear()">Clear steps</button>'+
+   '</div>'+
+   '<div class="card" style="margin-bottom:12px;">'+
+    '<div class="tc-title">🍽 Meal window</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Enter a sign-on and sign-off time to see when your meal break can start and must be finished.</div>'+
+    '<div class="form-row"><div class="form-group"><label class="form-label">Sign on</label><input type="time" class="form-input" id="mw-on" oninput="mealCalc()"></div>'+
+    '<div class="form-group"><label class="form-label">Sign off</label><input type="time" class="form-input" id="mw-off" oninput="mealCalc()"></div></div>'+
+    '<div class="form-row"><div class="form-group"><label class="form-label">Job number (optional)</label><input type="text" class="form-input" id="mw-job" placeholder="e.g. PB019N, EA603" oninput="mealJobInput()"></div>'+
+    '<div class="form-group"><label class="form-label">Card type</label><select class="form-select" id="mw-kind" onchange="mealCalc()"><option value="rev">Passenger (revenue)</option><option value="nonrev">Non-revenue (AR, shunt, prep…)</option><option value="loco">Diesel / track</option></select></div></div>'+
+    '<div id="mw-result" class="tc-result"><span style="color:var(--muted);">Enter both times.</span></div>'+
    '</div>'+
    '<div class="card" style="margin-bottom:12px;">'+
     '<div class="tc-title">My times</div>'+
