@@ -1284,7 +1284,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 
     <!-- Comparison grid (shown when other link entered) -->
     <div id="sw-compare-wrap" style="display:none;">
-      <div class="form-label" style="margin-bottom:6px;">Week Comparison</div>
+      <div class="form-label" id="sw-compare-label" style="margin-bottom:6px;">Week Comparison</div>
       <div class="sg-scroll"><table class="swap-grid" id="sw-compare-table"></table></div>
     </div>
 
@@ -5295,6 +5295,7 @@ function renderSwaps(){
   if(!ml.value){ const wl=getLinkForWeek(getMonday(parseDate(wcEl.value))); if(wl) ml.value=wl; }
   populateInlineSwapDaySelect(mon,link);
   setSwapScope('week');
+  onSwapLinkInput();
   // Restore saved shift finder type
   const savedSffType=localStorage.getItem('sff_type');
   const sffEl=document.getElementById('sff-type');
@@ -5935,13 +5936,16 @@ function onSwapLinkInput(){
   const lnk=parseInt(document.getElementById('sw-received').value);
   const wrap=document.getElementById('sw-compare-wrap');
   const tbl=document.getElementById('sw-compare-table');
-  if(!lnk||lnk<1||lnk>rosterSize()||!ROSTER[String(lnk)]){ wrap.style.display='none'; return; }
+  // My week shows as soon as the W/C (or My Link) is set; the other link adds their row
+  const hasThem=!!(lnk&&lnk>=1&&lnk<=rosterSize()&&ROSTER[String(lnk)]);
+  const warnEl=document.getElementById('sw-blp-warn');
   // Get my link for the selected WC week
   const wcVal=document.getElementById('sw-wc').value;
   const mon=wcVal?getMonday(parseDate(wcVal)):getMonday(today());
   const myLink=getLinkForWeek(mon);
-  if(!myLink){ wrap.style.display='none'; return; }
+  if(!myLink||!ROSTER[String(myLink)]){ wrap.style.display='none'; if(warnEl) warnEl.style.display='none'; return; }
   wrap.style.display='block';
+  const lbl=document.getElementById('sw-compare-label'); if(lbl) lbl.textContent=hasThem?'Week Comparison':'Your Week';
   // Build 7-column comparison table
   const myDays=ROSTER[String(myLink)]||[];
   const theirDays=ROSTER[String(lnk)]||[];
@@ -5955,6 +5959,10 @@ function onSwapLinkInput(){
     html+='<td>'+sgCellHtml(myDays[i],false)+'</td>';
   }
   html+='</tr>';
+  if(!hasThem){
+    html+='<tr><td colspan="8" style="font-size:12px;color:var(--muted);padding:8px 4px;">Enter the other link to compare.</td></tr></tbody>';
+    tbl.innerHTML=html; if(warnEl) warnEl.style.display='none'; return;
+  }
   // Their row
   html+='<tr><td class="sg-link">'+lnk+'<br><span style="color:var(--muted);font-weight:400;font-size:9px;">Them</span></td>';
   for(let i=0;i<7;i++){
@@ -5967,7 +5975,6 @@ function onSwapLinkInput(){
   const myB=countBlpSlp(myLink);
   const theirB=countBlpSlp(lnk);
   const diff=theirB-myB;
-  const warnEl=document.getElementById('sw-blp-warn');
   if(warnEl){
     if(diff!==0){
       warnEl.style.display='block';
