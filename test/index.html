@@ -8261,11 +8261,11 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-04.2'; // second release today
+const APP_VERSION='2026-10-04.3'; // third release today
 const WHATS_NEW=[
+  'Swaps: My Link and W/C are side by side and fill each other in, and your week shows straight away — enter the other link to compare. The shifts are bigger and easier to read.',
   'Tools → Meal window: enter the start and finish of a non-revenue card to see the shift length and when your 60-minute meal break must be taken.',
-  'Calendar: a shift with times but no job number now lets you pick Revenue or Non-revenue for that day\'s meal times.',
-  'Swaps: My Link and W/C are side by side and fill each other in, the form is smaller, and the shift comparison is bigger and easier to read.'
+  'Calendar: a shift with times but no job number now lets you pick Revenue or Non-revenue for that day\'s meal times.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
