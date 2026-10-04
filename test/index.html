@@ -2801,6 +2801,7 @@ function registerUser(){
     const ref=db.ref('usage/'+deviceId);
     ref.once('value',function(snap){
       const data={lastSeen:todayStr,role:S.myRole||'driver',host:location.hostname||'file'};
+      if(localStorage.getItem('usage_owner')==='1') data.owner=true; // the app owner's phone isn't counted
       if(!snap.exists()) data.firstSeen=todayStr;
       ref.update(data).then(function(){ localStorage.setItem('usage_ping_day',todayStr); });
     });
@@ -2823,9 +2824,15 @@ function adminShowUsers(){
   if(!el) return;
   el.innerHTML='<div style="color:var(--muted);">Loading...</div>';
   try{
+    initFirebase();
     firebase.database().ref('usage').once('value',function(snap){
-      const rows=Object.values(snap.val()||{});
-      if(!rows.length){ el.innerHTML='<div style="color:var(--muted);">No check-ins yet.</div>'; return; }
+      const all=Object.values(snap.val()||{});
+      const mine=localStorage.getItem('usage_owner')==='1';
+      const rows=all.filter(function(u){ return !u.owner; });
+      const ownerN=all.length-rows.length;
+      const btn='<button class="btn btn-sm" style="width:100%;margin-top:12px;" onclick="adminMarkOwnPhone('+(mine?'false':'true')+')">'+(mine?'Count this phone again':'🙋 Don\'t count this phone (it\'s mine)')+'</button>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:4px;">'+(ownerN?ownerN+' phone'+(ownerN>1?'s':'')+' marked as yours '+(ownerN>1?'are':'is')+' left out of these numbers. ':'')+'Each phone is counted once; the test version is never counted.</div>';
+      if(!rows.length){ el.innerHTML='<div style="color:var(--muted);">No check-ins yet (other than yours).</div>'+btn; return; }
       const daysAgo=function(d){ return d?(Date.now()-parseDate(d).getTime())/864e5:9999; };
       const active7=rows.filter(function(u){ return daysAgo(u.lastSeen)<=7; }).length;
       const active30=rows.filter(function(u){ return daysAgo(u.lastSeen)<=30; }).length;
@@ -2836,9 +2843,23 @@ function adminShowUsers(){
         '<div>Active in the last 30 days: <b>'+active30+'</b></div>'+
         '<div style="margin-top:10px;font-weight:700;">By role</div>'+list(count('role'))+
         '<div style="margin-top:10px;font-weight:700;">By website</div>'+list(count('host'))+
-        '<div style="font-size:10px;color:var(--muted);margin-top:6px;">Any address other than your own means someone is running a copy of the app.</div>';
+        '<div style="font-size:10px;color:var(--muted);margin-top:6px;">Any address other than your own means someone is running a copy of the app.</div>'+btn;
     });
   }catch(e){ el.innerHTML='<div style="color:#ef4444;">Firebase not connected</div>'; }
+}
+
+// Mark (or unmark) this phone as the owner's so the usage numbers leave it out
+function adminMarkOwnPhone(on){
+  if(window.IS_TEST_BUILD){ toast('Do this in the real app — the test version is never counted'); return; }
+  try{
+    if(on) localStorage.setItem('usage_owner','1'); else localStorage.removeItem('usage_owner');
+    let deviceId=localStorage.getItem('device_id');
+    if(!deviceId){ deviceId='dev_'+Math.random().toString(36).substr(2,12); localStorage.setItem('device_id',deviceId); }
+    if(!initFirebase()){ toast('Saved — it will apply when online'); return; }
+    fbDb.ref('usage/'+deviceId).update({owner:on?true:null,lastSeen:fmtDate(today()),host:location.hostname||'file'})
+      .then(function(){ toast(on?'This phone won\'t be counted':'This phone is counted again'); adminShowUsers(); })
+      .catch(function(){ toast('Could not reach the database — try again online'); });
+  }catch(e){}
 }
 
 function adminShowErrors(){
