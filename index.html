@@ -1197,6 +1197,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="lg-item"><span class="cal-badge b-al lg-badge">AL</span><span>Annual Leave</span></div>
       <div class="lg-item"><span class="cal-badge b-lsl lg-badge">LSL</span><span>Long Service Leave</span></div>
       <div class="lg-item"><span class="cal-badge b-sl lg-badge">SICK</span><span>Sick Leave</span></div>
+      <div class="lg-item"><span class="cal-badge b-sl lg-badge">FL</span><span>Family / Carer's Leave</span></div>
       <div class="lg-item"><span class="cal-badge b-swap lg-badge">⇄</span><span>Swap (week or single day)</span></div>
       <div class="lg-item"><span class="cal-badge b-cbo lg-badge">CBO</span><span>Compulsory Book Off</span></div>
       <div class="lg-item"><span class="cal-badge b-mbo lg-badge">MBO</span><span>Mandatory Book Off</span></div>
@@ -1857,6 +1858,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
         <option value="normal">Normal / As Rostered</option>
         <option value="blp_worked">BLP/SLP Worked (175%)</option>
         <option value="sick">Sick Leave</option>
+        <option value="family">Family / Carer's Leave</option>
         <option value="repro">Reproductive Leave</option>
         <option value="lwop">Leave Without Pay</option>
         <option value="single_day_swap">Single Day Swap</option>
@@ -3402,6 +3404,7 @@ function getEffectiveShift(dateStr){
   if(t==='al')      return {code:'AL',time:null,typeKey:'al',link,idx,ov,guards:ov.guards||''};
   if(t==='lsl')     return {code:'LSL',time:null,typeKey:'lsl',link,idx,ov,guards:ov.guards||''};
 if(t==='sick')    return {code:'SL',time:null,typeKey:'sl',link,idx,ov,guards:ov.guards||''};
+  if(t==='family')  return {code:'FL',time:null,typeKey:'family',link,idx,ov,guards:ov.guards||''};
   if(t==='repro')   return {code:'Repo Leave',time:ov.start||null,typeKey:'repro',link,idx,ov,endTime:ov.end||null,guards:ov.guards||''};
   if(t==='lwop')    return {code:'LWOP',time:null,typeKey:'lwop',link,idx,ov,guards:ov.guards||''};
   if(t==='rdo')     return {code:'RDO',time:null,typeKey:'blp',link,idx,ov,guards:ov.guards||''};
@@ -3454,7 +3457,7 @@ const CYCLE_START='2026-09-07';       // default: a Monday that starts a 4-week 
 function cycleAnchorDs(){ return (S.settings&&S.settings.cycleStart)||CYCLE_START; }
 const NINE_DAY_FN_FROM='2026-12-31';  // EBA 80.2 / 93.3: nine-day fortnight starts (default; changeable in Pay Settings)
 function nineDayFromDs(){ return (S.settings&&S.settings.nineDayFrom)||NINE_DAY_FN_FROM; }
-const RULE_LEAVE_TYPES=['al','lsl','sl','repro','lwop','mbo','cbo','ph_booked_off'];
+const RULE_LEAVE_TYPES=['al','lsl','sl','family','repro','lwop','mbo','cbo','ph_booked_off'];
 const RULE_LEISURE_WORKED=['blp_worked','slp_worked','ot'];
 const RULE_AVAILABLE=['afa','afp','am1','am2','am3','pm1','pm2','pm3'];
 
@@ -3476,7 +3479,12 @@ function ruleFacts(ds,time,endStr,job,typeKey,code){
 function ruleDayFacts(ds){
   const sh=getEffectiveShift(ds), ov=S.days[ds]||null;
   const onLeave=(S.plannedLeave||[]).some(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
-  if(onLeave||RULE_LEAVE_TYPES.includes(sh.typeKey)) return ruleFacts(ds,null,'','','leave','');
+  if(onLeave||RULE_LEAVE_TYPES.includes(sh.typeKey)){
+    const lf=ruleFacts(ds,null,'','','leave','');
+    // Leave booked over a rostered BLP/SLP: the day is still a leisure day
+    if(dayIsLeisureRoster(ds)) lf.leisure=true;
+    return lf;
+  }
   const tk=sh.typeKey==='swap'?(sh.swapInnerType||'normal'):sh.typeKey;
   let job=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job||'';
   // Sign-on moved but no finish or job typed: the roster job card's finish no longer applies
@@ -3561,6 +3569,33 @@ function ackRuleIssues(ds,on){
   toast(on?'Marked as agreed':'Agreement removed');
 }
 
+// Consecutive-day count for a CBO (EBA 96.1): worked days, short-term sick and reproductive leave days count (96.4);
+// annual, long service and family/carer's leave, LWOP, MBO and CBO restart it; so do 32 hours off
+function cboDayKind(ds){
+  const pl=(S.plannedLeave||[]).find(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
+  if(pl) return pl.type==='sl'?'sick':'reset';
+  const tk=getEffectiveShift(ds).typeKey;
+  if(tk==='sl'||tk==='sick'||tk==='repro') return 'sick';
+  if(['al','lsl','family','lwop','mbo','cbo','ph_booked_off'].includes(tk)) return 'reset';
+  return ruleDayFacts(ds).work?'work':'off';
+}
+function cboDayCounts(start,days){
+  const out=[]; let n=0, lastEnd=null;
+  const GAP=32*3600000;
+  for(let i=0;i<days;i++){
+    const ds=fmtDate(addDays(start,i)), k=cboDayKind(ds);
+    if(k==='reset'){ n=0; lastEnd=null; continue; }
+    if(k==='off') continue;
+    const dayStart=parseDate(ds).getTime();
+    let st=dayStart, en=dayStart+86400000;
+    if(k==='work'){ const f=ruleDayFacts(ds); st=f.start; en=f.end!=null?f.end:f.start+8*3600000; }
+    if(lastEnd!=null&&st-lastEnd>=GAP) n=0;
+    n++; lastEnd=en;
+    out.push({ds:ds,n:n,kind:k});
+  }
+  return out;
+}
+
 // 4-week cycle (or, from the nine-day fortnight, the fortnight) holding a date, with its counts
 function rulePeriodFor(d){
   const a=parseDate(cycleAnchorDs());
@@ -3580,7 +3615,7 @@ function rulePeriodFor(d){
 }
 
 // ── Work cycle hours (EBA 79/80/86/91) ──
-const CYCLE_LEAVE_CREDIT=['al','lsl','sl','repro','ph_booked_off'];
+const CYCLE_LEAVE_CREDIT=['al','lsl','sl','family','repro','ph_booked_off'];
 function cycleStartFor(d){
   const a=parseDate(cycleAnchorDs());
   const days=Math.round((getMonday(d)-a)/86400000);
@@ -3601,7 +3636,10 @@ function avgShiftHours(){
 }
 function cycleTarget(start){ return fmtDate(start)>=nineDayFromDs()?152:160; }
 function dayIsLeisureRoster(ds){
-  const d=parseDate(ds), sh=parseShift(getRaw(getLinkForWeek(getMonday(d)),dayIdx(d)));
+  const d=parseDate(ds), mon=getMonday(d);
+  // A whole-week swap means the other link's roster applies
+  const ws=(S.swaps||[]).find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
+  const sh=parseShift(getRaw(ws?ws.linkReceived:getLinkForWeek(mon),dayIdx(d)));
   return sh.typeKey==='blp'||sh.typeKey==='slp';
 }
 // Hours credited to one 4-week cycle: shifts worked, leave (rostered hours) and roster alteration credits
@@ -3888,6 +3926,7 @@ const RULES=[
  {g:'hours',c:'81.2',t:'Minimum payment',b:'Except where listed above, minimum payment and rostered workings are 4 hours, credited to the cycle.'},
  {g:'hours',c:'81.3',t:'Lay-off at a foreign depot',b:'At least 8 hours lay-off at a foreign depot (10 hours for later lay-offs on IML work trains). Time away from home should not go over 34 hours where practical (81.4).'},
  {g:'hours',c:'82.1',t:'Minimum layoff at home',b:'At least 12 hours between any shifts at your home depot.'},
+ {g:'hours',c:'96.1',t:'Compulsory book off (CBO)',b:'After 11 consecutive days worked you must be rostered off for at least 32 hours at your home depot (14 consecutive shifts: 96.2). 32 hours off before then restarts the count. Short-term sick leave (96.4) and reproductive leave count towards the days; annual, long service and family / carer\'s leave restart it. Laying over at a foreign depot does not restart it (96.3). The Dash warns you from 9 days.'},
  {g:'meals',c:'85.1',t:'Meal breaks',b:'Shifts up to 7h30m: one 40-minute break, starting after 3 hours and finished before 5h30m. Shifts of 7h31m to 9 hours: two 30-minute breaks, the first starting 2h30m–3h30m in and the second 5h30m–6h30m in, at least 2 hours apart. Walking time is not included.'},
  {g:'meals',c:'85.2',t:'Working through a meal break',b:'Only during a network failure that delays trains (bridge strike, fatality, telemetry or points failure, broken rail), and only where you have two rostered breaks: you can be directed to work through one of them. You are then paid a meal allowance, paid at the end of the work cycle (85.3). With one rostered break you can\'t be directed to work through it.'},
  {g:'meals',c:'RP 2.5',t:'Meal break examples',b:'Shift of 7h30m or less, sign on 10:00: the 40-minute break can start after 13:00 and must be finished by 15:30. Longer shift, sign on 06:00: 1st 30-minute break between 08:30 and 10:00 (finished by 10:00), 2nd between 11:30 and 13:00 (finished by 13:00). Tap a day in the calendar to see your own meal windows.'},
@@ -4382,23 +4421,18 @@ function renderDash(){
 
   if(openClaims>0) alerts.push({dot:'dot-red',msg:openClaims+' unsubmitted claim'+(openClaims>1?'s':'')+' pending.',pri:3});
 
-  // CBO alert — check consecutive working days
+  // CBO alert — consecutive days (EBA 96): sick counts, leave resets, 32 hours off restarts
   (function(){
-    const BREAK_TYPES=['blp','slp','al','lsl','sl','sick','lwop','cbo','mbo','blp_kept','ph_booked_off'];
-    let streak=0; let maxStreak=0; let streakStart=null; let maxStart=null;
-    for(var i=0;i<30;i++){
-      const ds=fmtDate(addDays(now,-i));
-      const sh=getEffectiveShift(ds);
-      const ov=S.days[ds];
-      const tk=sh.typeKey;
-      const isBreak=BREAK_TYPES.includes(tk)||(!ov&&(tk==='blp'||tk==='slp'));
-      if(!isBreak&&sh.time){
-        streak++;
-        if(streak>maxStreak){ maxStreak=streak; maxStart=ds; }
-      } else { streak=0; }
-    }
-    if(maxStreak>=9){
-      alerts.push({dot:'dot-orange',msg:'⚠ '+maxStreak+' consecutive working days — CBO may be required.',pri:1,key:'cbo-streak'});
+    const run=cboDayCounts(addDays(now,-30),45);
+    const todayStr=fmtDate(now);
+    let hit=null, cur=0;
+    run.forEach(function(r){ if(r.ds<=todayStr) cur=r.n; else if(!hit&&r.n>=11) hit=r; });
+    if(cur>=11) hit={ds:todayStr,n:cur};
+    if(hit){
+      const d=parseDate(hit.ds);
+      alerts.push({dot:'dot-orange',msg:'⚠ '+(hit.ds===todayStr?'Today is day '+hit.n:'Day 11 in a row on '+DAY3[dayIdx(d)]+' '+fmtDDMM(d))+' — you must get 32 hours off at home after 11 days (CBO, EBA 96.1).',pri:1,key:'cbo-'+hit.ds});
+    } else if(cur>=9){
+      alerts.push({dot:'dot-orange',msg:'⚠ '+cur+' days in a row so far — a CBO is due after 11 (EBA 96.1).',pri:1,key:'cbo-'+todayStr});
     }
   })();
   // Roster rule checks (EBA) for the next 4 weeks and this/next cycle
@@ -4474,7 +4508,7 @@ function renderDashShift(which){
       const ov=S.days[candidate];
       const hasRecordedShift=ov&&ov.start; // user entered actual times
       // Always skip leave/LWOP/RDO
-      if(['al','lsl','sick','lwop','rdo'].includes(info.typeKey)) continue;
+      if(['al','lsl','sick','family','lwop','rdo'].includes(info.typeKey)) continue;
       // Skip BLP/SLP only when no actual shift recorded
       if(['blp','slp'].includes(info.typeKey)&&!hasRecordedShift) continue;
       // This day has work — use it
@@ -4492,8 +4526,8 @@ function renderDashShift(which){
     el.innerHTML='<div style="font-size:13px;font-weight:700;color:var(--muted);">'+(info.typeKey==='blp'?'BLP':'SLP')+'</div><div style="font-size:10px;color:var(--muted);">Rest day</div>';
     return;
   }
-  if(['al','lsl','sick'].includes(info.typeKey)){
-    const lbl={al:'Annual Leave',lsl:'Long Service Leave',sick:'Sick Leave'}[info.typeKey]||info.typeKey;
+  if(['al','lsl','sick','family'].includes(info.typeKey)){
+    const lbl={al:'Annual Leave',lsl:'Long Service Leave',sick:'Sick Leave',family:'Family / Carer\'s Leave'}[info.typeKey]||info.typeKey;
     el.innerHTML='<div style="font-size:12px;font-weight:700;color:#dc2626;">'+lbl+'</div>';
     return;
   }
@@ -4778,7 +4812,7 @@ function renderCalCell(d, otherMonth){
     else cls+=' c-swap';
   }
   else if(tk==='single_day_swap') cls+=' c-swap';
-    else if(tk==='sl'||tk==='repro') cls+=' c-sl';
+    else if(tk==='sl'||tk==='family'||tk==='repro') cls+=' c-sl';
   // Keep BLP/SLP background even when worked (hasWorkedOverride on a BLP day)
   if(hasWorkedOverride&&(tk==='blp'||tk==='blp_worked')) cls+=' c-blp';
   if(hasWorkedOverride&&(tk==='slp'||tk==='slp_worked')) cls+=' c-slp';
@@ -4798,6 +4832,10 @@ function renderCalCell(d, otherMonth){
       inner+='<div class="cal-badge b-slp" style="margin-bottom:2px;">SLP</div>';
     } else if(tk==='repro'){
       inner+='<div class="cal-badge b-sl" style="margin-bottom:2px;">Repo Leave</div>';
+    } else if(tk==='family'){
+      inner+='<div class="cal-badge b-sl" style="margin-bottom:2px;">Family</div>';
+      const flHrs=wEnd?calcHrs(wStart,wEnd):0;
+      if(flHrs) inner+='<div style="font-size:11px;color:var(--muted);font-weight:700;margin-top:2px;">'+flHrs.toFixed(2).replace(/\.?0+$/,'')+'h</div>';
     } else if(tk==='sl'){
       inner+='<div class="cal-badge b-sl" style="margin-bottom:2px;">Sick</div>';
       if(wStart&&wEnd){
@@ -4807,7 +4845,7 @@ function renderCalCell(d, otherMonth){
     } else if(tk==='single_day_swap'){
       inner+='<div class="cal-badge b-swap" style="font-size:9px;padding:1px 4px;margin-bottom:2px;">⇄ Day</div>';
     }
-    if(tk!=='sl'){
+    if(tk!=='sl'&&tk!=='family'){
       inner+='<div class="cal-time" style="'+timeColor(wStart)+';">' +wStart+'</div>';
     }
   } else if((tk==='blp_worked'||tk==='slp_worked')&&sh.time&&sh.endTime){
@@ -4830,9 +4868,9 @@ function renderCalCell(d, otherMonth){
     if(sh.time) inner+='<div class="cal-time" style="'+timeColor(sh.time)+';">'+sh.time+'</div>';
   } else if(tk==='ph_booked_off'){
     inner+='<div class="cal-badge" style="background:#78350f;color:#fde68a;font-size:9px;padding:1px 4px;border-radius:3px;margin-bottom:2px;">PH Off</div>';
-  } else if(['al','lsl','afp','afa','blp','slp','sl','repro','lwop','blp_worked','slp_worked','mbo','cbo'].includes(tk)){
-    const labels={al:'AL',lsl:'LSL',afp:'AFP',afa:'AFA',blp:'BLP',slp:'SLP',sl:'SL',repro:'Repo Leave',lwop:'LWOP',blp_worked:'BLP✓',slp_worked:'SLP✓',mbo:'MBO',cbo:'CBO'};
-    const bcls={al:'b-al',lsl:'b-lsl',afp:'b-afp',afa:'b-afa',blp:'b-blp',slp:'b-slp',sl:'b-sl',repro:'b-sl',lwop:'b-al',blp_worked:'b-am1',slp_worked:'b-slp',mbo:'b-mbo',cbo:'b-cbo'};
+  } else if(['al','lsl','afp','afa','blp','slp','sl','family','repro','lwop','blp_worked','slp_worked','mbo','cbo'].includes(tk)){
+    const labels={al:'AL',lsl:'LSL',afp:'AFP',afa:'AFA',blp:'BLP',slp:'SLP',sl:'SL',family:'FL',repro:'Repo Leave',lwop:'LWOP',blp_worked:'BLP✓',slp_worked:'SLP✓',mbo:'MBO',cbo:'CBO'};
+    const bcls={al:'b-al',lsl:'b-lsl',afp:'b-afp',afa:'b-afa',blp:'b-blp',slp:'b-slp',sl:'b-sl',family:'b-sl',repro:'b-sl',lwop:'b-al',blp_worked:'b-am1',slp_worked:'b-slp',mbo:'b-mbo',cbo:'b-cbo'};
     inner+='<div class="cal-badge '+bcls[tk]+'">'+labels[tk]+'</div>';
   } else if(tk==='swap'){
     const swapInner=sh.swapInnerType||'normal';
@@ -4982,13 +5020,13 @@ function renderDayPanel(ds){
   const lv=(S.plannedLeave||[]).find(function(l){
     return ds>=l.start&&ds<=(l.end||l.start);
   });
-  const leaveTypeKey=lv?lv.type:((['al','lsl','sl','repro'].includes(sh.typeKey))?sh.typeKey:null);
+  const leaveTypeKey=lv?lv.type:((['al','lsl','sl','family','repro'].includes(sh.typeKey))?sh.typeKey:null);
 
   if(['blp','slp'].includes(sh.typeKey)&&!lv){
     html='<div class="cal-badge '+(sh.typeKey==='blp'?'b-blp':'b-slp')+'" style="font-size:13px;padding:4px 10px;">'+(sh.typeKey==='blp'?'Block Leisure Period':'Single Leisure Period')+'</div>';
   } else if(leaveTypeKey){
-    const leaveLabels={al:'Annual Leave',lsl:'Long Service Leave',sl:'Sick Leave',repro:'Repo Leave'};
-    const leaveColours={al:'#dc2626',lsl:'#0d9488',sl:'#0369a1',repro:'#0369a1'};
+    const leaveLabels={al:'Annual Leave',lsl:'Long Service Leave',sl:'Sick Leave',family:'Family / Carer\'s Leave',repro:'Repo Leave'};
+    const leaveColours={al:'#dc2626',lsl:'#0d9488',sl:'#0369a1',family:'#0369a1',repro:'#0369a1'};
     const leaveLabel=leaveLabels[leaveTypeKey]||leaveTypeKey.toUpperCase();
     const leaveColour=leaveColours[leaveTypeKey]||'var(--accent)';
     // Leave as primary — large heading
@@ -5211,7 +5249,7 @@ function syncSickLeaveDeduction(ds, ov){
   S.leaveAdj=S.leaveAdj.filter(function(a){
     return !(a.type==='sick-shift'&&a.sourceDate===ds);
   });
-  if(ov&&ov.type==='sick'&&ov.start&&ov.end){
+  if(ov&&(ov.type==='sick'||ov.type==='family')&&ov.start&&ov.end){
     const hrs=calcHrs(ov.start,ov.end);
     if(hrs&&hrs>0){
       S.leaveAdj.push({
@@ -5221,7 +5259,7 @@ function syncSickLeaveDeduction(ds, ov){
         dir:'decrease',
         hours:Math.round(hrs*100)/100,
         date:ds,
-        reason:'Sick leave from shift '+ov.start+'–'+ov.end,
+        reason:(ov.type==='family'?'Family / carer\'s leave':'Sick leave')+' from shift '+ov.start+'–'+ov.end,
         sourceDate:ds
       });
     }
@@ -8005,7 +8043,7 @@ function renderStats(){
 
   // Compute from raw data
   function computeStats(filterFn){
-    let hrsWorked=0,shifts=0,blpW=0,slpW=0,afpD=0,afaD=0,alD=0,slD=0,reproD=0,links=new Set();
+    let hrsWorked=0,shifts=0,blpW=0,slpW=0,afpD=0,afaD=0,alD=0,slD=0,famD=0,reproD=0,links=new Set();
     let phWorked=0,phWorkedHrs=0,phBookedOff=0;
     Object.entries(S.days).forEach(([ds,ov])=>{
       if(!filterFn(ds)) return;
@@ -8015,6 +8053,7 @@ function renderStats(){
       else if(t==='al') alD++;
       else if(t==='lsl') {}
       else if(t==='sick') slD++;
+      else if(t==='family') famD++;
       else if(t==='repro') reproD++;
       else if(t==='ph_worked'){phWorked++; shifts++; const h=calcHrs(ov.start,ov.end); if(h){hrsWorked+=h;phWorkedHrs+=h;}}
       else if(t==='ph_booked_off') phBookedOff++;
@@ -8027,7 +8066,7 @@ function renderStats(){
     });
     const claimCount=S.claims.filter(c=>filterFn(c.date)).length;
     const swapCount=S.swaps.filter(s=>filterFn(s.wc)).length;
-    return {hrsWorked,shifts,blpW,slpW,afpD,afaD,alD,slD,reproD,claims:claimCount,swaps:swapCount,links:links.size,phWorked,phWorkedHrs,phBookedOff};
+    return {hrsWorked,shifts,blpW,slpW,afpD,afaD,alD,slD,famD,reproD,claims:claimCount,swaps:swapCount,links:links.size,phWorked,phWorkedHrs,phBookedOff};
   }
 
   const stats=statsView==='year'
@@ -8044,6 +8083,7 @@ function renderStats(){
     ['PH Booked Off',stats.phBookedOff+' day'+(stats.phBookedOff!==1?'s':'')],
     ['AL Days',stats.alD+' days (≈'+(stats.alD*8).toFixed(1)+'h)'],
     ['Sick Leave Days',stats.slD+' days (≈'+(stats.slD*8).toFixed(1)+'h)'],
+    ['Family / Carer\'s Leave Days',stats.famD+' days (≈'+(stats.famD*8).toFixed(1)+'h)'],
     ['Repo Leave Days',stats.reproD+' days (≈'+(stats.reproD*8).toFixed(1)+'h)'],
     ['Claims',stats.claims],
     ['Swaps',stats.swaps],
