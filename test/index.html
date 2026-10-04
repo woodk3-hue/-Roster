@@ -3476,7 +3476,12 @@ function ruleFacts(ds,time,endStr,job,typeKey,code){
 function ruleDayFacts(ds){
   const sh=getEffectiveShift(ds), ov=S.days[ds]||null;
   const onLeave=(S.plannedLeave||[]).some(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
-  if(onLeave||RULE_LEAVE_TYPES.includes(sh.typeKey)) return ruleFacts(ds,null,'','','leave','');
+  if(onLeave||RULE_LEAVE_TYPES.includes(sh.typeKey)){
+    const lf=ruleFacts(ds,null,'','','leave','');
+    // Leave booked over a rostered BLP/SLP: the day is still a leisure day
+    if(dayIsLeisureRoster(ds)) lf.leisure=true;
+    return lf;
+  }
   const tk=sh.typeKey==='swap'?(sh.swapInnerType||'normal'):sh.typeKey;
   let job=(ov&&ov.job)||(ov&&ov.sdsTheirJob)||sh.job||'';
   // Sign-on moved but no finish or job typed: the roster job card's finish no longer applies
@@ -3601,7 +3606,10 @@ function avgShiftHours(){
 }
 function cycleTarget(start){ return fmtDate(start)>=nineDayFromDs()?152:160; }
 function dayIsLeisureRoster(ds){
-  const d=parseDate(ds), sh=parseShift(getRaw(getLinkForWeek(getMonday(d)),dayIdx(d)));
+  const d=parseDate(ds), mon=getMonday(d);
+  // A whole-week swap means the other link's roster applies
+  const ws=(S.swaps||[]).find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
+  const sh=parseShift(getRaw(ws?ws.linkReceived:getLinkForWeek(mon),dayIdx(d)));
   return sh.typeKey==='blp'||sh.typeKey==='slp';
 }
 // Hours credited to one 4-week cycle: shifts worked, leave (rostered hours) and roster alteration credits
