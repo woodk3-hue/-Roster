@@ -8374,11 +8374,12 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-04.3'; // third release today
+const APP_VERSION='2026-10-04.4'; // fourth release today
 const WHATS_NEW=[
-  'Swaps: My Link and W/C are side by side and fill each other in, and your week shows straight away — enter the other link to compare. The shifts are bigger and easier to read.',
-  'Tools → Meal window: enter the start and finish of a non-revenue card to see the shift length and when your 60-minute meal break must be taken.',
-  'Calendar: a shift with times but no job number now lets you pick Revenue or Non-revenue for that day\'s meal times.'
+  'Dash: the Today card is bigger and shows your job, crew, notes and meal break. If the job has a job card, tap "Job card — tap to view" to see it.',
+  'Swaps: tap a swap in Swap History to fix the other driver\'s name or link. Undoing a single-day swap now clears that day from the calendar too.',
+  'Swaps: My Link and W/C fill each other in, and your week shows straight away.',
+  'Tools → Meal window: enter the start and finish of a non-revenue card to see when your 60-minute meal break must be taken.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
