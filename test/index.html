@@ -4341,10 +4341,10 @@ function renderDash(){
         const daysLeft=Math.ceil((emailDue-now)/(24*60*60*1000));
         const sent=S.swapEmailSent[sw.id];
         const countdown=daysLeft<=0?'<span style="color:#ef4444;font-weight:700;">Due Now!</span>':daysLeft===1?'<span style="color:var(--accent);">Tomorrow</span>':'<span class="swap-email-countdown">'+daysLeft+'</span> days remaining';
-        return '<div class="swap-email-card" id="sec-'+sw.id+'">'+
+        return '<div class="swap-email-card" id="sec-'+sw.id+'" data-swid="'+sw.id+'" style="cursor:pointer;" onclick="if(!event.target.closest(\'button,input,.swap-edit\'))editSwap(\''+sw.id+'\',this)">'+
           '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">'+
             '<div>'+
-              '<div style="font-size:12px;font-weight:800;">W/C '+fmtDDMM(wcDate)+' &nbsp;<span style="font-weight:400;color:var(--muted);">Link '+sw.linkGiven+' → '+sw.linkReceived+'</span></div>'+
+              '<div style="font-size:12px;font-weight:800;">W/C '+fmtDDMM(wcDate)+' &nbsp;<span style="font-weight:400;color:var(--muted);">'+(sw.scope==='blp'?'<span style="color:#6366f1;font-weight:700;">BLP swap</span>':'Link '+sw.linkGiven+' → '+sw.linkReceived)+'</span></div>'+
               (sw.driver?'<div style="font-size:11px;color:var(--muted);">'+sw.driver+'</div>':'')+
               '<div style="font-size:11px;color:var(--muted);">Email due: '+fmtDDMM(emailDue)+' · '+countdown+'</div>'+
             '</div>'+
@@ -4352,7 +4352,10 @@ function renderDash(){
               ?'<div style="text-align:right;white-space:nowrap;"><span style="color:var(--early);font-size:11px;font-weight:700;">✓ Sent</span><br><button class="btn btn-sm" style="font-size:9px;padding:2px 6px;margin-top:2px;" data-swapid="'+sw.id+'" onclick="undoSwapEmailSentById(this)">Undo</button></div>'
               :'<button class="btn btn-sm btn-accent" style="font-size:10px;white-space:nowrap;" data-swapid="'+sw.id+'" onclick="markSwapEmailSentById(this)">Mark Sent</button>')+
           '</div>'+
-          '<button class="btn btn-sm" style="font-size:10px;width:100%;margin-top:6px;" data-swapid="'+sw.id+'" onclick="generateSwapEmailById(this)">📧 Generate Email</button>'+
+          '<div style="display:flex;gap:6px;margin-top:6px;">'+
+            '<button class="btn btn-sm" style="font-size:10px;flex:1;" onclick="editSwap(\''+sw.id+'\',this.closest(\'.swap-email-card\'))">✏️ Edit</button>'+
+            '<button class="btn btn-sm" style="font-size:10px;flex:2;" data-swapid="'+sw.id+'" onclick="generateSwapEmailById(this)">📧 Generate Email</button>'+
+          '</div>'+
         '</div>';
       }),3);
   } else {
@@ -5772,14 +5775,14 @@ function renderSwapLog(){
       '<button class="del-swap-btn" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer;padding:0 2px;">×</button>';
     div.querySelector('.del-swap-btn').onclick=()=>deleteSwap(sw.id);
     // Tap the swap (or ✏️ Edit) to fix the driver name or link
-    if(syncRole!=='partner'){
+    if(syncRole!=='partner'&&!isPast){
       div.style.cursor='pointer';
-      div.addEventListener('click',function(e){ if(e.target.closest('button,input,.swap-edit')) return; editSwap(sw.id); });
+      div.addEventListener('click',function(e){ if(e.target.closest('button,input,.swap-edit')) return; editSwap(sw.id,div); });
       const editBtn=document.createElement('button');
       editBtn.className='btn btn-sm';
       editBtn.style.cssText='font-size:10px;padding:3px 8px;margin-top:4px;width:100%;';
       editBtn.textContent='✏️ Edit driver / link';
-      editBtn.onclick=function(){ editSwap(sw.id); };
+      editBtn.onclick=function(){ editSwap(sw.id,div); };
       div.appendChild(editBtn);
     }
     // Generate email button
@@ -5811,9 +5814,10 @@ function swapDayKeys(sw){
   }
   return out;
 }
-function editSwap(id){
+function editSwap(id,el){
+  if(syncRole==='partner') return;
   const sw=S.swaps.find(function(x){ return x.id===id; }); if(!sw) return;
-  const div=document.querySelector('[data-swid="'+id+'"]'); if(!div||div.querySelector('.swap-edit')) return;
+  const div=el||document.querySelector('#swap-log [data-swid="'+id+'"]'); if(!div||div.querySelector('.swap-edit')) return;
   const blp=sw.scope==='blp';
   const box=document.createElement('div');
   box.className='swap-edit';
@@ -5822,10 +5826,11 @@ function editSwap(id){
       '<div style="flex:2;min-width:0;"><div class="form-label">Other driver</div><input type="text" class="form-input" id="swe-driver-'+id+'" value="'+escHtml(sw.driver||'')+'"></div>'+
       (blp?'':'<div style="flex:1;min-width:0;"><div class="form-label">Other link</div><input type="number" class="form-input" id="swe-link-'+id+'" min="1" value="'+sw.linkReceived+'"></div>')+
     '</div>'+
-    '<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-sm" style="flex:1;" onclick="renderSwapLog()">Cancel</button><button class="btn btn-sm btn-accent" style="flex:1;" onclick="saveSwapEdit(\''+id+'\')">Save</button></div>';
+    '<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-sm" style="flex:1;" onclick="swapEditDone()">Cancel</button><button class="btn btn-sm btn-accent" style="flex:1;" onclick="saveSwapEdit(\''+id+'\')">Save</button></div>';
   div.appendChild(box);
   const f=document.getElementById('swe-driver-'+id); if(f) f.focus();
 }
+function swapEditDone(){ renderSwapLog(); renderDash(); }
 function saveSwapEdit(id){
   if(syncRole==='partner'){ toast('Partner view — cannot edit swaps'); return; }
   const sw=S.swaps.find(function(x){ return x.id===id; }); if(!sw) return;
