@@ -3569,14 +3569,14 @@ function ackRuleIssues(ds,on){
   toast(on?'Marked as agreed':'Agreement removed');
 }
 
-// Consecutive-day count for a CBO (EBA 96.1): worked days and short-term sick days count (96.4);
-// annual, long service, family/carer's and reproductive leave, LWOP, MBO and CBO restart it; so do 32 hours off
+// Consecutive-day count for a CBO (EBA 96.1): worked days, short-term sick and reproductive leave days count (96.4);
+// annual, long service and family/carer's leave, LWOP, MBO and CBO restart it; so do 32 hours off
 function cboDayKind(ds){
   const pl=(S.plannedLeave||[]).find(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
   if(pl) return pl.type==='sl'?'sick':'reset';
   const tk=getEffectiveShift(ds).typeKey;
-  if(tk==='sl'||tk==='sick') return 'sick';
-  if(['al','lsl','family','repro','lwop','mbo','cbo','ph_booked_off'].includes(tk)) return 'reset';
+  if(tk==='sl'||tk==='sick'||tk==='repro') return 'sick';
+  if(['al','lsl','family','lwop','mbo','cbo','ph_booked_off'].includes(tk)) return 'reset';
   return ruleDayFacts(ds).work?'work':'off';
 }
 function cboDayCounts(start,days){
@@ -3926,7 +3926,7 @@ const RULES=[
  {g:'hours',c:'81.2',t:'Minimum payment',b:'Except where listed above, minimum payment and rostered workings are 4 hours, credited to the cycle.'},
  {g:'hours',c:'81.3',t:'Lay-off at a foreign depot',b:'At least 8 hours lay-off at a foreign depot (10 hours for later lay-offs on IML work trains). Time away from home should not go over 34 hours where practical (81.4).'},
  {g:'hours',c:'82.1',t:'Minimum layoff at home',b:'At least 12 hours between any shifts at your home depot.'},
- {g:'hours',c:'96.1',t:'Compulsory book off (CBO)',b:'After 11 consecutive days worked you must be rostered off for at least 32 hours at your home depot (14 consecutive shifts: 96.2). 32 hours off before then restarts the count. Short-term sick leave counts towards the days (96.4); annual, long service and family / carer\'s leave restart it. Laying over at a foreign depot does not restart it (96.3). The Dash warns you from 9 days.'},
+ {g:'hours',c:'96.1',t:'Compulsory book off (CBO)',b:'After 11 consecutive days worked you must be rostered off for at least 32 hours at your home depot (14 consecutive shifts: 96.2). 32 hours off before then restarts the count. Short-term sick leave (96.4) and reproductive leave count towards the days; annual, long service and family / carer\'s leave restart it. Laying over at a foreign depot does not restart it (96.3). The Dash warns you from 9 days.'},
  {g:'meals',c:'85.1',t:'Meal breaks',b:'Shifts up to 7h30m: one 40-minute break, starting after 3 hours and finished before 5h30m. Shifts of 7h31m to 9 hours: two 30-minute breaks, the first starting 2h30m–3h30m in and the second 5h30m–6h30m in, at least 2 hours apart. Walking time is not included.'},
  {g:'meals',c:'85.2',t:'Working through a meal break',b:'Only during a network failure that delays trains (bridge strike, fatality, telemetry or points failure, broken rail), and only where you have two rostered breaks: you can be directed to work through one of them. You are then paid a meal allowance, paid at the end of the work cycle (85.3). With one rostered break you can\'t be directed to work through it.'},
  {g:'meals',c:'RP 2.5',t:'Meal break examples',b:'Shift of 7h30m or less, sign on 10:00: the 40-minute break can start after 13:00 and must be finished by 15:30. Longer shift, sign on 06:00: 1st 30-minute break between 08:30 and 10:00 (finished by 10:00), 2nd between 11:30 and 13:00 (finished by 13:00). Tap a day in the calendar to see your own meal windows.'},
