@@ -8430,12 +8430,12 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-04.5'; // fifth release today
+const APP_VERSION='2026-10-05';
 const WHATS_NEW=[
-  'Swaps: made a mistake? Tap an upcoming swap on the Dash (Swap Email Due) or in Swap History to fix the other driver\'s name or link. Past swaps stay as they were.',
-  'Dash: the Today card is bigger and shows your job, crew, notes and meal break. If the job has a job card, tap "Job card — tap to view" to see it.',
-  'Swaps: My Link and W/C fill each other in, and your week shows straight away.',
-  'Tools → Meal window: enter the start and finish of a non-revenue card to see when your 60-minute meal break must be taken.'
+  'Swaps: undoing a swap now puts back anything you had entered for those days in Edit Shift. Swapping onto a link with AFA/AFP days (e.g. link 16) now shows them instead of blank days.',
+  'CBO count follows the EBA: sick and reproductive leave count towards the 11 days; annual, long service and family leave restart it, as do 32 hours off.',
+  'Leave booked over a BLP/SLP still counts as a leisure day, so the cycle check no longer warns about it.',
+  'Edit Shift: new Family / Carer\'s Leave option. It comes out of personal leave like sick leave.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
