@@ -5199,7 +5199,7 @@ function openShiftModal(ds){
   const raw=getRaw(link,idx);
   const sh=parseShift(raw);
 
-  document.getElementById('sm-type').value=ov.type||'normal';
+  document.getElementById('sm-type').value=(ov.type&&ov.type!=='swap')?ov.type:'normal';
   document.getElementById('sm-start').value=ov.start||(sh.typeKey==='normal'?sh.time||'':sh.typeKey==='swap'?sh.time||'':'');
   document.getElementById('sm-end').value=ov.end||'';
   document.getElementById('sm-job').value=ov.job||'';
@@ -5280,6 +5280,11 @@ function saveShift(){
 
   const existingOv=S.days[ds]||{};
   const d={type,start,end,job,guards,notes};
+  // Editing a day in a swapped week: it stays part of the swap (and keeps what Undo Swap restores)
+  if(existingOv.type==='swap'&&(!type||type==='normal')){
+    d.type='swap'; d.swapFrom=existingOv.swapFrom; d.swapTo=existingOv.swapTo; d.swapPartner=existingOv.swapPartner;
+    if(existingOv.before) d.before=existingOv.before;
+  }
   const altKind=document.getElementById('sm-alt-kind').value;
   if(altKind){
     const cr=parseFloat(document.getElementById('sm-alt-credit').value);
@@ -5295,7 +5300,7 @@ function saveShift(){
 
   // Only save if meaningful
   const hadOv=Object.prototype.hasOwnProperty.call(S.days,ds), oldOv=S.days[ds];
-  if(type==='normal'&&!start&&!end&&!job&&!guards&&!notes&&!d.alt){ delete S.days[ds]; }
+  if(d.type==='normal'&&!start&&!end&&!job&&!guards&&!notes&&!d.alt){ delete S.days[ds]; }
   else S.days[ds]=d;
   // Roster rule check (EBA): warn before saving a shift that breaks a rule
   // "I agreed to this change" in Edit Shift marks this day's rule checks as agreed
@@ -5412,19 +5417,8 @@ function undoSwap(elOrId){
     btn.dataset.confirming='';
     // Remove the swap record
     S.swaps=S.swaps.filter(function(s){ return s.id!==id; });
-    // Clear S.days stamps for this swap's week
-    const mon=parseDate(sw.wc);
-    if(sw.scope==='week'){
-      for(var i=0;i<7;i++){
-        const ds=fmtDate(addDays(mon,i));
-        if(S.days[ds]&&S.days[ds].type==='swap'&&S.days[ds].swapTo===sw.linkReceived){
-          delete S.days[ds];
-        }
-      }
-    } else if(sw.scope!=='blp'){
-      // Single day — the day it stamped (older records have no dayIdx: found by link)
-      swapDayKeys(sw).forEach(function(ds){ delete S.days[ds]; });
-    }
+    // Put this swap's days back the way they were (keeping anything typed in since)
+    if(sw.scope!=='blp') swapDayKeys(sw).forEach(unswapDay);
     // Clear email sent status
     if(S.swapEmailSent) delete S.swapEmailSent[id];
     saveState();
@@ -5842,6 +5836,16 @@ function renderSwapLog(){
   });
 }
 
+// Undo one swapped day: restore what was there before the swap, plus anything typed in Edit Shift since
+function unswapDay(ds){
+  const d=S.days[ds]; if(!d) return;
+  const out=d.before?JSON.parse(JSON.stringify(d.before)):{type:'normal',start:'',end:'',job:'',guards:'',notes:''};
+  ['start','end','job','guards','notes'].forEach(function(k){ if(d[k]) out[k]=d[k]; });
+  if(d.alt) out.alt=d.alt;
+  if(!out.type) out.type='normal';
+  const empty=out.type==='normal'&&!out.start&&!out.end&&!out.job&&!out.guards&&!out.notes&&!out.alt;
+  if(empty) delete S.days[ds]; else S.days[ds]=out;
+}
 // The S.days entries a swap stamped (single-day swaps from before dayIdx was saved: found by link)
 function swapDayKeys(sw){
   const mon=parseDate(sw.wc), out=[];
@@ -6161,15 +6165,16 @@ function saveSwapInline(){
     const swapRec={id:uid(),wc:monStr,linkGiven:given,linkReceived:received,driver,scope:swapInlineScope,myBlp:myBlp,theirBlp:theirBlp,blpDiff:theirBlp-myBlp};
     if(swapInlineScope==='day') swapRec.dayIdx=parseInt(document.getElementById('sw-day').value||'0');
     S.swaps.push(swapRec);
-    if(swapInlineScope==='week'){
-      for(let i=0;i<7;i++){
-        const ds=fmtDate(addDays(mon,i));
-        S.days[ds]={type:'swap',swapFrom:given,swapTo:received,swapPartner:driver,start:'',end:'',job:'',guards:'',notes:''};
-      }
-    } else {
-      const idx=parseInt(document.getElementById('sw-day').value||'0');
-      const ds=fmtDate(addDays(mon,idx));
+    // Each swapped day remembers what was there before, so Undo Swap can put it back
+    const stamp=function(ds){
+      const before=S.days[ds]?JSON.parse(JSON.stringify(S.days[ds])):null;
       S.days[ds]={type:'swap',swapFrom:given,swapTo:received,swapPartner:driver,start:'',end:'',job:'',guards:'',notes:''};
+      if(before) S.days[ds].before=before;
+    };
+    if(swapInlineScope==='week'){
+      for(let i=0;i<7;i++) stamp(fmtDate(addDays(mon,i)));
+    } else {
+      stamp(fmtDate(addDays(mon,parseInt(document.getElementById('sw-day').value||'0'))));
     }
   }
   saveState();
