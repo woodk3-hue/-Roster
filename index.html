@@ -6908,15 +6908,8 @@ function calcChargeableDays(startStr, endStr){
     var dow=cur.getDay();
     // Skip Sat/Sun only if no roster (they can be rostered working days)
     // Use actual roster for this date
-    var mon=getMonday(cur);
-    var link=getLinkForWeek(mon);
-    var isExcluded=false;
-    if(link&&ROSTER[String(link)]){
-      var idx=dow===0?6:dow-1;
-      var raw=ROSTER[String(link)][idx]||'';
-      var sh=parseShift(raw);
-      if(sh.typeKey==='blp'||sh.typeKey==='slp') isExcluded=true;
-    }
+    // BLP/SLP days aren't charged — from the link actually worked that week (follows whole-week swaps)
+    var isExcluded=dayIsLeisureRoster(ds);
     if(QLD_PH.has(ds)) isExcluded=true;
     if(!isExcluded) count++;
     cur=addDays(cur,1);
@@ -7115,13 +7108,22 @@ function getFortnightDates(offsetFortnights){
   return {start:addDays(fnStart,offset), end:addDays(fnStart,offset+13)};
 }
 
+// Hours a day is rostered for in the master roster (no swaps): the job card length for a shift,
+// the average depot shift for an available day (EBA 67.7), nothing for BLP/SLP
+function masterRosterHours(ds){
+  const d=parseDate(ds), raw=getRaw(getLinkForWeek(getMonday(d)),dayIdx(d)), sh=parseShift(raw||'');
+  if(sh.typeKey==='blp'||sh.typeKey==='slp') return 0;
+  if(sh.time){ const f=ruleRawFacts(ds,raw); return f.end!=null?(f.end-f.start)/3600000:avgShiftHours(); }
+  return RULE_AVAILABLE.includes(sh.typeKey)?avgShiftHours():0;
+}
+
 function calcPayProjection(offsetFortnights){
   const cph=S.settings.cph||66.50;
   const fn=getFortnightDates(offsetFortnights||0);
   const start=fn.start, end=fn.end;
 
   // Scan every day in the fortnight
-  let blpHrs=0, satHrs=0, sunHrs=0, phHrs=0, alWkndHrs=0;
+  let blpHrs=0, satHrs=0, sunHrs=0, phHrs=0, alSatHrs=0, alSunHrs=0;
 
   let cur=new Date(start);
   while(cur<=end){
@@ -7133,6 +7135,19 @@ function calcPayProjection(offsetFortnights){
     // Get the effective shift to know the roster type for this day
     const sh=getEffectiveShift(ds);
     const rosterTk=sh.typeKey;
+
+    // Leave days: no weekend penalty for hours entered — except annual leave, which is paid the
+    // penalty on the Saturday/Sunday hours in the master roster (EBA 67.6). LSL and personal leave aren't.
+    const lvAny=(S.plannedLeave||[]).find(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
+    const ovLeave=ov&&['al','lsl','sick','family','repro','lwop'].includes(ov.type)?ov.type:null;
+    if(lvAny||ovLeave){
+      const lt=lvAny?lvAny.type:ovLeave;
+      if(lt==='al'&&!isPH&&(dow===6||dow===0)){
+        const h=masterRosterHours(ds);
+        if(dow===6) alSatHrs+=h; else alSunHrs+=h;
+      }
+      cur=addDays(cur,1); continue;
+    }
 
     // Hours worked — from override start/end
     let hrs=0;
@@ -7154,12 +7169,6 @@ function calcPayProjection(offsetFortnights){
       satHrs+=hrs;
     } else if(dow===0){ // Sunday
       sunHrs+=hrs;
-    } else {
-      // AL on rostered weekend
-      const lv=(S.plannedLeave||[]).find(function(l){
-        return l.type==='al'&&ds>=l.start&&ds<=(l.end||l.start);
-      });
-      if(lv&&(dow===6||dow===0)) alWkndHrs+=hrs;
     }
     cur=addDays(cur,1);
   }
@@ -7181,7 +7190,9 @@ function calcPayProjection(offsetFortnights){
   const satGross=satHrs*cph*0.50;                 // 50% extra
   const sunGross=sunHrs*cph*1.00;                 // 100% extra
   const phGross=phHrs*cph*((S.settings.phRate||150)/100);  // configurable PH rate
-  const alWkndGross=alWkndHrs*cph*0.50;           // AL on rostered weekend
+  const alWkndHrs=alSatHrs+alSunHrs;
+  const alSatGross=alSatHrs*cph*0.50, alSunGross=alSunHrs*cph*1.00;  // AL on rostered weekend (EBA 67.6)
+  const alWkndGross=alSatGross+alSunGross;
   const totalGross=baseGross+blpGross+satGross+sunGross+phGross+alWkndGross+excessGross+altLeisGross;
 
   // ── PRE-TAX DEDUCTIONS — from customDeductions ──
@@ -7208,7 +7219,7 @@ function calcPayProjection(offsetFortnights){
 
   return {
     baseGross,blpHrs,blpGross,satHrs,satGross,sunHrs,sunGross,
-    phHrs,phGross,alWkndHrs,alWkndGross,totalGross,
+    phHrs,phGross,alWkndHrs,alWkndGross,alSatHrs,alSunHrs,alSatGross,alSunGross,totalGross,
     cyc,excessHrs,excessGross,altLeisHrs,altLeisGross,
     fleetPre,salarySac,volSuper,qri,totalPreTax,
     fnTax,mediLevy,totalTax,
@@ -7307,7 +7318,8 @@ function renderPayProjection(){
   if(p.satHrs>0) html+=payRow('Wknd Pnlty TC SAT',p.satHrs.toFixed(2),'50%',fmt$(p.satGross),'var(--early)');
   if(p.sunHrs>0) html+=payRow('Wknd Pnlty TC SUN',p.sunHrs.toFixed(2),'100%',fmt$(p.sunGross),'var(--early)');
   if(p.phHrs>0) html+=payRow('Public Holiday Wrkd',p.phHrs.toFixed(2),'50%',fmt$(p.phGross),'var(--early)');
-  if(p.alWkndHrs>0) html+=payRow('AL Wknd Penalty',p.alWkndHrs.toFixed(2),'50%',fmt$(p.alWkndGross),'var(--early)');
+  if(p.alSatHrs>0) html+=payRow('AL Sat Penalty',p.alSatHrs.toFixed(2),'50%',fmt$(p.alSatGross),'var(--early)');
+  if(p.alSunHrs>0) html+=payRow('AL Sun Penalty',p.alSunHrs.toFixed(2),'100%',fmt$(p.alSunGross),'var(--early)');
   if(p.excessHrs>0) html+=payRow('Excess time (cycle over '+p.cyc.target+'h)',p.excessHrs.toFixed(2),(S.settings.blpRate||175)+'%',fmt$(p.excessGross),'var(--early)');
   if(p.altLeisHrs>0) html+=payRow('Alteration on leisure day',p.altLeisHrs.toFixed(2),'175%',fmt$(p.altLeisGross),'var(--early)');
   html+='<div style="font-size:11px;color:var(--muted);padding:6px 0;cursor:pointer;" onclick="showCycleInfo(\''+fmtDate(p.cyc.start)+'\')">Cycle '+fmtDDMM(p.cyc.start)+'–'+fmtDDMM(p.cyc.end)+': <b>'+fmtH(p.cyc.total)+'</b> of '+p.cyc.target+'h credited'+(p.cyc.excess>0?' · '+fmtH(p.cyc.excess)+' over (paid at the end of the cycle)':'')+' ⓘ</div>';
@@ -8430,12 +8442,11 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-05';
+const APP_VERSION='2026-10-05.2'; // second release today
 const WHATS_NEW=[
-  'Swaps: undoing a swap now puts back anything you had entered for those days in Edit Shift. Swapping onto a link with AFA/AFP days (e.g. link 16) now shows them instead of blank days.',
-  'CBO count follows the EBA: sick and reproductive leave count towards the 11 days; annual, long service and family leave restart it, as do 32 hours off.',
-  'Leave booked over a BLP/SLP still counts as a leisure day, so the cycle check no longer warns about it.',
-  'Edit Shift: new Family / Carer\'s Leave option. It comes out of personal leave like sick leave.'
+  'Pay: annual leave over a rostered weekend now adds the Saturday (50%) and Sunday (100%) penalty on your master roster hours. LSL and personal leave on a weekend don\'t get the penalty.',
+  'Leave: AL/LSL on a BLP/SLP isn\'t charged — this now also works in weeks you\'ve swapped.',
+  'Swaps: undoing a swap puts back what you had entered for those days, and swapped-in AFA/AFP days now show on the calendar.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}

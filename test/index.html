@@ -8442,12 +8442,11 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-05';
+const APP_VERSION='2026-10-05.2'; // second release today
 const WHATS_NEW=[
-  'Swaps: undoing a swap now puts back anything you had entered for those days in Edit Shift. Swapping onto a link with AFA/AFP days (e.g. link 16) now shows them instead of blank days.',
-  'CBO count follows the EBA: sick and reproductive leave count towards the 11 days; annual, long service and family leave restart it, as do 32 hours off.',
-  'Leave booked over a BLP/SLP still counts as a leisure day, so the cycle check no longer warns about it.',
-  'Edit Shift: new Family / Carer\'s Leave option. It comes out of personal leave like sick leave.'
+  'Pay: annual leave over a rostered weekend now adds the Saturday (50%) and Sunday (100%) penalty on your master roster hours. LSL and personal leave on a weekend don\'t get the penalty.',
+  'Leave: AL/LSL on a BLP/SLP isn\'t charged — this now also works in weeks you\'ve swapped.',
+  'Swaps: undoing a swap puts back what you had entered for those days, and swapped-in AFA/AFP days now show on the calendar.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
