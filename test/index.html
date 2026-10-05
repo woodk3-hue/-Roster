@@ -6908,15 +6908,8 @@ function calcChargeableDays(startStr, endStr){
     var dow=cur.getDay();
     // Skip Sat/Sun only if no roster (they can be rostered working days)
     // Use actual roster for this date
-    var mon=getMonday(cur);
-    var link=getLinkForWeek(mon);
-    var isExcluded=false;
-    if(link&&ROSTER[String(link)]){
-      var idx=dow===0?6:dow-1;
-      var raw=ROSTER[String(link)][idx]||'';
-      var sh=parseShift(raw);
-      if(sh.typeKey==='blp'||sh.typeKey==='slp') isExcluded=true;
-    }
+    // BLP/SLP days aren't charged — from the link actually worked that week (follows whole-week swaps)
+    var isExcluded=dayIsLeisureRoster(ds);
     if(QLD_PH.has(ds)) isExcluded=true;
     if(!isExcluded) count++;
     cur=addDays(cur,1);
