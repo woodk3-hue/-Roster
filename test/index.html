@@ -1017,7 +1017,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
     <div class="form-group">
       <label class="form-label">Hourly Pay Rate ($)</label>
-      <input type="number" class="form-input" id="setup-cph" step="any" min="0" placeholder="e.g. 52.50" inputmode="decimal">
+      <input type="number" class="form-input" id="setup-cph" step="any" min="0" placeholder="e.g. 66.504" inputmode="decimal">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">From your payslip&#39;s RATE CPH column (cents per hour): move the decimal point two places left, e.g. <b>6650.40</b> = <b>66.504</b>.</div>
     </div>
     <div class="form-group">
       <label class="form-label">Starting Leave Balances (hours, from your payslip)</label>
@@ -1629,6 +1630,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="form-group">
         <label class="form-label">Hourly Rate (CPH)</label>
         <input type="number" class="form-input" id="set-cph" step="any" placeholder="66.504">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">From your payslip&#39;s RATE CPH column (cents per hour): move the decimal point two places left, e.g. <b>6650.40</b> = <b>66.504</b>.</div>
       </div>
       <div class="form-group">
         <label class="form-label">OT Multiplier</label>
@@ -8456,11 +8458,11 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-05.2'; // second release today
+const APP_VERSION='2026-10-07';
 const WHATS_NEW=[
-  'Pay: annual leave over a rostered weekend now adds the Saturday (50%) and Sunday (100%) penalty on your master roster hours. LSL and personal leave on a weekend don\'t get the penalty.',
-  'Leave: AL/LSL on a BLP/SLP isn\'t charged — this now also works in weeks you\'ve swapped.',
-  'Swaps: undoing a swap puts back what you had entered for those days, and swapped-in AFA/AFP days now show on the calendar.'
+  '💲 Please update your hourly rate: ⚙ Settings → Pay Settings → Hourly Rate. Your payslip shows it in cents (RATE CPH), so move the decimal point two places left — e.g. drivers 6650.40 = 66.504. It now takes 3 decimals.',
+  'Pay estimate now matches the payslip: excess time is paid at 170% (not 175%), leave counts as 8 hours a day towards cycle hours, and tax uses the new rates from 1 July 2026.',
+  'Stats → Pay History now shows the excess time line, and past estimates are worked out again with the fixes.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}

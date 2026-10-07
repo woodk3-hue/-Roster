@@ -1017,7 +1017,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
     <div class="form-group">
       <label class="form-label">Hourly Pay Rate ($)</label>
-      <input type="number" class="form-input" id="setup-cph" step="0.01" min="0" placeholder="e.g. 52.50" inputmode="decimal">
+      <input type="number" class="form-input" id="setup-cph" step="any" min="0" placeholder="e.g. 66.504" inputmode="decimal">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">From your payslip&#39;s RATE CPH column (cents per hour): move the decimal point two places left, e.g. <b>6650.40</b> = <b>66.504</b>.</div>
     </div>
     <div class="form-group">
       <label class="form-label">Starting Leave Balances (hours, from your payslip)</label>
@@ -1628,7 +1629,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Hourly Rate (CPH)</label>
-        <input type="number" class="form-input" id="set-cph" step="0.01" placeholder="66.50">
+        <input type="number" class="form-input" id="set-cph" step="any" placeholder="66.504">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">From your payslip&#39;s RATE CPH column (cents per hour): move the decimal point two places left, e.g. <b>6650.40</b> = <b>66.504</b>.</div>
       </div>
       <div class="form-group">
         <label class="form-label">OT Multiplier</label>
@@ -1676,6 +1678,10 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       </div>
     </div>
     <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Excess Time Rate %</label>
+        <input type="number" class="form-input" id="set-excess" placeholder="170">
+      </div>
       <div class="form-group">
         <label class="form-label">Tax Rate %</label>
         <input type="number" class="form-input" id="set-tax" placeholder="32">
@@ -2653,7 +2659,7 @@ let S = {
   bin: [],        // [{id,kind,data,deletedAt}]
   settings: {
     cph:0, otMult:1.5, guarHrs:80, cycleHrs:80.43,
-    satLoad:150, sunLoad:200, blpRate:175, phRate:150, taxRate:32,
+    satLoad:150, sunLoad:200, blpRate:175, excessRate:170, phRate:150, taxRate:32,
     superRate:12, salarySacPct:0, voluntarySuper:0,
     fleetPre:0, qri:0
   },
@@ -3649,9 +3655,12 @@ function cycleHours(start){
     const d=addDays(start,i), ds=fmtDate(d), ov=S.days[ds]||null, sh=getEffectiveShift(ds);
     const onLeave=(S.plannedLeave||[]).some(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
     if(onLeave||CYCLE_LEAVE_CREDIT.includes(sh.typeKey)){
-      // Leave is credited with the rostered shift's hours
-      if(ov&&ov.start&&ov.end&&!onLeave){ r.leave+=calcHrs(ov.start,ov.end)||0; }
-      else { const rf=ruleRawFacts(ds,getRaw(getLinkForWeek(getMonday(d)),dayIdx(d))); if(rf.work&&rf.end!=null) r.leave+=(rf.end-rf.start)/3600000; }
+      // Leave is credited at 8 hours a day, as payroll does (fewer if only part of a shift was taken);
+      // none on a rostered BLP/SLP
+      if(!dayIsLeisureRoster(ds)){
+        const part=(ov&&ov.start&&ov.end&&!onLeave)?(calcHrs(ov.start,ov.end)||0):0;
+        r.leave+=part>0?Math.min(part,8):8;
+      }
     } else {
       const f=ruleDayFacts(ds);
       // Available days and shifts with no finish time yet count at the roster's average shift
@@ -3668,10 +3677,10 @@ function fmtH(h){ return (Math.round(h*100)/100).toFixed(2).replace(/\.?0+$/,'')
 function cycleSummaryText(c){
   return 'Cycle '+fmtDDMM(c.start)+'–'+fmtDDMM(c.end)+'\n\n'+
     'Shifts and available days: '+fmtH(c.worked)+(c.est?' (includes '+c.est+' day'+(c.est>1?'s':'')+' with no times yet, counted at the roster average of '+fmtH(avgShiftHours())+')':'')+'\n'+
-    'Leave (rostered hours): '+fmtH(c.leave)+'\n'+
+    'Leave (8h a day): '+fmtH(c.leave)+'\n'+
     'Roster alterations: '+fmtH(c.alt)+'\n'+
     'Total credited: '+fmtH(c.total)+' of '+c.target+'h\n'+
-    (c.excess>0?'Over by '+fmtH(c.excess)+' — paid at your BLP rate ('+(S.settings.blpRate||175)+'%) at the end of the cycle.':'Not over '+c.target+'h, so no extra pay.')+
+    (c.excess>0?'Over by '+fmtH(c.excess)+' — paid as excess time ('+(S.settings.excessRate||170)+'%) at the end of the cycle.':'Not over '+c.target+'h, so no extra pay.')+
     (c.leisureAlt?'\n\nAlterations on leisure days: '+fmtH(c.leisureAlt)+' paid at 175% (not credited).':'')+
     '\n\nEstimate only — check your payslip.';
 }
@@ -7067,33 +7076,23 @@ function savePaySetting(key, val){
   renderPayProjection();
 }
 
-function calcAnnualTax(fnTaxable){
-  // ATO Schedule 1 Scale 2 (tax-free threshold claimed) 2024-2026
-  // Formula: y = a(x+1) - b where x = weekly equivalent earnings + 0.99
-  // Fortnightly withholding = round(weekly tax × 2)
-  const scale2=[
-    [361,      null,   null    ],  // no withholding below $361/week
-    [500,      0.1600, 57.8462 ],
-    [625,      0.2600, 107.8462],
-    [721,      0.1800, 57.8462 ],
-    [865,      0.1890, 64.3365 ],
-    [1282,     0.3227, 180.0385],
-    [2596,     0.3200, 176.5769],
-    [3653,     0.3900, 358.3077],
-    [Infinity, 0.4700, 650.6154]
-  ];
-  // Step 1: weekly equivalent — ignore cents, add 99c
-  const weekly=Math.floor(fnTaxable/2)+0.99;
-  // Step 2: find bracket and calculate weekly withholding
+function calcAnnualTax(fnTaxable,payDate){
+  // ATO Schedule 1 Scale 2 (tax-free threshold claimed). Weekly formula y = a·x − b, where
+  // x = weekly equivalent earnings (cents ignored) + 99c; weekly amount rounded to the dollar, × 2 for a fortnight
+  const SCALE2_2025=[  // 1 July 2024 – 30 June 2026
+    [361,null,null],[500,0.1600,57.8462],[625,0.2600,107.8462],[721,0.1800,57.8462],[865,0.1890,64.3365],
+    [1282,0.3227,180.0385],[2596,0.3200,176.5769],[3653,0.3900,358.3077],[Infinity,0.4700,650.6154]];
+  const SCALE2_2026=[  // from 1 July 2026 (16% bracket cut to 15%)
+    [362,null,null],[538,0.1500,54.3462],[673,0.2500,108.2135],[721,0.1700,54.3473],[865,0.1790,60.8377],
+    [1282,0.3227,185.1935],[2596,0.3200,181.7319],[3653,0.3900,363.4627],[Infinity,0.4700,655.7704]];
+  const d=payDate?fmtDate(payDate):fmtDate(today());
+  const scale2=d>='2026-07-01'?SCALE2_2026:SCALE2_2025;
+  const x=Math.floor(fnTaxable/2)+0.99;
   let y=0;
   for(const [limit,a,b] of scale2){
-    if(weekly<limit){
-      if(a!==null) y=a*(weekly+1)-b;
-      break;
-    }
+    if(x<limit){ if(a!==null) y=a*x-b; break; }
   }
-  // Step 3: fortnightly = weekly × 2, round to nearest dollar
-  return Math.round(Math.max(0,y)*2);
+  return Math.max(0,Math.round(y))*2;
 }
 
 function getFortnightDates(offsetFortnights){
@@ -7117,6 +7116,8 @@ function masterRosterHours(ds){
   return RULE_AVAILABLE.includes(sh.typeKey)?avgShiftHours():0;
 }
 
+// Bumped when the pay maths changes, so saved Pay History estimates are worked out again once
+const PAY_CALC_V=2;
 function calcPayProjection(offsetFortnights){
   const cph=S.settings.cph||66.50;
   const fn=getFortnightDates(offsetFortnights||0);
@@ -7177,7 +7178,7 @@ function calcPayProjection(offsetFortnights){
   const cyc=cycleHours(cycleStartFor(start));
   let excessHrs=0;
   if(fmtDate(cyc.end)===fmtDate(end)) excessHrs=cyc.excess;
-  const excessGross=excessHrs*cph*((S.settings.blpRate||175)/100);
+  const excessGross=excessHrs*cph*((S.settings.excessRate||170)/100);  // excess time is 170% (EBA 67.1)
   // Alterations on leisure days: paid at 175%, not credited (EBA 91.2/91.13)
   let altLeisHrs=0;
   for(let dd=new Date(start);dd<=end;dd=addDays(dd,1)){ const ods=fmtDate(dd), oov=S.days[ods]; if(oov&&oov.alt&&oov.alt.credit&&dayIsLeisureRoster(ods)) altLeisHrs+=+oov.alt.credit; }
@@ -7204,7 +7205,7 @@ function calcPayProjection(offsetFortnights){
 
   // ── TAX — ATO Schedule 1 Scale 2 (tax-free threshold) ──
   const taxableIncome=totalGross-totalPreTax;
-  const fnTax=calcAnnualTax(taxableIncome); // returns fortnightly tax directly
+  const fnTax=calcAnnualTax(taxableIncome,end); // fortnightly tax, using the tax table for that fortnight
   const mediLevy=0;
   const totalTax=fnTax;
 
@@ -7220,7 +7221,7 @@ function calcPayProjection(offsetFortnights){
   return {
     baseGross,blpHrs,blpGross,satHrs,satGross,sunHrs,sunGross,
     phHrs,phGross,alWkndHrs,alWkndGross,alSatHrs,alSunHrs,alSatGross,alSunGross,totalGross,
-    cyc,excessHrs,excessGross,altLeisHrs,altLeisGross,
+    cyc,excessHrs,excessGross,altLeisHrs,altLeisGross,calcV:PAY_CALC_V,
     fleetPre,salarySac,volSuper,qri,totalPreTax,
     fnTax,mediLevy,totalTax,
     sgSuper,resc,totalSuper,
@@ -7320,7 +7321,7 @@ function renderPayProjection(){
   if(p.phHrs>0) html+=payRow('Public Holiday Wrkd',p.phHrs.toFixed(2),'50%',fmt$(p.phGross),'var(--early)');
   if(p.alSatHrs>0) html+=payRow('AL Sat Penalty',p.alSatHrs.toFixed(2),'50%',fmt$(p.alSatGross),'var(--early)');
   if(p.alSunHrs>0) html+=payRow('AL Sun Penalty',p.alSunHrs.toFixed(2),'100%',fmt$(p.alSunGross),'var(--early)');
-  if(p.excessHrs>0) html+=payRow('Excess time (cycle over '+p.cyc.target+'h)',p.excessHrs.toFixed(2),(S.settings.blpRate||175)+'%',fmt$(p.excessGross),'var(--early)');
+  if(p.excessHrs>0) html+=payRow('Excess time (cycle over '+p.cyc.target+'h)',p.excessHrs.toFixed(2),(S.settings.excessRate||170)+'%',fmt$(p.excessGross),'var(--early)');
   if(p.altLeisHrs>0) html+=payRow('Alteration on leisure day',p.altLeisHrs.toFixed(2),'175%',fmt$(p.altLeisGross),'var(--early)');
   html+='<div style="font-size:11px;color:var(--muted);padding:6px 0;cursor:pointer;" onclick="showCycleInfo(\''+fmtDate(p.cyc.start)+'\')">Cycle '+fmtDDMM(p.cyc.start)+'–'+fmtDDMM(p.cyc.end)+': <b>'+fmtH(p.cyc.total)+'</b> of '+p.cyc.target+'h credited'+(p.cyc.excess>0?' · '+fmtH(p.cyc.excess)+' over (paid at the end of the cycle)':'')+' ⓘ</div>';
 
@@ -7951,6 +7952,14 @@ function updateStatsForDay(ds, ov){
 function renderPayHistory(){
   const el=document.getElementById('pay-history-list');
   if(!el) return;
+  // Estimates saved before a fix to the pay maths are worked out again (actual pay is kept)
+  let redone=false;
+  (S.payHistory||[]).forEach(function(ph){
+    if(!ph.projection||ph.projection.calcV===PAY_CALC_V) return;
+    const off=Math.round((parseDate(ph.fnStart)-getFortnightDates(0).start)/(14*86400000));
+    if(off>-27&&off<=0){ ph.projection=calcPayProjection(off); redone=true; }
+  });
+  if(redone) saveState();
   const history=(S.payHistory||[]).filter(function(ph){ return ph.actualPay||ph.projection; });
   if(!history.length){
     el.innerHTML='<div style="font-size:12px;color:var(--muted);">No pay history yet. Actual pay will appear here once saved from the Pay tab.</div>';
@@ -8005,6 +8014,11 @@ function renderPayHistory(){
       if(p.satHrs>0) dhtml+=drow('Wknd Pnlty SAT',fmt$(p.satGross),p.satHrs.toFixed(2)+'h','var(--early)');
       if(p.sunHrs>0) dhtml+=drow('Wknd Pnlty SUN',fmt$(p.sunGross),p.sunHrs.toFixed(2)+'h','var(--early)');
       if(p.phHrs>0) dhtml+=drow('PH Worked 150%',fmt$(p.phGross),p.phHrs.toFixed(2)+'h','#b45309');
+      if(p.alSatHrs>0) dhtml+=drow('AL Sat Penalty 50%',fmt$(p.alSatGross),p.alSatHrs.toFixed(2)+'h','var(--early)');
+      if(p.alSunHrs>0) dhtml+=drow('AL Sun Penalty 100%',fmt$(p.alSunGross),p.alSunHrs.toFixed(2)+'h','var(--early)');
+      if(!p.alSatHrs&&!p.alSunHrs&&p.alWkndHrs>0) dhtml+=drow('AL Wknd Penalty',fmt$(p.alWkndGross),p.alWkndHrs.toFixed(2)+'h','var(--early)');
+      if(p.excessHrs>0) dhtml+=drow('Excess Time',fmt$(p.excessGross),p.excessHrs.toFixed(2)+'h · cycle over '+(p.cyc&&p.cyc.target||160)+'h','var(--early)');
+      if(p.altLeisHrs>0) dhtml+=drow('Alterations on leisure days 175%',fmt$(p.altLeisGross),p.altLeisHrs.toFixed(2)+'h','var(--early)');
       dhtml+=drow('Total Gross',fmt$(p.totalGross),'','var(--accent)');
 
       dhtml+='<div style="margin-top:8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Deductions</div>';
@@ -8144,6 +8158,7 @@ function loadSettingsUI(){
   document.getElementById('set-sat').value=S.settings.satLoad;
   document.getElementById('set-sun').value=S.settings.sunLoad;
   document.getElementById('set-blp').value=S.settings.blpRate;
+  document.getElementById('set-excess').value=S.settings.excessRate||170;
   document.getElementById('set-tax').value=S.settings.taxRate;
   document.getElementById('set-al').value=S.leave.al;
   document.getElementById('set-lsl').value=S.leave.lsl;
@@ -8193,6 +8208,7 @@ function savePaySettings(){
   S.settings.satLoad=f('set-sat',150);
   S.settings.sunLoad=f('set-sun',200);
   S.settings.blpRate=f('set-blp',175);
+  S.settings.excessRate=f('set-excess',170);
   S.settings.taxRate=f('set-tax',32);
   saveState(); toast('Pay settings saved');
 }
@@ -8442,11 +8458,11 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-05.2'; // second release today
+const APP_VERSION='2026-10-07';
 const WHATS_NEW=[
-  'Pay: annual leave over a rostered weekend now adds the Saturday (50%) and Sunday (100%) penalty on your master roster hours. LSL and personal leave on a weekend don\'t get the penalty.',
-  'Leave: AL/LSL on a BLP/SLP isn\'t charged — this now also works in weeks you\'ve swapped.',
-  'Swaps: undoing a swap puts back what you had entered for those days, and swapped-in AFA/AFP days now show on the calendar.'
+  '💲 Please update your hourly rate: ⚙ Settings → Pay Settings → Hourly Rate. Your payslip shows it in cents (RATE CPH), so move the decimal point two places left — e.g. drivers 6650.40 = 66.504. It now takes 3 decimals.',
+  'Pay estimate now matches the payslip: excess time is paid at 170% (not 175%), leave counts as 8 hours a day towards cycle hours, and tax uses the new rates from 1 July 2026.',
+  'Stats → Pay History now shows the excess time line, and past estimates are worked out again with the fixes.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
