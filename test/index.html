@@ -8478,11 +8478,10 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-07';
+const APP_VERSION='2026-10-08';
 const WHATS_NEW=[
-  '💲 Please update your hourly rate: ⚙ Settings → Pay Settings → Hourly Rate. Your payslip shows it in cents (RATE CPH), so move the decimal point two places left — e.g. drivers 6650.40 = 66.504. It now takes 3 decimals.',
-  'Pay estimate now matches the payslip: excess time is paid at 170% (not 175%), leave counts as 8 hours a day towards cycle hours, and tax uses the new rates from 1 July 2026.',
-  'Stats → Pay History now shows the excess time line, and past estimates are worked out again with the fixes.'
+  'iPhone: importing the roster PDF (and contact lists) now works when the file comes through without its .pdf name. If an import fails, the message now says why.',
+  '💲 Reminder: update your hourly rate in ⚙ Settings → Pay Settings. Your payslip shows it in cents (RATE CPH), so move the decimal point two places left — e.g. drivers 6650.40 = 66.504.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
