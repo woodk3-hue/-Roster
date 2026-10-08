@@ -1269,8 +1269,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <!-- Other driver + link -->
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <div style="flex:2;min-width:130px;">
-        <div class="form-label">Other Driver</div>
-        <input type="text" class="form-input" id="sw-driver" placeholder="Driver name">
+        <div class="form-label" id="sw-driver-label">Other Driver</div>
+        <input type="text" class="form-input" id="sw-driver" placeholder="Name">
       </div>
       <div style="flex:1;min-width:80px;">
         <div class="form-label">Other Link</div>
@@ -1321,7 +1321,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div style="font-size:12px;color:var(--muted);">Enter a W/C date to see your BLP days</div>
     </div>
     <div class="form-group">
-      <label class="form-label">Other Driver Name</label>
+      <label class="form-label" id="blps-driver-label">Other Driver Name</label>
       <input type="text" class="form-input" id="blps-driver" placeholder="Driver name">
     </div>
     <!-- Day receiving from other driver -->
@@ -2022,7 +2022,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 <div class="modal-overlay" id="swap-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Record Swap</div>
+    <div class="modal-title" id="swap-modal-title">Record Swap</div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">W/C Date (Monday)</label>
@@ -2039,8 +2039,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
         <input type="number" class="form-input" id="swm-received" min="1" oninput="previewSwapFromModal()">
       </div>
       <div class="form-group">
-        <label class="form-label">Driver Name</label>
-        <input type="text" class="form-input" id="swm-driver" placeholder="Driver name">
+        <label class="form-label" id="swm-driver-label">Driver Name</label>
+        <input type="text" class="form-input" id="swm-driver" placeholder="Name">
       </div>
     </div>
     <div class="form-group">
@@ -3022,9 +3022,20 @@ function setMyRole(role){
   const rgb=document.getElementById('role-guard-btn');
   if(rdb){rdb.style.background=role==='driver'?'var(--accent)':'';rdb.style.color=role==='driver'?'#000':'';}
   if(rgb){rgb.style.background=role==='guard'?'var(--accent)':'';rgb.style.color=role==='guard'?'#000':'';}
-  toast(role==='driver'?'Role set to Driver':'Role set to Guard');
+  updateSwapModalLabels(false);
+  toast(role==='driver'?'Job set to Driver':'Job set to Guard');
   applyRoleUI();
   refreshAllScreens();
+}
+
+// Swap forms name the other person by your job: "Other Driver" or "Other Guard"
+function swapPartnerLabel(){ return (S.myRole==='guard')?'Other Guard':'Other Driver'; }
+function updateSwapModalLabels(isEdit){
+  const lbl=swapPartnerLabel(), isGuard=(S.myRole==='guard');
+  const t=document.getElementById('swap-modal-title'); if(t) t.textContent=(isEdit?'Edit ':'Record ')+(isGuard?'Guard':'Driver')+' Swap';
+  const a=document.getElementById('swm-driver-label'); if(a) a.textContent=lbl+' Name';
+  const b=document.getElementById('sw-driver-label'); if(b) b.textContent=lbl;
+  const c=document.getElementById('blps-driver-label'); if(c) c.textContent=lbl+' Name';
 }
 
 // Drivers record the guards they work with; guards record the drivers.
@@ -5476,6 +5487,7 @@ function resetShift(){
 let swapInlineScope='week';
 
 function renderSwaps(){
+  updateSwapModalLabels(false);
   // Init inline form
   const now=today();
   const mon=getMonday(now);
@@ -6051,6 +6063,7 @@ function openSwapModal(){
   document.getElementById('swm-received').value='';
   document.getElementById('swm-driver').value='';
   (function(){const _ge=document.getElementById('swm-preview');if(_ge)_ge.style.display='none';})();
+  updateSwapModalLabels(false);
   setSwapModalScope('week');
   populateSwapDaySelect(mon,link);
   (function(){const _m=document.getElementById('swap-modal');if(_m){_m.style.display='flex';_m.classList.add('open');}})();
