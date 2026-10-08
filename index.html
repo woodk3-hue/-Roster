@@ -1621,7 +1621,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div style="font-size:11px;color:var(--muted);margin:14px 0 8px;">Import the job card PDF (all days in one file) to see each shift's job card, sign-off time and length when you tap a day.</div>
     <div id="jobcards-import-status" style="font-size:12px;margin-bottom:8px;"></div>
     <label for="jobcards-pdf-input" class="btn" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">🗂 Import Job Cards PDF</label>
-    <input type="file" id="jobcards-pdf-input" accept=".pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importJobCards(this)">
+    <input type="file" id="jobcards-pdf-input" accept=".pdf" multiple style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importJobCards(this)">
   </div>
 
   <div class="settings-section">
@@ -2582,9 +2582,11 @@ function jobCardFor(job){
 async function readJobCardsPDF(buffer,onPage){
   const pdfjsLib=await loadPdfJs();
   const doc=await pdfjsLib.getDocument({data:new Uint8Array(buffer)}).promise;
-  const cards={}; let cur=null;
+  const cards={}; let cur=null, newFmt=false, pre=[];
   for(let pn=1;pn<=doc.numPages;pn++){
     if(onPage) onPage(pn,doc.numPages);
+    // 2026 layout: one card per page, so a new page starts a new card
+    if(newFmt){ cur=null; pre=[]; }
     const tc=await (await doc.getPage(pn)).getTextContent();
     // Works for upright or sideways pages: measure each piece along its text direction and up its line direction
     const rows={}, cw=[];
@@ -2608,9 +2610,18 @@ async function readJobCardsPDF(buffer,onPage){
         line=line.slice(0,col)+it.str+line.slice(col+it.str.length);
       });
       line=line.replace(/\s+$/,'');
+      // The same row as plain words (no column positions) — safer for matching than the rebuilt line
+      const words=rows[k].map(function(it){ return it.str; }).join(' ').replace(/\s+/g,' ').trim();
+      // Page footer / section title of the 2026 layout
+      if(/^\s*Printed at:|Job Card \d+ of \d+\s*$/.test(line)) return;
       const h=line.match(/^\s?([A-Z]{2,4}\d{2,4}[A-Z]?)\s+LOCO S\.O\.\s*(\d\d:\d\d)?/);
       if(h){ cur={on:h[2]||'',off:'',lines:[]}; cards[h[1]]=cur; }
-      if(!cur) return;
+      // 2026 layout: "SUN EB703# S/O BHAB" then "02:31-11:31 (09:00)"
+      const h2=!h&&words.match(/^(MON|TUE|WED|THU|FRI|SAT|SUN)[A-Z-]*\s+([A-Z]{1,4}\d{1,4}[A-Z#]?)\s+S\/O\s+([A-Z]{2,5})/);
+      if(h2){ newFmt=true; cur={on:'',off:'',day:h2[1],loc:h2[3],lines:pre}; pre=[]; cards[h2[2]]=cur; }
+      if(!cur){ if(line.trim()) pre.push(line); return; }
+      const tm=words.match(/^(\d\d:\d\d)\s?-\s?(\d\d:\d\d)\b/);
+      if(tm&&!cur.on){ cur.on=tm[1]; cur.off=tm[2]; }
       if(/^\*{20,}$|WORKING TIMETABLE ALTERATION/.test(line.trim())) return; // banner lines
       const so=line.match(/SIGN OFF (\d\d:\d\d)/); if(so) cur.off=so[1];
       cur.lines.push(line);
@@ -2625,22 +2636,31 @@ async function readJobCardsPDF(buffer,onPage){
 }
 
 async function importJobCards(input){
-  const file=input.files[0]; if(!file) return;
+  const files=Array.from(input.files||[]); if(!files.length) return;
   const say=function(v){ ['jobcards-import-status','setup-jobcards-status'].forEach(function(id){ const e=document.getElementById(id); if(e) e.innerHTML=v; }); };
   say('<span style="color:var(--muted);">Reading job cards…</span>');
   try{
-    const cards=await readJobCardsPDF(await file.arrayBuffer(),function(n,t){ if(n%25===0||n===t) say('<span style="color:var(--muted);">Reading page '+n+' of '+t+'…</span>'); });
+    // Job cards can come split by day (Mon–Thu, Fri, Sat, Sun): each file adds to the cards already loaded
+    const cards={};
+    for(let fi=0;fi<files.length;fi++){
+      const pre=files.length>1?'File '+(fi+1)+' of '+files.length+': ':'';
+      const got=await readJobCardsPDF(await files[fi].arrayBuffer(),function(n,t){ if(n%25===0||n===t) say('<span style="color:var(--muted);">'+pre+'reading page '+n+' of '+t+'…</span>'); });
+      Object.assign(cards,got);
+    }
     const count=Object.keys(cards).length;
-    if(!count){ say('<span style="color:#ef4444;">No job cards found in that file.</span>'); input.value=''; return; }
-    JOBCARDS=cards;
+    if(!count){ say('<span style="color:#ef4444;">No job cards found in '+(files.length>1?'those files':'that file')+'.</span>'); input.value=''; return; }
+    JOBCARDS=Object.assign({},JOBCARDS||{},cards);
     try{ localStorage.setItem('job_cards',JSON.stringify(JOBCARDS)); }
     catch(e){ alert('Warning: your phone is not letting the app save the job cards. They will be lost on refresh.'); }
     // How many rostered jobs now have a card
     let jobs=0, matched=0;
-    Object.keys(ROSTER||{}).forEach(function(l){ (ROSTER[l]||[]).forEach(function(c){ const j=String(c||'').split('|')[1]; if(j&&/^P[BF]\d/.test(j)){ jobs++; if(jobCardFor(j)) matched++; } }); });
-    say('<span style="color:#16a34a;">✓ '+count+' job cards imported'+(jobs?' · '+matched+' of '+jobs+' rostered PB/PF jobs matched':'')+'</span>'+
+    const seen={};
+    Object.keys(ROSTER||{}).forEach(function(l){ (ROSTER[l]||[]).forEach(function(c){ const j=String(c||'').split('|')[1]; const b=j&&j.split('-')[0]; if(b&&!seen[b]){ seen[b]=1; jobs++; if(jobCardFor(j)) matched++; } }); });
+    const total=Object.keys(JOBCARDS).length;
+    say('<span style="color:#16a34a;">✓ '+count+' job cards imported'+(total>count?' ('+total+' loaded in all)':'')+(jobs?' · '+matched+' of '+jobs+' rostered jobs have a card':'')+'</span>'+
       (jobs?'':'<br><span style="color:#f59e0b;">Your saved roster has no job numbers, so days can\'t show their job card yet. Import the roster PDF again (Import Roster File above) to add them.</span>'));
     toast(count+' job cards imported ✓');
+    if(jobs&&matched<jobs) say(document.getElementById('jobcards-import-status').innerHTML+'<br><span style="color:var(--muted);font-size:11px;">Job cards are often split by day — import the other days\' files too (you can pick several at once).</span>');
     pushJobCardsTable(); scheduleAutoBackup();
     if(dayPanelDate) renderDayPanel(dayPanelDate);
   }catch(e){
@@ -2679,7 +2699,7 @@ function jobCardHtml(job){
   return '<div style="margin-top:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;">'+
     '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Job card '+escHtml(String(job).split('-')[0])+
       (function(){ const d=decodeJob(job); return d&&d.sector?' · '+escHtml(d.sector.replace(' drivers','').replace('North or South sector','North or South sector')):''; })()+'</div>'+
-    '<div style="font-size:13px;margin-top:3px;"><b>Sign on</b> '+(c.on||'—')+' &nbsp;·&nbsp; <b>Sign off</b> '+(c.off||'—')+(dur?' &nbsp;·&nbsp; '+dur:'')+'</div>'+
+    '<div style="font-size:13px;margin-top:3px;"><b>Sign on</b> '+(c.on||'—')+(c.loc?' '+escHtml(c.loc):'')+' &nbsp;·&nbsp; <b>Sign off</b> '+(c.off||'—')+(dur?' &nbsp;·&nbsp; '+dur:'')+'</div>'+
     '<details class="show-more" style="margin:4px 0 0;"><summary>Full job card</summary><pre class="jobcard-pre">'+escHtml(c.text)+'</pre></details>'+
   '</div>';
 }
@@ -8515,10 +8535,10 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-08.2';
+const APP_VERSION='2026-10-09';
 const WHATS_NEW=[
-  'The new 2026 roster PDF (e.g. "MNE GD Link 20-04-2026") now imports on iPhone and Android, with job numbers. If you already imported it and your shifts show times but no job numbers, import it again: ⚙ Settings → Import Roster File.',
-  'iPhone: roster and contact list imports work even when the file comes through without its .pdf name.',
+  'The new 2026 job cards (MR2604) now import. They come in four files — Mon-Thurs, Friday, Saturday and Sunday: in ⚙ Settings → Import Job Cards PDF you can pick all four at once, or one at a time (each adds to the others).',
+  'The new 2026 roster PDF (e.g. "MNE GD Link 20-04-2026") imports on iPhone and Android with job numbers. If your days show times but no job numbers, import the roster again: ⚙ Settings → Import Roster File.',
   '💲 Reminder: update your hourly rate in ⚙ Settings → Pay Settings — payslip RATE CPH in cents, e.g. drivers 6650.40 = 66.504.'
 ];
 function showWhatsNew(){
