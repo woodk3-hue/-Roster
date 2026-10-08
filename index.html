@@ -2196,6 +2196,14 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 // ═══════════════════════════════════════════════════════════
 let ROSTER = {};  // Loaded from imported PDF
 
+// A PDF by its name, its type, or its first bytes ("%PDF") — iPhones can hand over files with no name or type
+function looksLikePdf(file,buffer){
+  if(/\.pdf$/i.test(file.name||'')||file.type==='application/pdf') return true;
+  const h=new Uint8Array(buffer.slice(0,1024));
+  for(let i=0;i<h.length-4;i++){ if(h[i]===37&&h[i+1]===80&&h[i+2]===68&&h[i+3]===70) return true; }
+  return false;
+}
+
 // ── ROSTER PDF IMPORT ───────────────────────────────────
 async function importRosterPDF(input){
   const file=input.files[0];
@@ -2206,15 +2214,17 @@ async function importRosterPDF(input){
 
   try{
     const buffer=await file.arrayBuffer();
-    let parsed=null, text='';
+    let parsed=null, text='', readerErr=null;
+    // A PDF by its contents too: iPhones can hand over files with no .pdf name or file type
+    const isPdf=looksLikePdf(file,buffer);
     // QR "Link/Diagram" PDF straight from the rostering system
-    if(/\.pdf$/i.test(file.name)||file.type==='application/pdf'){
+    if(isPdf){
       try{
         text=await decodeLinkDiagramPDF(buffer.slice(0),function(n,total){
           if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Reading page '+n+' of '+total+'...</span>';
         });
         parsed=parseLinkDiagram(text);
-      }catch(e){ console.warn('Link/Diagram reader:',e); parsed=null; }
+      }catch(e){ console.warn('Link/Diagram reader:',e); parsed=null; readerErr=e; }
     }
     // Otherwise the older roster.txt / PDF path
     if(!parsed||!Object.keys(parsed).length){
@@ -2225,8 +2235,14 @@ async function importRosterPDF(input){
     }
     const count=Object.keys(parsed).length;
     if(count===0){
-      const preview=text.substring(0,200).replace(/\n/g,' ');
-      if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">0 links found. First 200 chars: '+preview+'</span>';
+      const preview=escHtml(text.substring(0,200).replace(/\n/g,' ').trim());
+      const why=readerErr&&/PDF reader/.test(readerErr.message||'')
+        ? 'The PDF reader couldn\'t download — check you have signal (and turn off any content blocker for this site), then try again.'
+        : !preview
+          ? 'No roster text found in this file. Make sure it\'s the Link/Diagram roster PDF from the rostering office (not a photo, screenshot or a shared link), saved to Files first.'
+          : 'This doesn\'t look like the Link/Diagram roster. First 200 characters: '+preview;
+      if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">0 links found. '+why+(readerErr&&!/PDF reader/.test(readerErr.message||'')?' ('+escHtml(readerErr.message||String(readerErr))+')':'')+'</span>';
+      input.value=''; // so picking the same file again tries again
       return;
     }
     // Work out this week's link with the OLD roster before swapping it out
@@ -2261,7 +2277,8 @@ async function importRosterPDF(input){
     if(currentScreen==='cal') renderCal();
   }catch(e){
     console.error('PDF import error:',e);
-    if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">Error reading PDF: '+e.message+'</span>';
+    // A script that failed to load gives an Event with no message
+    if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">Error reading PDF: '+escHtml(e&&e.message?e.message:'a part of the PDF reader couldn\'t download — check your signal and try again')+'</span>';
   }
   input.value='';
 }
@@ -7856,13 +7873,15 @@ function importContactsToSection(input, section){
     saveState(); renderContacts();
     toast(labels[section]+': '+r.added+' added'+(r.updated?', '+r.updated+' numbers updated':'')+(r.same?', '+r.same+' already there':''));
   };
-  if(/\.pdf$/i.test(file.name)||file.type==='application/pdf'){
+  file.arrayBuffer().then(function(buf){
+    if(!looksLikePdf(file,buf)) return readContactsText();
     toast('Reading contact list…');
-    file.arrayBuffer().then(readContactsPDF).then(finish).catch(function(e){
-      input.value=''; toast('Could not read that PDF: '+(e&&e.message||e));
-    });
-    return;
-  }
+    return readContactsPDF(buf).then(finish);
+  }).catch(function(e){
+    input.value=''; toast('Could not read that PDF: '+(e&&e.message||'the PDF reader couldn\'t download — check your signal'));
+  });
+  return;
+  function readContactsText(){
   const r=new FileReader();
   r.onload=function(e){
     const lines=e.target.result.split('\n').filter(function(l){ return l.trim(); });
@@ -7878,6 +7897,7 @@ function importContactsToSection(input, section){
     finish(list);
   };
   r.readAsText(file);
+  }
 }
 
 // Reads a contact-numbers PDF laid out as a table: SURNAME | First name | 0400 000 000
@@ -8458,11 +8478,10 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-07';
+const APP_VERSION='2026-10-08';
 const WHATS_NEW=[
-  '💲 Please update your hourly rate: ⚙ Settings → Pay Settings → Hourly Rate. Your payslip shows it in cents (RATE CPH), so move the decimal point two places left — e.g. drivers 6650.40 = 66.504. It now takes 3 decimals.',
-  'Pay estimate now matches the payslip: excess time is paid at 170% (not 175%), leave counts as 8 hours a day towards cycle hours, and tax uses the new rates from 1 July 2026.',
-  'Stats → Pay History now shows the excess time line, and past estimates are worked out again with the fixes.'
+  'iPhone: importing the roster PDF (and contact lists) now works when the file comes through without its .pdf name. If an import fails, the message now says why.',
+  '💲 Reminder: update your hourly rate in ⚙ Settings → Pay Settings. Your payslip shows it in cents (RATE CPH), so move the decimal point two places left — e.g. drivers 6650.40 = 66.504.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
