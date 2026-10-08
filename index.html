@@ -2371,7 +2371,7 @@ async function decodeLinkDiagramPDF(buffer,onPage){
   const pdfjsLib=await loadPdfJs();
   const doc=await pdfjsLib.getDocument({data:new Uint8Array(buffer),disableFontFace:true}).promise;
   const O=pdfjsLib.OPS, out=[];
-  let known=0, unknown=0;
+  let known=0, unknown=0, hashHits=0;
   for(let pn=1;pn<=doc.numPages;pn++){
     if(onPage) onPage(pn,doc.numPages);
     const page=await doc.getPage(pn);
@@ -2391,6 +2391,7 @@ async function decodeLinkDiagramPDF(buffer,onPage){
           if(ch===undefined){
             const opl=fontObj&&fontObj.charProcOperatorList&&fontObj.charProcOperatorList[g.operatorListId];
             ch=opl?GLYPH_CHARS[glyphHash(opl)]:undefined;
+            if(ch!==undefined) hashHits++;
             if(ch===undefined) ch=(g.unicode&&/[ -~]/.test(g.unicode))?g.unicode:'?';
             cache[key]=ch;
           }
@@ -2411,8 +2412,44 @@ async function decodeLinkDiagramPDF(buffer,onPage){
       out.push(Array.from(L,function(x){ return x||' '; }).join('').replace(/\s+$/,''));
     });
   }
+  // Newer printouts (from 2026) are plain text in a fixed-width font, not drawn letters —
+  // rebuild those lines from the text layer instead
+  if(hashHits===0){
+    const t=await linkDiagramFromTextLayer(doc);
+    if(t) return t;
+  }
   if(known===0||unknown>known) throw new Error('This PDF is not a roster printout the app recognises');
   return out.join('\n');
+}
+// Fixed-width (Courier) printout: put each piece of text back in its character column
+async function linkDiagramFromTextLayer(doc){
+  const out=[];
+  for(let pn=1;pn<=doc.numPages;pn++){
+    const tc=await (await doc.getPage(pn)).getTextContent();
+    const items=tc.items.filter(function(it){ return it.str&&it.str.length; });
+    if(!items.length) continue;
+    // Character width: the most common width per character across the page
+    const ws={}; items.forEach(function(it){ if(it.width>0&&it.str.length){ const w=Math.round(it.width/it.str.length*100)/100; ws[w]=(ws[w]||0)+it.str.length; } });
+    const cw=+Object.keys(ws).sort(function(a,b){ return ws[b]-ws[a]; })[0]||6;
+    // The printout is often rotated (landscape): measure along the text direction and down the page
+    const t0=items[0].transform, n=Math.hypot(t0[0],t0[1])||1, m2=Math.hypot(t0[2],t0[3])||1;
+    const dir=[t0[0]/n,t0[1]/n], down=[-t0[2]/m2,-t0[3]/m2];
+    const along=function(it){ return it.transform[4]*dir[0]+it.transform[5]*dir[1]; };
+    const across=function(it){ return it.transform[4]*down[0]+it.transform[5]*down[1]; };
+    const minX=Math.min.apply(null,items.map(along));
+    const rows={};
+    items.forEach(function(it){ const y=Math.round(across(it)*2)/2; (rows[y]=rows[y]||[]).push(it); });
+    Object.keys(rows).map(Number).sort(function(a,b){ return a-b; }).forEach(function(y){
+      const L=[];
+      rows[y].forEach(function(it){
+        const col=Math.round((along(it)-minX)/cw);
+        for(let k=0;k<it.str.length;k++) if(it.str[k]!==' '||L[col+k]===undefined) L[col+k]=it.str[k];
+      });
+      out.push(Array.from(L,function(x){ return x||' '; }).join('').replace(/\s+$/,''));
+    });
+  }
+  const text=out.join('\n');
+  return /MONDAY/.test(text)&&/SUNDAY/.test(text)?text:null;
 }
 
 // Reads links from the decoded printout. Each day becomes "HH:MM|JOB", a code (BLP, AM1…),
@@ -8478,10 +8515,11 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-08';
+const APP_VERSION='2026-10-08.2';
 const WHATS_NEW=[
-  'iPhone: importing the roster PDF (and contact lists) now works when the file comes through without its .pdf name. If an import fails, the message now says why.',
-  '💲 Reminder: update your hourly rate in ⚙ Settings → Pay Settings. Your payslip shows it in cents (RATE CPH), so move the decimal point two places left — e.g. drivers 6650.40 = 66.504.'
+  'The new 2026 roster PDF (e.g. "MNE GD Link 20-04-2026") now imports on iPhone and Android, with job numbers. If you already imported it and your shifts show times but no job numbers, import it again: ⚙ Settings → Import Roster File.',
+  'iPhone: roster and contact list imports work even when the file comes through without its .pdf name.',
+  '💲 Reminder: update your hourly rate in ⚙ Settings → Pay Settings — payslip RATE CPH in cents, e.g. drivers 6650.40 = 66.504.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}

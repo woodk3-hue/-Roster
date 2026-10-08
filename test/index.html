@@ -8515,10 +8515,11 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-10-08';
+const APP_VERSION='2026-10-08.2';
 const WHATS_NEW=[
-  'iPhone: importing the roster PDF (and contact lists) now works when the file comes through without its .pdf name. If an import fails, the message now says why.',
-  '💲 Reminder: update your hourly rate in ⚙ Settings → Pay Settings. Your payslip shows it in cents (RATE CPH), so move the decimal point two places left — e.g. drivers 6650.40 = 66.504.'
+  'The new 2026 roster PDF (e.g. "MNE GD Link 20-04-2026") now imports on iPhone and Android, with job numbers. If you already imported it and your shifts show times but no job numbers, import it again: ⚙ Settings → Import Roster File.',
+  'iPhone: roster and contact list imports work even when the file comes through without its .pdf name.',
+  '💲 Reminder: update your hourly rate in ⚙ Settings → Pay Settings — payslip RATE CPH in cents, e.g. drivers 6650.40 = 66.504.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
