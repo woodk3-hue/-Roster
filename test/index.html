@@ -2566,6 +2566,13 @@ function loadRoster(){
   try{
     const jc=localStorage.getItem('job_cards');
     if(jc) JOBCARDS=JSON.parse(jc);
+    // One-off tidy-up: 2026-layout cards (they have a sign-on depot) imported on top of older
+    // cards — keep only the 2026 ones, so an old card can't show for the new roster
+    const ks=Object.keys(JOBCARDS||{});
+    if(ks.some(function(k){ return JOBCARDS[k].loc; })&&ks.some(function(k){ return !JOBCARDS[k].loc; })){
+      ks.forEach(function(k){ if(!JOBCARDS[k].loc) delete JOBCARDS[k]; });
+      try{ localStorage.setItem('job_cards',JSON.stringify(JOBCARDS)); }catch(e){}
+    }
   }catch(e){ JOBCARDS={}; }
 }
 
@@ -2612,8 +2619,10 @@ async function readJobCardsPDF(buffer,onPage){
       line=line.replace(/\s+$/,'');
       // The same row as plain words (no column positions) — safer for matching than the rebuilt line
       const words=rows[k].map(function(it){ return it.str; }).join(' ').replace(/\s+/g,' ').trim();
-      // Page footer / section title of the 2026 layout
-      if(/^\s*Printed at:|Job Card \d+ of \d+\s*$/.test(line)) return;
+      // Page footer / section title of the 2026 layout; the print date marks which set a card belongs to
+      const pr=words.match(/^Printed at:\s*\S+\s+(\d{1,2}\/\d{1,2}\/\d{4})/);
+      if(pr){ if(cur) cur.set=pr[1]; return; }
+      if(/Job Card \d+ of \d+\s*$/.test(line)) return;
       const h=line.match(/^\s?([A-Z]{2,4}\d{2,4}[A-Z]?)\s+LOCO S\.O\.\s*(\d\d:\d\d)?/);
       if(h){ cur={on:h[2]||'',off:'',lines:[]}; cards[h[1]]=cur; }
       // 2026 layout: "SUN EB703# S/O BHAB" then "02:31-11:31 (09:00)"
@@ -2649,7 +2658,12 @@ async function importJobCards(input){
     }
     const count=Object.keys(cards).length;
     if(!count){ say('<span style="color:#ef4444;">No job cards found in '+(files.length>1?'those files':'that file')+'.</span>'); input.value=''; return; }
-    JOBCARDS=Object.assign({},JOBCARDS||{},cards);
+    // Files from the same print (e.g. the Mon-Thu, Fri, Sat and Sun files) add together;
+    // cards from an older or different print are dropped so they can't show for the new roster
+    const sets={}; Object.keys(cards).forEach(function(k){ sets[cards[k].set||'']=1; });
+    const kept={}; let dropped=0;
+    Object.keys(JOBCARDS||{}).forEach(function(k){ if(sets[JOBCARDS[k].set||'']) kept[k]=JOBCARDS[k]; else dropped++; });
+    JOBCARDS=Object.assign(kept,cards);
     try{ localStorage.setItem('job_cards',JSON.stringify(JOBCARDS)); }
     catch(e){ alert('Warning: your phone is not letting the app save the job cards. They will be lost on refresh.'); }
     // How many rostered jobs now have a card
@@ -2657,7 +2671,7 @@ async function importJobCards(input){
     const seen={};
     Object.keys(ROSTER||{}).forEach(function(l){ (ROSTER[l]||[]).forEach(function(c){ const j=String(c||'').split('|')[1]; const b=j&&j.split('-')[0]; if(b&&!seen[b]){ seen[b]=1; jobs++; if(jobCardFor(j)) matched++; } }); });
     const total=Object.keys(JOBCARDS).length;
-    say('<span style="color:#16a34a;">✓ '+count+' job cards imported'+(total>count?' ('+total+' loaded in all)':'')+(jobs?' · '+matched+' of '+jobs+' rostered jobs have a card':'')+'</span>'+
+    say('<span style="color:#16a34a;">✓ '+count+' job cards imported'+(total>count?' ('+total+' loaded in all)':'')+(dropped?' · '+dropped+' old cards removed':'')+(jobs?' · '+matched+' of '+jobs+' rostered jobs have a card':'')+'</span>'+
       (jobs?'':'<br><span style="color:#f59e0b;">Your saved roster has no job numbers, so days can\'t show their job card yet. Import the roster PDF again (Import Roster File above) to add them.</span>'));
     toast(count+' job cards imported ✓');
     if(jobs&&matched<jobs) say(document.getElementById('jobcards-import-status').innerHTML+'<br><span style="color:var(--muted);font-size:11px;">Job cards are often split by day — import the other days\' files too (you can pick several at once).</span>');
