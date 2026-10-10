@@ -1755,6 +1755,21 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <button class="btn btn-danger btn-sm" id="sync-disconnect-btn" style="display:none;margin-top:8px;width:100%;" onclick="disableSync()">Disconnect Sync</button>
   </div>
 
+  <div class="settings-section">
+    <div class="settings-section-title">Fridge Sync</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Sends your shifts, leave and appointments to the home fridge screen. Swaps are sent as the shift you are actually working. Your roster stays on this phone first — if this fails, nothing here is lost.</div>
+    <div id="fridge-login">
+      <input type="email" class="form-input" id="fridge-email" placeholder="Fridge email" autocomplete="email" style="margin-bottom:8px;">
+      <input type="password" class="form-input" id="fridge-pw" placeholder="Fridge password" autocomplete="current-password" style="margin-bottom:8px;">
+      <button class="btn btn-accent btn-full" onclick="fridgeConnect()">Connect to fridge</button>
+    </div>
+    <div id="fridge-on" style="display:none;">
+      <button class="btn btn-accent btn-full" onclick="fridgeSyncNow(true)">Sync now</button>
+      <button class="btn btn-danger btn-sm" style="width:100%;margin-top:8px;" onclick="fridgeDisconnect()">Disconnect fridge</button>
+    </div>
+    <div id="fridge-info" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+  </div>
+
   <div class="settings-section partner-keep">
     <div class="settings-section-title">Help</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Experiencing an issue? Send a report.</div>
@@ -3380,6 +3395,145 @@ function saveState(){
     if(syncRole==='owner') pushSync();
     else pushSyncAppointments(); // partner can only push appointments
   }
+  fridgeSyncSoon();
+}
+
+// ═══════════════════════════════════════════════════════════
+// FRIDGE SYNC (Supabase) — sends the shift you are actually working each day, leave and
+// appointments to the home fridge screen. Always saved on the phone first; a failure here
+// never touches the roster data.
+// ═══════════════════════════════════════════════════════════
+const FRIDGE_URL='https://lcwmbbickoylsybrqpei.supabase.co';
+const FRIDGE_KEY='sb_publishable_C9xS5earS-LRjjtuvWWDMg_JUX-KSTf';
+let fridgeSb=null, fridgeTimer=null, fridgeBusy=false;
+function fridgeNote(msg,isErr){
+  const el=document.getElementById('fridge-info');
+  if(el) el.innerHTML='<span style="color:'+(isErr?'#ef4444':'var(--muted)')+';">'+msg+'</span>';
+}
+function fridgeUI(on){
+  const a=document.getElementById('fridge-login'), b=document.getElementById('fridge-on');
+  if(a) a.style.display=on?'none':'block';
+  if(b) b.style.display=on?'block':'none';
+}
+function fridgeLoadLib(){
+  return new Promise(function(res,rej){
+    if(window.supabase&&window.supabase.createClient) return res();
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    s.onload=function(){ res(); }; s.onerror=function(){ rej(new Error('offline')); };
+    document.head.appendChild(s);
+  });
+}
+async function fridgeClient(){
+  if(fridgeSb) return fridgeSb;
+  await fridgeLoadLib();
+  fridgeSb=window.supabase.createClient(FRIDGE_URL,FRIDGE_KEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'fridge-auth'}});
+  return fridgeSb;
+}
+async function fridgeConnect(){
+  const em=(document.getElementById('fridge-email').value||'').trim(), pw=document.getElementById('fridge-pw').value||'';
+  if(!em||!pw){ toast('Enter your fridge email and password'); return; }
+  try{
+    const sb=await fridgeClient();
+    const r=await sb.auth.signInWithPassword({email:em,password:pw});
+    if(r.error){ fridgeNote(r.error.message,true); return; }
+    localStorage.setItem('fridgeOn','1');
+    document.getElementById('fridge-pw').value='';
+    fridgeUI(true);
+    fridgeSyncNow(true);
+  }catch(e){ fridgeNote('Could not reach the fridge — check your connection',true); }
+}
+async function fridgeDisconnect(){
+  try{ const sb=await fridgeClient(); await sb.auth.signOut(); }catch(e){}
+  localStorage.removeItem('fridgeOn'); localStorage.removeItem('fridge_sent');
+  fridgeUI(false); fridgeNote('Disconnected. Shifts already on the fridge stay there.');
+}
+function fridgeSyncSoon(){
+  try{
+    if(localStorage.getItem('fridgeOn')!=='1') return;
+    clearTimeout(fridgeTimer);
+    fridgeTimer=setTimeout(function(){ fridgeSyncNow(false); },4000);
+  }catch(e){}
+}
+function fridgeTime(t){
+  const m=String(t||'').match(/(\d{1,2}):(\d{2})/);
+  return m?pad(parseInt(m[1],10))+':'+m[2]:null;
+}
+// What the fridge should show for one day: planned leave first, then the shift actually worked
+// (this already follows week swaps and single-day swaps), or the leisure/leave code
+function fridgeDayInfo(ds){
+  const LCODE={al:'AL',lsl:'LSL',sl:'SL',sick:'SL',family:'FL',repro:'Repo',lwop:'LWOP'};
+  const lv=(S.plannedLeave||[]).find(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
+  if(lv) return {kind:'leave',code:LCODE[lv.type]||String(lv.type||'Leave').toUpperCase()};
+  const sh=getEffectiveShift(ds);
+  if(!sh) return null;
+  if(['al','lsl','sl','family','repro','lwop'].includes(sh.typeKey)) return {kind:'leave',code:sh.code};
+  if(sh.time) return {kind:'shift',code:sh.job||sh.code||'',start:sh.time,end:sh.endTime||null};
+  const c=sh.code;
+  if(!c||c==='--'||c==='⇄') return null;
+  return {kind:'off',code:c};
+}
+async function fridgeSyncNow(manual){
+  if(fridgeBusy||localStorage.getItem('fridgeOn')!=='1') return;
+  fridgeBusy=true;
+  try{
+    const sb=await fridgeClient();
+    const sess=(await sb.auth.getSession()).data.session;
+    if(!sess){ fridgeNote('Signed out of the fridge — connect again',true); fridgeUI(false); return; }
+    const fuid=sess.user.id;
+    const mem=await sb.from('household_members').select('household_id').limit(1);
+    if(mem.error) throw mem.error;
+    if(!mem.data||!mem.data.length){ fridgeNote('No household yet — open the fridge screen and set one up first',true); return; }
+    const hid=mem.data[0].household_id;
+
+    const from=addDays(today(),-14), rows=[], keep={};
+    for(let i=0;i<415;i++){
+      const ds=fmtDate(addDays(from,i));
+      let info=null;
+      try{ info=fridgeDayInfo(ds); }catch(e){}
+      if(!info) continue;
+      keep[ds]=1;
+      rows.push({household_id:hid,user_id:fuid,shift_date:ds,label:info.code||null,kind:info.kind,start_time:fridgeTime(info.start),end_time:fridgeTime(info.end)});
+    }
+    const evs=(S.appointments||[]).filter(function(a){ return a&&a.date&&a.title; }).map(function(a){
+      const t=fridgeTime(a.time), d=parseDate(a.date);
+      if(t){ d.setHours(parseInt(t.slice(0,2),10),parseInt(t.slice(3),10),0,0); }
+      return {household_id:hid,title:a.title,starts_at:d.toISOString(),all_day:!t,source:'roster',ext_id:String(a.id)};
+    });
+    const sig=hashString(JSON.stringify([rows,evs]));
+    if(!manual&&localStorage.getItem('fridge_sent')===sig){ return; }
+
+    for(let i=0;i<rows.length;i+=200){
+      const r=await sb.from('shifts').upsert(rows.slice(i,i+200),{onConflict:'user_id,shift_date'});
+      if(r.error) throw r.error;
+    }
+    // remove days in the window that no longer have anything (e.g. a swap was undone)
+    const lastDs=fmtDate(addDays(from,414)), firstDs=fmtDate(from);
+    const ex=await sb.from('shifts').select('id,shift_date').eq('user_id',fuid).gte('shift_date',firstDs).lte('shift_date',lastDs);
+    if(ex.error) throw ex.error;
+    const stale=(ex.data||[]).filter(function(x){ return !keep[x.shift_date]; }).map(function(x){ return x.id; });
+    for(let i=0;i<stale.length;i+=100){
+      const r=await sb.from('shifts').delete().in('id',stale.slice(i,i+100));
+      if(r.error) throw r.error;
+    }
+    // appointments → fridge events (only the ones that came from this roster)
+    if(evs.length){
+      const r=await sb.from('events').upsert(evs,{onConflict:'household_id,ext_id'});
+      if(r.error) throw r.error;
+    }
+    const want={}; evs.forEach(function(e){ want[e.ext_id]=1; });
+    const old=await sb.from('events').select('id,ext_id').eq('source','roster');
+    if(old.error) throw old.error;
+    const gone=(old.data||[]).filter(function(x){ return !want[x.ext_id]; }).map(function(x){ return x.id; });
+    if(gone.length){ const r=await sb.from('events').delete().in('id',gone); if(r.error) throw r.error; }
+
+    try{ localStorage.setItem('fridge_sent',sig); }catch(e){}
+    fridgeNote('Last sent '+new Date().toLocaleTimeString('en-AU')+' · '+rows.length+' days');
+    if(manual) toast('Fridge updated ✓');
+  }catch(e){
+    const msg=(e&&e.message)||String(e);
+    fridgeNote(/offline|fetch|network/i.test(msg)?'Could not reach the fridge — will retry on the next change':'Fridge sync error: '+msg,true);
+  }finally{ fridgeBusy=false; }
 }
 function purgeBin(){
   const cutoff = Date.now() - 30*24*60*60*1000;
@@ -8685,6 +8839,10 @@ function initApp(){
     }
     updateSyncUI();
   },800);
+  // Fridge screen: show connected state and send the latest shifts a few seconds after opening
+  try{
+    if(localStorage.getItem('fridgeOn')==='1'){ fridgeUI(true); setTimeout(function(){ fridgeSyncNow(false); },4000); }
+  }catch(e){}
 }
 
 // Show PIN screen or launch directly
