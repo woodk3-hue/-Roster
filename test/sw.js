@@ -4,7 +4,7 @@
 // (Firebase, pdf.js, pako) are served from the cache once they have been fetched once.
 // The real app and the test copy (/test/) share one website, so each keeps its own cache
 const PREFIX=/\/test\//.test(self.location.pathname)?'shift-roster-test-v':'shift-roster-v';
-const CACHE=PREFIX+'25';
+const CACHE=PREFIX+'26';
 const CORE=['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png'];
 
 self.addEventListener('install',function(e){
@@ -19,7 +19,7 @@ self.addEventListener('activate',function(e){
 });
 
 function isLibrary(url){
-  return /^https:\/\/(www\.gstatic\.com\/firebasejs|cdnjs\.cloudflare\.com\/ajax\/libs)\//.test(url);
+  return /^https:\/\/(www\.gstatic\.com\/firebasejs|cdnjs\.cloudflare\.com\/ajax\/libs|cdn\.jsdelivr\.net\/npm\/@supabase)\//.test(url);
 }
 
 self.addEventListener('fetch',function(e){
