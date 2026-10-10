@@ -3473,6 +3473,76 @@ function fridgeDayInfo(ds){
   if(!c||c==='--'||c==='⇄') return null;
   return {kind:'off',code:c};
 }
+// Appointments ⇄ fridge events, both ways. The fridge list is shared; each roster appointment
+// remembers its fridge event (fid) and what it looked like at the last sync (fsig).
+function fridgeApptSig(a){ return hashString(JSON.stringify([a.title||'',a.date||'',fridgeTime(a.time)||''])); }
+function fridgeApptToRow(a,hid){
+  const t=fridgeTime(a.time), d=parseDate(a.date);
+  if(t){ d.setHours(parseInt(t.slice(0,2),10),parseInt(t.slice(3),10),0,0); }
+  return {household_id:hid,title:a.title,starts_at:d.toISOString(),all_day:!t};
+}
+async function fridgeSyncEvents(sb,hid){
+  if(!S.appointments) S.appointments=[];
+  const cutoff=fmtDate(addDays(today(),-60));
+  const q=await sb.from('events').select('id,title,starts_at,all_day,source,ext_id').gte('starts_at',addDays(today(),-60).toISOString());
+  if(q.error) throw q.error;
+  const remote={}; (q.data||[]).forEach(function(e){ remote[e.id]=e; });
+  const known=S.fridgeKnown||[];
+  let changed=false;
+  const keepLocal=[];
+  // 1. local appointments
+  for(const a of S.appointments){
+    if(!a||!a.date||!a.title){ keepLocal.push(a); continue; }
+    if(!a.fid){
+      // a fridge event the first test sync created from this appointment: link instead of duplicating
+      const link=(q.data||[]).find(function(e){ return e.source==='roster'&&e.ext_id===String(a.id); });
+      if(link){ a.fid=link.id; a.fsig=fridgeApptSig(a); changed=true; keepLocal.push(a); continue; }
+      const ins=await sb.from('events').insert(fridgeApptToRow(a,hid)).select('id');
+      if(ins.error) throw ins.error;
+      a.fid=ins.data[0].id; a.fsig=fridgeApptSig(a); changed=true; keepLocal.push(a); continue;
+    }
+    const r=remote[a.fid];
+    if(!r){
+      if(a.date<cutoff){ keepLocal.push(a); continue; }        // old, outside the window we fetch
+      changed=true; continue;                                   // deleted on the fridge → remove here
+    }
+    const mine=fridgeApptSig(a);
+    if(mine!==a.fsig){                                          // changed here → send to fridge
+      const u=await sb.from('events').update(fridgeApptToRow(a,hid)).eq('id',a.fid);
+      if(u.error) throw u.error;
+      a.fsig=mine; changed=true;
+    } else {                                                    // maybe changed on the fridge → take it
+      const d=new Date(r.starts_at);
+      const date=fmtDate(d), time=r.all_day?'':pad(d.getHours())+':'+pad(d.getMinutes());
+      if(r.title!==a.title||date!==a.date||(fridgeTime(a.time)||'')!==time){
+        a.title=r.title; a.date=date; a.time=time; a.fsig=fridgeApptSig(a); changed=true;
+      }
+    }
+    keepLocal.push(a);
+  }
+  S.appointments=keepLocal;
+  // 2. appointments deleted here since the last sync → delete on the fridge
+  const have={}; S.appointments.forEach(function(a){ if(a&&a.fid) have[a.fid]=1; });
+  const del=known.filter(function(id){ return !have[id]&&remote[id]; });
+  if(del.length){
+    const r=await sb.from('events').delete().in('id',del);
+    if(r.error) throw r.error;
+    del.forEach(function(id){ delete remote[id]; });
+  }
+  // 3. fridge events we do not have yet → add here
+  Object.keys(remote).forEach(function(id){
+    if(have[id]||known.indexOf(id)>-1&&!have[id]) return;
+    const e=remote[id], d=new Date(e.starts_at);
+    const a={id:uid(),title:e.title,date:fmtDate(d),time:e.all_day?'':pad(d.getHours())+':'+pad(d.getMinutes()),notes:'',fid:id};
+    a.fsig=fridgeApptSig(a); S.appointments.push(a); have[id]=1; changed=true;
+  });
+  S.fridgeKnown=Object.keys(have);
+  try{ localStorage.setItem(STATE_KEY,JSON.stringify(S)); }catch(e){}
+  if(changed){
+    if(syncEnabled&&syncRole==='owner'){ try{ pushSync(); }catch(e){} }
+    try{ refreshAllScreens(); }catch(e){}
+  }
+}
 async function fridgeSyncNow(manual){
   if(fridgeBusy||localStorage.getItem('fridgeOn')!=='1') return;
   fridgeBusy=true;
@@ -3495,39 +3565,27 @@ async function fridgeSyncNow(manual){
       keep[ds]=1;
       rows.push({household_id:hid,user_id:fuid,shift_date:ds,label:info.code||null,kind:info.kind,start_time:fridgeTime(info.start),end_time:fridgeTime(info.end)});
     }
-    const evs=(S.appointments||[]).filter(function(a){ return a&&a.date&&a.title; }).map(function(a){
-      const t=fridgeTime(a.time), d=parseDate(a.date);
-      if(t){ d.setHours(parseInt(t.slice(0,2),10),parseInt(t.slice(3),10),0,0); }
-      return {household_id:hid,title:a.title,starts_at:d.toISOString(),all_day:!t,source:'roster',ext_id:String(a.id)};
-    });
-    const sig=hashString(JSON.stringify([rows,evs]));
-    if(!manual&&localStorage.getItem('fridge_sent')===sig){ return; }
+    const sig=hashString(JSON.stringify(rows));
+    const skipShifts=!manual&&localStorage.getItem('fridge_sent')===sig;
 
-    for(let i=0;i<rows.length;i+=200){
-      const r=await sb.from('shifts').upsert(rows.slice(i,i+200),{onConflict:'user_id,shift_date'});
-      if(r.error) throw r.error;
+    if(!skipShifts){
+      for(let i=0;i<rows.length;i+=200){
+        const r=await sb.from('shifts').upsert(rows.slice(i,i+200),{onConflict:'user_id,shift_date'});
+        if(r.error) throw r.error;
+      }
+      // remove days in the window that no longer have anything (e.g. a swap was undone)
+      const lastDs=fmtDate(addDays(from,414)), firstDs=fmtDate(from);
+      const ex=await sb.from('shifts').select('id,shift_date').eq('user_id',fuid).gte('shift_date',firstDs).lte('shift_date',lastDs);
+      if(ex.error) throw ex.error;
+      const stale=(ex.data||[]).filter(function(x){ return !keep[x.shift_date]; }).map(function(x){ return x.id; });
+      for(let i=0;i<stale.length;i+=100){
+        const r=await sb.from('shifts').delete().in('id',stale.slice(i,i+100));
+        if(r.error) throw r.error;
+      }
     }
-    // remove days in the window that no longer have anything (e.g. a swap was undone)
-    const lastDs=fmtDate(addDays(from,414)), firstDs=fmtDate(from);
-    const ex=await sb.from('shifts').select('id,shift_date').eq('user_id',fuid).gte('shift_date',firstDs).lte('shift_date',lastDs);
-    if(ex.error) throw ex.error;
-    const stale=(ex.data||[]).filter(function(x){ return !keep[x.shift_date]; }).map(function(x){ return x.id; });
-    for(let i=0;i<stale.length;i+=100){
-      const r=await sb.from('shifts').delete().in('id',stale.slice(i,i+100));
-      if(r.error) throw r.error;
-    }
-    // appointments → fridge events (only the ones that came from this roster)
-    if(evs.length){
-      const r=await sb.from('events').upsert(evs,{onConflict:'household_id,ext_id'});
-      if(r.error) throw r.error;
-    }
-    const want={}; evs.forEach(function(e){ want[e.ext_id]=1; });
-    const old=await sb.from('events').select('id,ext_id').eq('source','roster');
-    if(old.error) throw old.error;
-    const gone=(old.data||[]).filter(function(x){ return !want[x.ext_id]; }).map(function(x){ return x.id; });
-    if(gone.length){ const r=await sb.from('events').delete().in('id',gone); if(r.error) throw r.error; }
+    await fridgeSyncEvents(sb,hid);
 
-    try{ localStorage.setItem('fridge_sent',sig); }catch(e){}
+    if(!skipShifts){ try{ localStorage.setItem('fridge_sent',sig); }catch(e){} }
     fridgeNote('Last sent '+new Date().toLocaleTimeString('en-AU')+' · '+rows.length+' days');
     if(manual) toast('Fridge updated ✓');
   }catch(e){
@@ -8841,7 +8899,7 @@ function initApp(){
   },800);
   // Fridge screen: show connected state and send the latest shifts a few seconds after opening
   try{
-    if(localStorage.getItem('fridgeOn')==='1'){ fridgeUI(true); setTimeout(function(){ fridgeSyncNow(false); },4000); }
+    if(localStorage.getItem('fridgeOn')==='1'){ fridgeUI(true); setTimeout(function(){ fridgeSyncNow(false); },4000); setInterval(function(){ if(!document.hidden) fridgeSyncNow(false); },60000); }
   }catch(e){}
 }
 
