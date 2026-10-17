@@ -3475,6 +3475,19 @@ function fridgeDayInfo(ds){
 }
 // Appointments ⇄ fridge events, both ways. The fridge list is shared; each roster appointment
 // remembers its fridge event (fid) and what it looked like at the last sync (fsig).
+// Holiday trips run over a date range (endDate) and birthdays/anniversaries repeat every year (yearly)
+function apptOn(a,ds){
+  if(!a||!a.date) return false;
+  if(a.yearly) return a.date.slice(5)===ds.slice(5)&&ds>=a.date;
+  if(a.endDate&&a.endDate>a.date) return ds>=a.date&&ds<=a.endDate;
+  return a.date===ds;
+}
+function fridgeExtra(a,e){
+  a.endDate=(e.owner==='holiday'&&e.end_date)?e.end_date:'';
+  a.yearly=e.owner==='birthday';
+  const n=[e.location,e.details].filter(Boolean).join(' — ');
+  if(e.owner==='holiday'&&n) a.notes=n;
+}
 function fridgeApptSig(a){ return hashString(JSON.stringify([a.title||'',a.date||'',fridgeTime(a.time)||''])); }
 function fridgeApptToRow(a,hid){
   const t=fridgeTime(a.time), d=parseDate(a.date);
@@ -3484,7 +3497,7 @@ function fridgeApptToRow(a,hid){
 async function fridgeSyncEvents(sb,hid){
   if(!S.appointments) S.appointments=[];
   const cutoff=fmtDate(addDays(today(),-60));
-  const q=await sb.from('events').select('id,title,starts_at,all_day,source,ext_id').gte('starts_at',addDays(today(),-60).toISOString());
+  const q=await sb.from('events').select('*').or('starts_at.gte.'+addDays(today(),-60).toISOString()+',owner.eq.birthday');
   if(q.error) throw q.error;
   const remote={}; (q.data||[]).forEach(function(e){ remote[e.id]=e; });
   const known=S.fridgeKnown||[];
@@ -3514,9 +3527,12 @@ async function fridgeSyncEvents(sb,hid){
     } else {                                                    // maybe changed on the fridge → take it
       const d=new Date(r.starts_at);
       const date=fmtDate(d), time=r.all_day?'':pad(d.getHours())+':'+pad(d.getMinutes());
+      const oldX=(a.endDate||'')+'|'+(a.yearly?1:0)+'|'+(a.notes||'');
       if(r.title!==a.title||date!==a.date||(fridgeTime(a.time)||'')!==time){
         a.title=r.title; a.date=date; a.time=time; a.fsig=fridgeApptSig(a); changed=true;
       }
+      fridgeExtra(a,r);
+      if(oldX!==(a.endDate||'')+'|'+(a.yearly?1:0)+'|'+(a.notes||'')) changed=true;
     }
     keepLocal.push(a);
   }
@@ -3534,6 +3550,7 @@ async function fridgeSyncEvents(sb,hid){
     if(have[id]||known.indexOf(id)>-1&&!have[id]) return;
     const e=remote[id], d=new Date(e.starts_at);
     const a={id:uid(),title:e.title,date:fmtDate(d),time:e.all_day?'':pad(d.getHours())+':'+pad(d.getMinutes()),notes:'',fid:id};
+    fridgeExtra(a,e);
     a.fsig=fridgeApptSig(a); S.appointments.push(a); have[id]=1; changed=true;
   });
   S.fridgeKnown=Object.keys(have);
@@ -4864,7 +4881,7 @@ function renderDashShift(which){
     (info.guards?'<div class="shift-preview-meta" style="color:var(--accent2);">'+info.guards+'</div>':'');
 
   // Append appointments for this day
-  const dayAppts=(S.appointments||[]).filter(function(a){ return a.date===ds; });
+  const dayAppts=(S.appointments||[]).filter(function(a){ return apptOn(a,ds); });
   if(dayAppts.length){
     el.innerHTML+=dayAppts.map(function(a){
       return '<div style="font-size:11px;color:#ef4444;font-weight:600;margin-top:4px;">'+
@@ -5240,7 +5257,7 @@ function renderCalCell(d, otherMonth){
     inner+='<div class="cal-code" style="font-weight:700;">'+sh.code+'</div>';
   }
   // Appointments for this day
-  const dayAppts=(S.appointments||[]).filter(function(a){ return a.date===ds; });
+  const dayAppts=(S.appointments||[]).filter(function(a){ return apptOn(a,ds); });
   dayAppts.forEach(function(a){
     const lbl=a.title+(a.time?' @'+a.time.slice(0,5):'');
     inner+='<div class="cal-appt">'+lbl+'</div>';
@@ -5263,7 +5280,7 @@ function renderCalCell(d, otherMonth){
     inner='<div class="cal-day-num">'+(otherMonth?'':d.getDate())+'</div>';
     inner+='<div class="cal-badge '+leaveBadgeCls[leavePeriod.type]+'" style="font-size:9px;font-weight:800;padding:2px 5px;margin-top:3px;">'+lbl+'</div>';
     // Still show appointments even on leave days
-    const lvAppts=(S.appointments||[]).filter(function(a){ return a.date===ds; });
+    const lvAppts=(S.appointments||[]).filter(function(a){ return apptOn(a,ds); });
     lvAppts.forEach(function(a){
       inner+='<div class="cal-appt">'+a.title+(a.time?' @'+a.time.slice(0,5):'')+'</div>';
     });
@@ -5431,7 +5448,7 @@ function renderDayPanel(ds){
   // Render appointments for this day
   const apptEl=document.getElementById('day-panel-appts');
   if(apptEl){
-    const appts=(S.appointments||[]).filter(function(a){ return a.date===ds; });
+    const appts=(S.appointments||[]).filter(function(a){ return apptOn(a,ds); });
     if(appts.length){
       let ahtml='<div style="margin-top:12px;font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Appointments</div>';
       appts.forEach(function(a){
