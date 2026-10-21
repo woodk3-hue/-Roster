@@ -7497,11 +7497,17 @@ function calcPayProjection(offsetFortnights){
       const h=calcHrs(ov.start,ov.end);
       if(h) hrs=h;
     }
-    if(!hrs||!ov) { cur=addDays(cur,1); continue; }
+    // A shift worked as rostered (no times typed): its job card length, so weekend and
+    // public holiday penalties are still paid. A cancelled working isn't worked.
+    if(!hrs&&!(ov&&ov.alt&&ov.alt.kind==='cancel4')){
+      const f=ruleDayFacts(ds);
+      if(f.work&&f.end!=null) hrs=(f.end-f.start)/3600000;
+    }
+    if(!hrs) { cur=addDays(cur,1); continue; }
 
     // BLP/SLP worked — explicit type OR normal override on a BLP/SLP roster day
-    const isBlpWorked=ov.type==='blp_worked'||ov.type==='slp_worked'||
-      (ov.start&&(rosterTk==='blp'||rosterTk==='slp'));
+    const isBlpWorked=!!ov&&(ov.type==='blp_worked'||ov.type==='slp_worked'||
+      (ov.start&&(rosterTk==='blp'||rosterTk==='slp')));
 
     // Public holidays (EBA 59.5–59.8): ordinary hours +50% (Labour Day +150%); on a leisure day the
     // leisure rate applies (175%; Labour Day 250%); weekend penalties still apply on top (67.5)
