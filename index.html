@@ -7454,14 +7454,14 @@ function masterRosterHours(ds){
 }
 
 // Bumped when the pay maths changes, so saved Pay History estimates are worked out again once
-const PAY_CALC_V=3;
+const PAY_CALC_V=4;
 function calcPayProjection(offsetFortnights){
   const cph=S.settings.cph||66.50;
   const fn=getFortnightDates(offsetFortnights||0);
   const start=fn.start, end=fn.end;
 
   // Scan every day in the fortnight
-  let blpHrs=0, satHrs=0, sunHrs=0, phHrs=0, phLabHrs=0, phLabLeisHrs=0, alSatHrs=0, alSunHrs=0;
+  let blpHrs=0, satHrs=0, sunHrs=0, phHrs=0, phLabHrs=0, phLabLeisHrs=0, alSatHrs=0, alSunHrs=0, lslHrs=0;
 
   let cur=new Date(start);
   while(cur<=end){
@@ -7484,6 +7484,10 @@ function calcPayProjection(offsetFortnights){
         const h=masterRosterHours(ds);
         if(dow===6) alSatHrs+=h; else alSunHrs+=h;
       }
+      if(lt==='lsl'){
+        const h=masterRosterHours(ds);
+        lslHrs+=h;
+      }
       cur=addDays(cur,1); continue;
     }
 
@@ -7493,11 +7497,17 @@ function calcPayProjection(offsetFortnights){
       const h=calcHrs(ov.start,ov.end);
       if(h) hrs=h;
     }
-    if(!hrs||!ov) { cur=addDays(cur,1); continue; }
+    // A shift worked as rostered (no times typed): its job card length, so weekend and
+    // public holiday penalties are still paid. A cancelled working isn't worked.
+    if(!hrs&&!(ov&&ov.alt&&ov.alt.kind==='cancel4')){
+      const f=ruleDayFacts(ds);
+      if(f.work&&f.end!=null) hrs=(f.end-f.start)/3600000;
+    }
+    if(!hrs) { cur=addDays(cur,1); continue; }
 
     // BLP/SLP worked — explicit type OR normal override on a BLP/SLP roster day
-    const isBlpWorked=ov.type==='blp_worked'||ov.type==='slp_worked'||
-      (ov.start&&(rosterTk==='blp'||rosterTk==='slp'));
+    const isBlpWorked=!!ov&&(ov.type==='blp_worked'||ov.type==='slp_worked'||
+      (ov.start&&(rosterTk==='blp'||rosterTk==='slp')));
 
     // Public holidays (EBA 59.5–59.8): ordinary hours +50% (Labour Day +150%); on a leisure day the
     // leisure rate applies (175%; Labour Day 250%); weekend penalties still apply on top (67.5)
@@ -7537,6 +7547,7 @@ function calcPayProjection(offsetFortnights){
   const alWkndHrs=alSatHrs+alSunHrs;
   const alSatGross=alSatHrs*cph*0.50, alSunGross=alSunHrs*cph*1.00;  // AL on rostered weekend (EBA 67.6)
   const alWkndGross=alSatGross+alSunGross;
+  const lslGross=lslHrs*cph;  // LSL at 100%, no loading — already inside the guaranteed hours, so shown but not added again
   const totalGross=baseGross+blpGross+satGross+sunGross+phGross+phLabGross+phLabLeisGross+alWkndGross+excessGross+altLeisGross;
 
   // ── PRE-TAX DEDUCTIONS — from customDeductions ──
@@ -7563,7 +7574,7 @@ function calcPayProjection(offsetFortnights){
 
   return {
     baseGross,blpHrs,blpGross,satHrs,satGross,sunHrs,sunGross,
-    phHrs,phGross,phLabHrs,phLabGross,phLabLeisHrs,phLabLeisGross,alWkndHrs,alWkndGross,alSatHrs,alSunHrs,alSatGross,alSunGross,totalGross,
+    phHrs,phGross,phLabHrs,phLabGross,phLabLeisHrs,phLabLeisGross,alWkndHrs,alWkndGross,lslHrs,lslGross,alSatHrs,alSunHrs,alSatGross,alSunGross,totalGross,
     cyc,excessHrs,excessGross,altLeisHrs,altLeisGross,calcV:PAY_CALC_V,
     fleetPre,salarySac,volSuper,qri,totalPreTax,
     fnTax,mediLevy,totalTax,
@@ -7666,6 +7677,7 @@ function renderPayProjection(){
   if(p.phLabLeisHrs>0) html+=payRow('Labour Day on BLP/SLP',p.phLabLeisHrs.toFixed(2),'250%',fmt$(p.phLabLeisGross),'var(--early)');
   if(p.alSatHrs>0) html+=payRow('AL Sat Penalty',p.alSatHrs.toFixed(2),'50%',fmt$(p.alSatGross),'var(--early)');
   if(p.alSunHrs>0) html+=payRow('AL Sun Penalty',p.alSunHrs.toFixed(2),'100%',fmt$(p.alSunGross),'var(--early)');
+  if(p.lslHrs>0) html+=payRow('Long Service Leave (in ord time)',p.lslHrs.toFixed(2),'100%',fmt$(p.lslGross),'var(--muted)');
   if(p.excessHrs>0) html+=payRow('Excess time (cycle over '+p.cyc.target+'h)',p.excessHrs.toFixed(2),(S.settings.excessRate||170)+'%',fmt$(p.excessGross),'var(--early)');
   if(p.altLeisHrs>0) html+=payRow('Alteration on leisure day',p.altLeisHrs.toFixed(2),'175%',fmt$(p.altLeisGross),'var(--early)');
   html+='<div style="font-size:11px;color:var(--muted);padding:6px 0;cursor:pointer;" onclick="showCycleInfo(\''+fmtDate(p.cyc.start)+'\')">Cycle '+fmtDDMM(p.cyc.start)+'–'+fmtDDMM(p.cyc.end)+': <b>'+fmtH(p.cyc.total)+'</b> of '+p.cyc.target+'h credited'+(p.cyc.excess>0?' · '+fmtH(p.cyc.excess)+' over (paid at the end of the cycle)':'')+' ⓘ</div>';
@@ -8367,6 +8379,7 @@ function renderPayHistory(){
       if(p.alSatHrs>0) dhtml+=drow('AL Sat Penalty 50%',fmt$(p.alSatGross),p.alSatHrs.toFixed(2)+'h','var(--early)');
       if(p.alSunHrs>0) dhtml+=drow('AL Sun Penalty 100%',fmt$(p.alSunGross),p.alSunHrs.toFixed(2)+'h','var(--early)');
       if(!p.alSatHrs&&!p.alSunHrs&&p.alWkndHrs>0) dhtml+=drow('AL Wknd Penalty',fmt$(p.alWkndGross),p.alWkndHrs.toFixed(2)+'h','var(--early)');
+      if(p.lslHrs>0) dhtml+=drow('Long Service Leave (in the 80h)',fmt$(p.lslGross),p.lslHrs.toFixed(2)+'h','var(--muted)');
       if(p.excessHrs>0) dhtml+=drow('Excess Time',fmt$(p.excessGross),p.excessHrs.toFixed(2)+'h · cycle over '+(p.cyc&&p.cyc.target||160)+'h','var(--early)');
       if(p.altLeisHrs>0) dhtml+=drow('Alterations on leisure days 175%',fmt$(p.altLeisGross),p.altLeisHrs.toFixed(2)+'h','var(--early)');
       dhtml+=drow('Total Gross',fmt$(p.totalGross),'','var(--accent)');
