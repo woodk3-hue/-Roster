@@ -2263,12 +2263,12 @@ async function importRosterPDF(input){
     const count=Object.keys(parsed).length;
     if(count===0){
       const preview=escHtml(text.substring(0,200).replace(/\n/g,' ').trim());
-      const why=readerErr&&/PDF reader/.test(readerErr.message||'')
+      const why=readerErr&&/PDF reader|worker|Cannot load script/i.test(readerErr.message||'')
         ? 'The PDF reader couldn\'t download — check you have signal (and turn off any content blocker for this site), then try again.'
         : !preview
           ? 'No roster text found in this file. Make sure it\'s the Link/Diagram roster PDF from the rostering office (not a photo, screenshot or a shared link), saved to Files first.'
           : 'This doesn\'t look like the Link/Diagram roster. First 200 characters: '+preview;
-      if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">0 links found. '+why+(readerErr&&!/PDF reader/.test(readerErr.message||'')?' ('+escHtml(readerErr.message||String(readerErr))+')':'')+'</span>';
+      if(statusEl) statusEl.innerHTML='<span style="color:#ef4444;">0 links found. '+why+(readerErr&&!/PDF reader|worker|Cannot load script/i.test(readerErr.message||'')?' ('+escHtml(readerErr.message||String(readerErr))+')':'')+'</span>';
       input.value=''; // so picking the same file again tries again
       return;
     }
@@ -2374,15 +2374,49 @@ const PDFJS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.
 const PDFJS_WORKER_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 const GLYPH_CHARS={"2fd35099":"2","3196803b":".","a653d250":"0","1176105e":"8","828ba42d":"5","a218d59":"Q","278e5811":"U","1e030420":"E","b57637f3":"N","bd8ddc6":"S","7190eb51":"L","eecf3169":"A","3a5a9eb1":"D","5d043d82":"R","87130e9e":"I","4824d195":"P","9543f2b0":"G","5512be39":"1","96c7ff27":"4","607b22ba":":","25e414f0":"3","8f9f3646":"O","4eac003d":"C","747b5b77":"J","817ab463":"K","e0c16824":"/","c0fcab5a":"M","b4a8ef01":"F","12614c0e":"Y","ad9162ea":"T","97eef894":"(","c3936652":")","68a033c5":"B","bae2cf71":"9","85b770b":"-","329f1ee3":"W","9e8528e9":"H","88fbec13":"7","69a81e7f":"6","8fdedef2":"X","1350cbe9":" ","9641d7a8":"V","159838f0":"Z","ce2eeaa8":"'"};
 
+// Backup copies of the same pdf.js version, in case cdnjs is slow or blocked on a phone
+const PDFJS_MIRRORS=[
+  [PDFJS_URL,PDFJS_WORKER_URL],
+  ['https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js','https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js'],
+  ['https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js','https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js']
+];
+let pdfJsLoading=null;
 function loadPdfJs(){
-  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
-  return new Promise(function(resolve,reject){
-    const sc=document.createElement('script');
-    sc.src=PDFJS_URL;
-    sc.onload=function(){ window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER_URL; resolve(window.pdfjsLib); };
-    sc.onerror=function(){ reject(new Error('Could not load the PDF reader — check your internet connection')); };
-    document.head.appendChild(sc);
-  });
+  if(window.pdfjsLib&&window.pdfjsLib._ready) return Promise.resolve(window.pdfjsLib);
+  if(pdfJsLoading) return pdfJsLoading;
+  const addScript=function(src){
+    return new Promise(function(resolve,reject){
+      const sc=document.createElement('script');
+      sc.src=src; sc.onload=resolve;
+      sc.onerror=function(){ sc.remove(); reject(new Error('blocked')); };
+      document.head.appendChild(sc);
+    });
+  };
+  pdfJsLoading=(async function(){
+    if(!window.pdfjsLib){
+      for(const m of PDFJS_MIRRORS){ try{ await addScript(m[0]); if(window.pdfjsLib) break; }catch(e){} }
+      if(!window.pdfjsLib) throw new Error('Could not load the PDF reader — check your internet connection');
+    }
+    // The worker (the part that reads the file) is downloaded here and started from this page,
+    // which phones accept more readily than a worker straight from another website
+    let src=null;
+    for(const m of PDFJS_MIRRORS){
+      try{
+        const r=await fetch(m[1],{mode:'cors'});
+        if(!r.ok) continue;
+        const code=await r.text();
+        if(code.length<100000) continue;
+        src=URL.createObjectURL(new Blob([code],{type:'application/javascript'}));
+        break;
+      }catch(e){}
+    }
+    if(!src) throw new Error('Could not load the PDF reader — check your internet connection');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc=src;
+    window.pdfjsLib._ready=true;
+    return window.pdfjsLib;
+  })();
+  pdfJsLoading.catch(function(){ pdfJsLoading=null; });
+  return pdfJsLoading;
 }
 
 // FNV-1a fingerprint of a glyph's drawing instructions
