@@ -2246,6 +2246,13 @@ async function importRosterPDF(input){
         parsed=parseLinkDiagram(text);
       }catch(e){ console.warn('Link/Diagram reader:',e); parsed=null; readerErr=e; }
     }
+    // Late-2026 table layout ("MNE D  1  PB058S 05:33 - 13:03 (07:30)  BLP …")
+    if(isPdf&&(!parsed||!Object.keys(parsed).length)){
+      try{
+        const tp=await readTableRosterPDF(buffer.slice(0));
+        if(tp&&Object.keys(tp.roster).length){ parsed=tp.roster; text=tp.text; readerErr=null; }
+      }catch(e){ console.warn('Table roster reader:',e); if(!readerErr) readerErr=e; }
+    }
     // Otherwise the older roster.txt / PDF path
     if(!parsed||!Object.keys(parsed).length){
       if(statusEl) statusEl.innerHTML='<span style="color:var(--muted);">Decompressing streams...</span>';
@@ -2470,6 +2477,55 @@ async function linkDiagramFromTextLayer(doc){
   }
   const text=out.join('\n');
   return /MONDAY/.test(text)&&/SUNDAY/.test(text)?text:null;
+}
+
+// Late-2026 roster layout: a table with a row per link and a column per day; each cell is
+// "JOB HH:MM - HH:MM (length)" or a code (BLP, SLP, AM1…). Proportional font, so cells are
+// placed by the x position of the day headings rather than by character columns.
+async function readTableRosterPDF(buffer){
+  const pdfjsLib=await loadPdfJs();
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(buffer),disableFontFace:true}).promise;
+  const DAYN=['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
+  const roster={}, lines=[];
+  let cols=null;
+  for(let pn=1;pn<=doc.numPages;pn++){
+    const tc=await (await doc.getPage(pn)).getTextContent();
+    const items=tc.items.filter(function(it){ return it.str&&it.str.trim(); }).map(function(it){
+      return {s:it.str.trim(),x:it.transform[4],y:Math.round(it.transform[5]*2)/2,f:Math.round(Math.hypot(it.transform[0],it.transform[1])*10)/10};
+    });
+    if(!items.length) continue;
+    // Body text size: the most common one (ignores the big DRAFT watermark letters)
+    const fs={}; items.forEach(function(it){ fs[it.f]=(fs[it.f]||0)+1; });
+    const body=+Object.keys(fs).sort(function(a,b){ return fs[b]-fs[a]; })[0];
+    const rows={};
+    items.forEach(function(it){ if(Math.abs(it.f-body)<=body*0.3) (rows[it.y]=rows[it.y]||[]).push(it); });
+    Object.keys(rows).map(Number).sort(function(a,b){ return b-a; }).forEach(function(y){
+      const row=rows[y].sort(function(a,b){ return a.x-b.x; });
+      const heads=DAYN.map(function(d){ const h=row.find(function(it){ return it.s.toUpperCase()===d; }); return h?h.x:null; });
+      if(heads.every(function(x){ return x!=null; })){ cols=heads; return; }
+      if(!cols) return;
+      const before=row.filter(function(it){ return it.x<cols[0]-2; });
+      const num=before.filter(function(it){ return /^\d{1,3}$/.test(it.s); }).pop();
+      if(!num) return;
+      const link=parseInt(num.s);
+      if(link<1||link>999) return;
+      const cells=['','','','','','',''];
+      row.forEach(function(it){
+        if(it.x<cols[0]-2) return;
+        let d=0; for(let k=0;k<7;k++) if(it.x>=cols[k]-2) d=k;
+        cells[d]=(cells[d]?cells[d]+' ':'')+it.s;
+      });
+      lines.push(link+'\t'+cells.join('\t'));
+      roster[link]=cells.map(function(c){
+        const m=c.match(/^(\S+)\s+(\d{1,2}:\d{2})\s*-\s*\d{1,2}:\d{2}/);
+        if(m) return m[2]+'|'+m[1];
+        const t=c.match(/^(\d{1,2}:\d{2})/);
+        if(t) return t[1];
+        return (c.split(/\s+/)[0]||'').toUpperCase();
+      });
+    });
+  }
+  return {roster:roster,text:lines.join('\n')};
 }
 
 // Reads links from the decoded printout. Each day becomes "HH:MM|JOB", a code (BLP, AM1…),
