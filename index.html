@@ -6897,6 +6897,8 @@ function renderShiftFinder(){
     const wcStr=fmtDate(wc);
     const link=getLinkForWeek(wc);
     const wcSwap=S.swaps.find(function(sw){ return sw.wc===wcStr&&sw.scope==='week'; });
+    // Any swap that week (whole week, single day or BLP) keeps the week in the list whatever the filter
+    const anySwap=wcSwap||S.swaps.find(function(sw){ return sw.wc===wcStr; });
 
     // Build leave overlay
     const dayLeaveTypes=[];
@@ -6925,7 +6927,7 @@ function renderShiftFinder(){
         }
       });
 
-      if(matchDays.length>0&&!addedWCs.has(wcStr)){
+      if(matchDays.length>0&&!anySwap&&!addedWCs.has(wcStr)){
         addedWCs.add(wcStr);
         weekResults.push({
           wc:wc,wcStr:wcStr,link:link,days:days,matchDays:matchDays,
@@ -6935,13 +6937,13 @@ function renderShiftFinder(){
           partialLeaveType:partialLeaveType,dayLeaveTypes:dayLeaveTypes,
           isSwapOnly:false
         });
-      } else if(wcSwap&&!addedWCs.has(wcStr)){
+      } else if(anySwap&&!addedWCs.has(wcStr)){
         // Swapped week that doesn't match the filter — still show it
         addedWCs.add(wcStr);
         weekResults.push({
           wc:wc,wcStr:wcStr,link:link,days:days,matchDays:[],
-          weekSwapped:true,swapTo:wcSwap.linkReceived,
-          wcSwapId:wcSwap.id,swapDriver:wcSwap.driver,
+          weekSwapped:true,swapTo:anySwap.linkReceived,swapRec:anySwap,
+          wcSwapId:anySwap.id,swapDriver:anySwap.driver,
           fullWeekLeaveType:fullWeekType,isPartialLeave:isPartialLeave,
           partialLeaveType:partialLeaveType,dayLeaveTypes:dayLeaveTypes,
           isSwapOnly:true
@@ -6971,19 +6973,30 @@ function renderShiftFinder(){
     const swapSent=r.weekSwapped&&r.wcSwapId&&S.swapEmailSent[r.wcSwapId];
     const wcClickable='<span style="font-size:14px;font-weight:800;color:var(--accent);cursor:pointer;text-decoration:underline;text-decoration-style:dotted;" data-wcstr="'+r.wcStr+'" onclick="openCalendarToWeek(this.dataset.wcstr)">WC '+wcDD+'</span>';
 
-    // Swap-only row (swapped but doesn't match current filter)
+    // Swap row (swapped, but doesn't match the current filter): what you're actually working that week
     if(r.isSwapOnly){
+      const sw=r.swapRec||{};
+      const D3=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const what=sw.scope==='blp'?'BLP swap · gave '+(sw.blpGiveIdxs||[]).map(function(i){ return D3[i]; }).join('/')+', got '+(sw.blpRecvIdx!=null?D3[sw.blpRecvIdx]:'—')
+        :sw.scope==='day'?'Day swap · '+(sw.dayIdx!=null?D3[sw.dayIdx]:'')+(sw.linkReceived?' → Link '+sw.linkReceived:'')
+        :'Link '+r.link+' → <b>Link '+sw.linkReceived+'</b>';
+      const sent=S.swapEmailSent&&S.swapEmailSent[sw.id];
       const cb=document.createElement('input');
       cb.type='checkbox'; cb.className='pmf-cb pmf-select-cb themed-cb'; cb.dataset.pmfid=r.wcStr+'|'+r.link;
       cb.onclick=function(e){ e.stopPropagation(); };
       const swapDiv=document.createElement('div');
-      swapDiv.style.cssText='display:flex;align-items:center;gap:8px;';
+      swapDiv.style.cssText='display:flex;align-items:flex-start;gap:8px;';
       const infoDiv=document.createElement('div');
-      infoDiv.style.cssText='flex:1;';
-      infoDiv.innerHTML=wcClickable+
-        '<span style="font-size:12px;font-weight:700;margin-left:6px;">Link '+r.link+'</span>'+
-        ' <span style="font-size:11px;background:#16a34a;color:#fff;padding:1px 7px;border-radius:10px;font-weight:700;">Link Swapped → '+r.swapTo+'</span>'+
-        (r.swapDriver?'<span style="font-size:11px;color:var(--muted);margin-left:4px;">'+r.swapDriver+'</span>':'');
+      infoDiv.style.cssText='flex:1;min-width:0;';
+      infoDiv.innerHTML='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+wcClickable+
+          '<span style="font-size:11px;background:#16a34a;color:#fff;padding:2px 8px;border-radius:10px;font-weight:700;">🔁 Swapped</span>'+
+          '<span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;'+(sent?'background:#064e3b;color:#6ee7b7;':'background:#78350f;color:#fcd34d;')+'">'+(sent?'Email Sent ✓':'Email Pending')+'</span></div>'+
+        '<div style="font-size:12px;font-weight:700;margin-top:4px;">'+what+(r.swapDriver?' <span style="color:var(--muted);font-weight:600;">· '+escHtml(r.swapDriver)+'</span>':'')+'</div>'+
+        '<div style="margin-top:6px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">My Link — '+r.link+'</div>'+
+        buildWeekGridHtml(r.link,r.days,r.wc)+
+        (sw.scope==='week'&&sw.linkReceived&&ROSTER[String(sw.linkReceived)]
+          ? buildSwappedRowHtml(sw.linkReceived,ROSTER[String(sw.linkReceived)],r.wc)
+          : '<div style="margin-top:6px;font-size:10px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:.05em;">What you\'re working (changed days outlined)</div>'+buildWorkingWeekGridHtml(r.wc));
       swapDiv.appendChild(cb); swapDiv.appendChild(infoDiv);
       row.appendChild(swapDiv);
       el.appendChild(row);
@@ -7146,6 +7159,26 @@ function getLeaveForDate(ds){
   })||null;
 }
 
+// The week as it will be worked (swaps and edits applied); days changed by a swap are outlined
+function buildWorkingWeekGridHtml(wc){
+  var html='<div class="sg-scroll"><table class="swap-grid"><thead><tr>';
+  DAY3.forEach(function(d,i){ html+='<th style="color:'+(i>=5?'#ef4444':'var(--muted)')+';">'+d+'</th>'; });
+  html+='</tr></thead><tbody><tr>';
+  for(var i=0;i<7;i++){
+    var ds=fmtDate(addDays(wc,i)), sh=getEffectiveShift(ds), ov=S.days[ds], tk=sh.swapInnerType||sh.typeKey;
+    if(tk==='swap'&&sh.link) tk=parseShift(getRaw(sh.link,i)).typeKey;
+    var changed=tk==='swap'||sh.typeKey==='swap'||(ov&&['swap','blp_given','blp_kept','single_day_swap'].includes(ov.type));
+    var cls='sg-cell ';
+    if(tk==='blp'||tk==='slp'||tk==='blp_kept') cls+='sg-blp';
+    else if(tk==='afa'||tk==='afp') cls+='sg-afa';
+    else if(['am1','am2','am3'].includes(tk)) cls+='sg-am';
+    else if(['pm1','pm2','pm3'].includes(tk)) cls+='sg-pm';
+    else cls+='sg-normal';
+    var lbl=sh.time||(tk==='blp_kept'?'BLP':sh.code)||'—';
+    html+='<td><span class="'+cls+'"'+(changed?' style="outline:2px solid var(--accent);outline-offset:1px;"':'')+'>'+escHtml(String(lbl))+'</span></td>';
+  }
+  return html+'</tr></tbody></table></div>';
+}
 function buildWeekGridHtml(link, days, wc){
   var html='<div class="sg-scroll"><table class="swap-grid">';
   html+='<thead><tr><th style="text-align:left;width:50px;font-size:9px;">Link</th>';
