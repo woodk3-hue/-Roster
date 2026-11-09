@@ -1404,9 +1404,9 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <hr class="divider">
 
   <!-- ── SWAP HISTORY (bottom, collapsible) ── -->
-  <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin-bottom:4px;" onclick="toggleSwapHistory()">
-    <div class="section-label" style="margin:0;">Swap History</div>
-    <span id="swap-history-arrow" style="font-size:16px;color:var(--muted);">▸</span>
+  <div role="button" tabindex="0" style="display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;margin:4px 0 8px;padding:14px 16px;min-height:52px;border-radius:14px;background:var(--bg2);border:1px solid var(--border2);" onclick="toggleSwapHistory()">
+    <div style="font-size:15px;font-weight:800;color:var(--text);">🔁 Swap History <span id="swap-history-count" style="font-size:12px;font-weight:700;color:var(--muted);"></span></div>
+    <span id="swap-history-arrow" style="font-size:13px;font-weight:800;color:var(--accent);white-space:nowrap;">Show ▸</span>
   </div>
   <div id="swap-log" style="display:none;"></div>
 </div>
@@ -4895,6 +4895,11 @@ function showScreen(name){
   const nb=document.getElementById('nav-'+name);
   if(nb) nb.classList.add('active');
   currentScreen=name;
+  // The day pop-up and Edit Shift belong to the Calendar: close them when moving to another tab
+  if(name!=='cal'){
+    if(typeof closeDayPanel==='function') closeDayPanel();
+    if(typeof closeShiftModal==='function') closeShiftModal();
+  }
   if(name==='dash'){ renderDash(); updateBackupReminder(); }
   if(name==='cal') renderCal();
   if(name==='swaps') renderSwaps();
@@ -6001,11 +6006,11 @@ function toggleSwapHistory(){
   if(!el) return;
   if(el.style.display==='none'){
     el.style.display='block';
-    if(arrow) arrow.textContent='▾';
+    if(arrow) arrow.textContent='Hide ▾';
     renderSwapLog();
   } else {
     el.style.display='none';
-    if(arrow) arrow.textContent='▸';
+    if(arrow) arrow.textContent='Show ▸';
   }
 }
 
@@ -6360,6 +6365,8 @@ function generateBlpEmail(btn){
 }
 
 function renderSwapLog(){
+  const cnt=document.getElementById('swap-history-count');
+  if(cnt){ const n=(S.swaps||[]).length; cnt.textContent=n?'('+n+')':''; }
   const el=document.getElementById('swap-log');
   if(!S.swaps.length){ el.innerHTML='<div class="empty-state">No swaps recorded yet.</div>'; return; }
   const now=today();
@@ -6413,7 +6420,7 @@ function renderSwapLog(){
       div.addEventListener('click',function(e){ if(e.target.closest('button,input,.swap-edit')) return; editSwap(sw.id,div); });
       const editBtn=document.createElement('button');
       editBtn.className='btn btn-sm';
-      editBtn.style.cssText='font-size:10px;padding:3px 8px;margin-top:4px;width:100%;';
+      editBtn.style.cssText='font-size:13px;font-weight:700;padding:10px 12px;min-height:42px;margin-top:6px;width:100%;';
       editBtn.textContent='✏️ Edit driver / link';
       editBtn.onclick=function(){ editSwap(sw.id,div); };
       div.appendChild(editBtn);
@@ -6421,14 +6428,14 @@ function renderSwapLog(){
     // Generate email button
     const emailBtn=document.createElement('button');
     emailBtn.className='btn btn-sm';
-    emailBtn.style.cssText='font-size:10px;padding:3px 8px;margin-top:4px;width:100%;';
+    emailBtn.style.cssText='font-size:13px;font-weight:700;padding:10px 12px;min-height:42px;margin-top:6px;width:100%;';
     emailBtn.textContent='📧 Generate Email';
     emailBtn.onclick=function(){ generateSwapEmail(sw); };
     div.appendChild(emailBtn);
     // Undo Swap button
     const undoBtn=document.createElement('button');
     undoBtn.className='btn btn-sm btn-danger';
-    undoBtn.style.cssText='font-size:10px;padding:3px 8px;margin-top:4px;width:100%;';
+    undoBtn.style.cssText='font-size:13px;font-weight:700;padding:10px 12px;min-height:42px;margin-top:6px;width:100%;';
     undoBtn.textContent='Undo Swap';
     undoBtn.setAttribute('data-undoid',sw.id);
     undoBtn.onclick=function(){ undoSwap(this.getAttribute('data-undoid')); };
