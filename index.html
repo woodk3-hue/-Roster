@@ -1404,9 +1404,9 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <hr class="divider">
 
   <!-- ── SWAP HISTORY (bottom, collapsible) ── -->
-  <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin-bottom:4px;" onclick="toggleSwapHistory()">
-    <div class="section-label" style="margin:0;">Swap History</div>
-    <span id="swap-history-arrow" style="font-size:16px;color:var(--muted);">▸</span>
+  <div role="button" tabindex="0" style="display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;margin:4px 0 8px;padding:14px 16px;min-height:52px;border-radius:14px;background:var(--bg2);border:1px solid var(--border2);" onclick="toggleSwapHistory()">
+    <div style="font-size:15px;font-weight:800;color:var(--text);">🔁 Swap History <span id="swap-history-count" style="font-size:12px;font-weight:700;color:var(--muted);"></span></div>
+    <span id="swap-history-arrow" style="font-size:13px;font-weight:800;color:var(--accent);white-space:nowrap;">Show ▸</span>
   </div>
   <div id="swap-log" style="display:none;"></div>
 </div>
@@ -1826,6 +1826,20 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
         <button class="btn btn-danger btn-sm" style="width:100%;margin-top:8px;" onclick="fridgeDisconnect()">Disconnect fridge</button>
       </div>
       <div id="fridge-info" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+    </div>
+    <div class="settings-section" style="border-color:rgba(56,189,248,0.4);">
+      <div class="settings-section-title" style="color:#38bdf8;">☁ My Account (admin only)</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Sign in with your fridge account and everything in this app (roster, job cards, swaps, claims, leave, pay, settings) is saved to it. Another phone signed in to the same account gets the same data, and changes on either phone reach the other.</div>
+      <div id="acct-login">
+        <input type="email" class="form-input" id="acct-email" placeholder="Email (leave blank if the fridge is connected)" autocomplete="email" style="margin-bottom:8px;">
+        <input type="password" class="form-input" id="acct-pw" placeholder="Password" autocomplete="current-password" style="margin-bottom:8px;">
+        <button class="btn btn-accent btn-full" onclick="acctSignIn()">Sign in and sync</button>
+      </div>
+      <div id="acct-on" style="display:none;">
+        <button class="btn btn-accent btn-full" onclick="acctCheck(true)">Sync now</button>
+        <button class="btn btn-danger btn-sm" style="width:100%;margin-top:8px;" onclick="acctOff()">Turn off on this phone</button>
+      </div>
+      <div id="acct-info" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
     </div>
   </div>
 </div>
@@ -3479,6 +3493,19 @@ function loadState(){
   }catch(e){}
   purgeBin();
   fixContactSections();
+  fixBlpSwapDays();
+}
+// Editing a BLP-swap day used to save it with no shift type, so a given-away BLP showed as
+// BLP again: put the swap type back from the BLP swap record
+function fixBlpSwapDays(){
+  (S.swaps||[]).forEach(function(sw){
+    if(sw.scope!=='blp') return;
+    const mon=parseDate(sw.wc);
+    (sw.blpGiveIdxs||[]).concat(sw.blpRecvIdx!=null?[sw.blpRecvIdx]:[]).forEach(function(i){
+      const ds=fmtDate(addDays(mon,i)), ov=S.days[ds];
+      if(ov&&!ov.type){ ov.type=i===sw.blpRecvIdx?'blp_kept':'blp_given'; if(!ov.swapPartner) ov.swapPartner=sw.driver; }
+    });
+  });
 }
 let saveFailWarned=false;
 function saveState(){
@@ -3493,6 +3520,7 @@ function saveState(){
     else pushSyncAppointments(); // partner can only push appointments
   }
   fridgeSyncSoon();
+  acctSyncSoon();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3501,6 +3529,130 @@ function saveState(){
 // never touches the roster data.
 // ═══════════════════════════════════════════════════════════
 const FRIDGE_URL='https://lcwmbbickoylsybrqpei.supabase.co';
+// ── MY ACCOUNT (admin only) ──
+// The whole app saved to the owner's fridge (Supabase) account, table roster_state, one row per
+// account and copy (main / test). Newest copy wins; if both phones changed, the owner picks.
+// Roster and job cards are large, so they are only sent when they change.
+const ACCT_SLOT=window.IS_TEST_BUILD?'test':'main';
+let acctTimer=null, acctBusy=false, acctApplying=false;
+function acctNote(msg,isErr){
+  const el=document.getElementById('acct-info');
+  if(el) el.innerHTML='<span style="color:'+(isErr?'#ef4444':'var(--muted)')+';">'+msg+'</span>';
+}
+function acctUI(on){
+  const a=document.getElementById('acct-login'), b=document.getElementById('acct-on');
+  if(a) a.style.display=on?'none':'block';
+  if(b) b.style.display=on?'block':'none';
+}
+function acctDevice(){
+  let d=localStorage.getItem('acct_device');
+  if(!d){ d=uid()+uid(); localStorage.setItem('acct_device',d); }
+  return d;
+}
+function acctSig(o){ const j=JSON.stringify(o||{}); return j.length+'-'+hashString(j); }
+function acctErr(e){
+  const m=(e&&(e.message||e.code))||String(e);
+  if(/roster_state|PGRST205|42P01|does not exist/i.test(m)) return 'The account table isn\'t set up yet (roster_state) — run the setup SQL in Supabase';
+  if(/fetch|network|offline/i.test(m)) return 'Could not reach your account — check your connection';
+  return 'Account sync error: '+m;
+}
+function acctWhen(ms){ const d=new Date(+ms); return fmtDDMM(d)+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
+async function acctSession(){
+  const sb=await fridgeClient();
+  const s=(await sb.auth.getSession()).data.session;
+  return {sb:sb,s:s};
+}
+async function acctSignIn(){
+  const em=(document.getElementById('acct-email').value||'').trim(), pw=document.getElementById('acct-pw').value||'';
+  try{
+    const sb=await fridgeClient();
+    if(em||pw){
+      if(!em||!pw){ toast('Enter your email and password'); return; }
+      const r=await sb.auth.signInWithPassword({email:em,password:pw});
+      if(r.error){ acctNote(r.error.message,true); return; }
+    } else if(!(await sb.auth.getSession()).data.session){ toast('Enter your email and password'); return; }
+    document.getElementById('acct-pw').value='';
+    // First sync on this phone: send roster and job cards in full
+    ['acct_roster_sig','acct_jc_sig','acct_synced_at','acct_dirty'].forEach(function(k){ localStorage.removeItem(k); });
+    localStorage.setItem('acctOn','1');
+    acctUI(true);
+    await acctFirstSync();
+  }catch(e){ acctNote(acctErr(e),true); }
+}
+async function acctFirstSync(){
+  const c=await acctSession();
+  const r=await c.sb.from('roster_state').select('saved_at').eq('user_id',c.s.user.id).eq('slot',ACCT_SLOT).maybeSingle();
+  if(r.error) throw r.error;
+  if(!r.data){ await acctUpload(); return; }
+  if(!hasRealData()||confirm('Your account has data saved on '+acctWhen(r.data.saved_at)+'.\n\nUse the account copy on this phone? This replaces what is on this phone.')){ await acctDownload(); return; }
+  if(confirm('Replace the account copy with this phone\'s data instead?')){ await acctUpload(); return; }
+  localStorage.removeItem('acctOn'); acctUI(false); acctNote('Nothing changed. Sign in again when you\'re ready.');
+}
+async function acctUpload(){
+  if(acctBusy||acctApplying||!hasRealData()) return;
+  acctBusy=true;
+  try{
+    const c=await acctSession();
+    if(!c.s){ acctNote('Signed out — sign in again',true); acctUI(false); localStorage.removeItem('acctOn'); return; }
+    const savedAt=Date.now(), rs=acctSig(ROSTER), js=acctSig(JOBCARDS);
+    const row={user_id:c.s.user.id,slot:ACCT_SLOT,state:S,saved_at:savedAt,device:acctDevice()};
+    if(rs!==localStorage.getItem('acct_roster_sig')){ row.roster=ROSTER; row.roster_sig=rs; }
+    if(js!==localStorage.getItem('acct_jc_sig')){ row.job_cards=JOBCARDS; row.jc_sig=js; }
+    const r=await c.sb.from('roster_state').upsert(row,{onConflict:'user_id,slot'});
+    if(r.error) throw r.error;
+    localStorage.setItem('acct_synced_at',String(savedAt));
+    localStorage.setItem('acct_roster_sig',rs); localStorage.setItem('acct_jc_sig',js);
+    localStorage.removeItem('acct_dirty');
+    acctNote('✓ Saved to your account '+acctWhen(savedAt));
+  }catch(e){ acctNote(acctErr(e),true); }
+  finally{ acctBusy=false; }
+}
+async function acctDownload(){
+  const c=await acctSession();
+  const r=await c.sb.from('roster_state').select('state,roster,job_cards,roster_sig,jc_sig,saved_at').eq('user_id',c.s.user.id).eq('slot',ACCT_SLOT).maybeSingle();
+  if(r.error) throw r.error;
+  if(!r.data||!r.data.state) return;
+  const p=Object.assign({},r.data.state);
+  if(r.data.roster) p.roster=r.data.roster;
+  if(r.data.job_cards) p.jobCards=r.data.job_cards;
+  acctApplying=true;
+  try{ if(!applyBackupData(p)) return; }
+  finally{ acctApplying=false; }
+  localStorage.setItem('acct_synced_at',String(r.data.saved_at));
+  localStorage.setItem('acct_roster_sig',acctSig(ROSTER)); localStorage.setItem('acct_jc_sig',acctSig(JOBCARDS));
+  localStorage.removeItem('acct_dirty');
+  acctNote('✓ Updated from your account (saved '+acctWhen(r.data.saved_at)+')');
+  toast('Updated from your account ✓');
+}
+// On opening the app (and Sync now): bring in newer changes from another phone, or send ours
+async function acctCheck(manual){
+  if(localStorage.getItem('acctOn')!=='1'||acctBusy) return;
+  try{
+    const c=await acctSession();
+    if(!c.s){ acctNote('Signed out — sign in again',true); acctUI(false); localStorage.removeItem('acctOn'); return; }
+    const r=await c.sb.from('roster_state').select('saved_at,device').eq('user_id',c.s.user.id).eq('slot',ACCT_SLOT).maybeSingle();
+    if(r.error) throw r.error;
+    const mine=+(localStorage.getItem('acct_synced_at')||0), dirty=localStorage.getItem('acct_dirty')==='1';
+    if(r.data&&+r.data.saved_at>mine&&r.data.device!==acctDevice()){
+      if(!dirty||confirm('Another phone saved changes to your account ('+acctWhen(r.data.saved_at)+'), and this phone has changes not saved yet.\n\nOK = use the account copy here (this phone\'s new changes are lost).\nCancel = keep this phone\'s and replace the account copy.')) await acctDownload();
+      else await acctUpload();
+    } else if(dirty||!r.data||manual) await acctUpload();
+  }catch(e){ acctNote(acctErr(e),true); }
+}
+function acctSyncSoon(){
+  try{
+    if(acctApplying||localStorage.getItem('acctOn')!=='1') return;
+    localStorage.setItem('acct_dirty','1');
+    clearTimeout(acctTimer);
+    acctTimer=setTimeout(acctUpload,5000);
+  }catch(e){}
+}
+async function acctOff(){
+  if(localStorage.getItem('fridgeOn')!=='1'){ try{ const sb=await fridgeClient(); await sb.auth.signOut(); }catch(e){} }
+  ['acctOn','acct_dirty','acct_synced_at','acct_roster_sig','acct_jc_sig'].forEach(function(k){ localStorage.removeItem(k); });
+  acctUI(false); acctNote('Turned off on this phone. Your data stays on this phone and in your account.');
+}
+
 const FRIDGE_KEY='sb_publishable_C9xS5earS-LRjjtuvWWDMg_JUX-KSTf';
 let fridgeSb=null, fridgeTimer=null, fridgeBusy=false;
 function fridgeNote(msg,isErr){
@@ -3541,7 +3693,7 @@ async function fridgeConnect(){
   }catch(e){ fridgeNote('Could not reach the fridge — check your connection',true); }
 }
 async function fridgeDisconnect(){
-  try{ const sb=await fridgeClient(); await sb.auth.signOut(); }catch(e){}
+  if(localStorage.getItem('acctOn')!=='1'){ try{ const sb=await fridgeClient(); await sb.auth.signOut(); }catch(e){} }
   localStorage.removeItem('fridgeOn'); localStorage.removeItem('fridge_sent');
   fridgeUI(false); fridgeNote('Disconnected. Shifts already on the fridge stay there.');
 }
@@ -4743,6 +4895,11 @@ function showScreen(name){
   const nb=document.getElementById('nav-'+name);
   if(nb) nb.classList.add('active');
   currentScreen=name;
+  // The day pop-up and Edit Shift belong to the Calendar: close them when moving to another tab
+  if(name!=='cal'){
+    if(typeof closeDayPanel==='function') closeDayPanel();
+    if(typeof closeShiftModal==='function') closeShiftModal();
+  }
   if(name==='dash'){ renderDash(); updateBackupReminder(); }
   if(name==='cal') renderCal();
   if(name==='swaps') renderSwaps();
@@ -5639,8 +5796,12 @@ function openShiftModal(ds){
   const raw=getRaw(link,idx);
   const sh=parseShift(raw);
 
-  document.getElementById('sm-type').value=(ov.type&&ov.type!=='swap')?ov.type:'normal';
-  document.getElementById('sm-start').value=ov.start||(sh.typeKey==='normal'?sh.time||'':sh.typeKey==='swap'?sh.time||'':'');
+  // BLP-swap days (blp_given / blp_kept) aren't in the list: show Normal, and saveShift keeps their type
+  const smType=document.getElementById('sm-type');
+  smType.value=(ov.type&&ov.type!=='swap'&&Array.prototype.some.call(smType.options,function(o){ return o.value===ov.type; }))?ov.type:'normal';
+  // The roster's start time is only a starting point on an ordinary day — not on a BLP you received in a swap
+  const plainDay=!ov.type||ov.type==='normal'||ov.type==='swap';
+  document.getElementById('sm-start').value=ov.start||(plainDay&&(sh.typeKey==='normal'||sh.typeKey==='swap')?sh.time||'':'');
   document.getElementById('sm-end').value=ov.end||'';
   document.getElementById('sm-job').value=ov.job||'';
   (function(){ const h=document.getElementById('sm-jobcard-hint'); if(h) h.textContent=''; })();
@@ -5724,6 +5885,10 @@ function saveShift(){
   if(existingOv.type==='swap'&&(!type||type==='normal')){
     d.type='swap'; d.swapFrom=existingOv.swapFrom; d.swapTo=existingOv.swapTo; d.swapPartner=existingOv.swapPartner;
     if(existingOv.before) d.before=existingOv.before;
+  }
+  // A BLP-swap day stays one (a given-away BLP is a working day, not BLP worked at 175%)
+  if((!type||type==='normal')&&(existingOv.type==='blp_given'||existingOv.type==='blp_kept')){
+    d.type=existingOv.type; d.swapPartner=existingOv.swapPartner;
   }
   const altKind=document.getElementById('sm-alt-kind').value;
   if(altKind){
@@ -5841,11 +6006,11 @@ function toggleSwapHistory(){
   if(!el) return;
   if(el.style.display==='none'){
     el.style.display='block';
-    if(arrow) arrow.textContent='▾';
+    if(arrow) arrow.textContent='Hide ▾';
     renderSwapLog();
   } else {
     el.style.display='none';
-    if(arrow) arrow.textContent='▸';
+    if(arrow) arrow.textContent='Show ▸';
   }
 }
 
@@ -6200,6 +6365,8 @@ function generateBlpEmail(btn){
 }
 
 function renderSwapLog(){
+  const cnt=document.getElementById('swap-history-count');
+  if(cnt){ const n=(S.swaps||[]).length; cnt.textContent=n?'('+n+')':''; }
   const el=document.getElementById('swap-log');
   if(!S.swaps.length){ el.innerHTML='<div class="empty-state">No swaps recorded yet.</div>'; return; }
   const now=today();
@@ -6253,7 +6420,7 @@ function renderSwapLog(){
       div.addEventListener('click',function(e){ if(e.target.closest('button,input,.swap-edit')) return; editSwap(sw.id,div); });
       const editBtn=document.createElement('button');
       editBtn.className='btn btn-sm';
-      editBtn.style.cssText='font-size:10px;padding:3px 8px;margin-top:4px;width:100%;';
+      editBtn.style.cssText='font-size:13px;font-weight:700;padding:10px 12px;min-height:42px;margin-top:6px;width:100%;';
       editBtn.textContent='✏️ Edit driver / link';
       editBtn.onclick=function(){ editSwap(sw.id,div); };
       div.appendChild(editBtn);
@@ -6261,14 +6428,14 @@ function renderSwapLog(){
     // Generate email button
     const emailBtn=document.createElement('button');
     emailBtn.className='btn btn-sm';
-    emailBtn.style.cssText='font-size:10px;padding:3px 8px;margin-top:4px;width:100%;';
+    emailBtn.style.cssText='font-size:13px;font-weight:700;padding:10px 12px;min-height:42px;margin-top:6px;width:100%;';
     emailBtn.textContent='📧 Generate Email';
     emailBtn.onclick=function(){ generateSwapEmail(sw); };
     div.appendChild(emailBtn);
     // Undo Swap button
     const undoBtn=document.createElement('button');
     undoBtn.className='btn btn-sm btn-danger';
-    undoBtn.style.cssText='font-size:10px;padding:3px 8px;margin-top:4px;width:100%;';
+    undoBtn.style.cssText='font-size:13px;font-weight:700;padding:10px 12px;min-height:42px;margin-top:6px;width:100%;';
     undoBtn.textContent='Undo Swap';
     undoBtn.setAttribute('data-undoid',sw.id);
     undoBtn.onclick=function(){ undoSwap(this.getAttribute('data-undoid')); };
@@ -9091,6 +9258,7 @@ function initApp(){
   },800);
   // Fridge screen: show connected state and send the latest shifts a few seconds after opening
   try{
+    if(localStorage.getItem('acctOn')==='1'){ acctUI(true); setTimeout(function(){ acctCheck(false); },2500); document.addEventListener('visibilitychange',function(){ if(!document.hidden) acctCheck(false); }); }
     if(localStorage.getItem('fridgeOn')==='1'){ fridgeUI(true); setTimeout(function(){ fridgeSyncNow(false); },4000); setInterval(function(){ if(!document.hidden) fridgeSyncNow(false); },60000); }
   }catch(e){}
 }
