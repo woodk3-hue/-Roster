@@ -6992,8 +6992,11 @@ function renderShiftFinder(){
           '<span style="font-size:11px;background:#16a34a;color:#fff;padding:2px 8px;border-radius:10px;font-weight:700;">🔁 Swapped</span>'+
           '<span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;'+(sent?'background:#064e3b;color:#6ee7b7;':'background:#78350f;color:#fcd34d;')+'">'+(sent?'Email Sent ✓':'Email Pending')+'</span></div>'+
         '<div style="font-size:12px;font-weight:700;margin-top:4px;">'+what+(r.swapDriver?' <span style="color:var(--muted);font-weight:600;">· '+escHtml(r.swapDriver)+'</span>':'')+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin:6px 0 2px;">What you\'re working (changed days outlined)</div>'+
-        buildWorkingWeekGridHtml(r.wc);
+        '<div style="margin-top:6px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">My Link — '+r.link+'</div>'+
+        buildWeekGridHtml(r.link,r.days,r.wc)+
+        (sw.linkReceived&&ROSTER[String(sw.linkReceived)]
+          ? buildSwappedRowHtml(sw.linkReceived,ROSTER[String(sw.linkReceived)],r.wc)
+          : '<div style="margin-top:6px;font-size:10px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:.05em;">What you\'re working (changed days outlined)</div>'+buildWorkingWeekGridHtml(r.wc));
       swapDiv.appendChild(cb); swapDiv.appendChild(infoDiv);
       row.appendChild(swapDiv);
       el.appendChild(row);
