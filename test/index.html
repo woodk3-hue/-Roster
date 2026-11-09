@@ -3493,6 +3493,19 @@ function loadState(){
   }catch(e){}
   purgeBin();
   fixContactSections();
+  fixBlpSwapDays();
+}
+// Editing a BLP-swap day used to save it with no shift type, so a given-away BLP showed as
+// BLP again: put the swap type back from the BLP swap record
+function fixBlpSwapDays(){
+  (S.swaps||[]).forEach(function(sw){
+    if(sw.scope!=='blp') return;
+    const mon=parseDate(sw.wc);
+    (sw.blpGiveIdxs||[]).concat(sw.blpRecvIdx!=null?[sw.blpRecvIdx]:[]).forEach(function(i){
+      const ds=fmtDate(addDays(mon,i)), ov=S.days[ds];
+      if(ov&&!ov.type){ ov.type=i===sw.blpRecvIdx?'blp_kept':'blp_given'; if(!ov.swapPartner) ov.swapPartner=sw.driver; }
+    });
+  });
 }
 let saveFailWarned=false;
 function saveState(){
@@ -5778,8 +5791,12 @@ function openShiftModal(ds){
   const raw=getRaw(link,idx);
   const sh=parseShift(raw);
 
-  document.getElementById('sm-type').value=(ov.type&&ov.type!=='swap')?ov.type:'normal';
-  document.getElementById('sm-start').value=ov.start||(sh.typeKey==='normal'?sh.time||'':sh.typeKey==='swap'?sh.time||'':'');
+  // BLP-swap days (blp_given / blp_kept) aren't in the list: show Normal, and saveShift keeps their type
+  const smType=document.getElementById('sm-type');
+  smType.value=(ov.type&&ov.type!=='swap'&&Array.prototype.some.call(smType.options,function(o){ return o.value===ov.type; }))?ov.type:'normal';
+  // The roster's start time is only a starting point on an ordinary day — not on a BLP you received in a swap
+  const plainDay=!ov.type||ov.type==='normal'||ov.type==='swap';
+  document.getElementById('sm-start').value=ov.start||(plainDay&&(sh.typeKey==='normal'||sh.typeKey==='swap')?sh.time||'':'');
   document.getElementById('sm-end').value=ov.end||'';
   document.getElementById('sm-job').value=ov.job||'';
   (function(){ const h=document.getElementById('sm-jobcard-hint'); if(h) h.textContent=''; })();
@@ -5863,6 +5880,10 @@ function saveShift(){
   if(existingOv.type==='swap'&&(!type||type==='normal')){
     d.type='swap'; d.swapFrom=existingOv.swapFrom; d.swapTo=existingOv.swapTo; d.swapPartner=existingOv.swapPartner;
     if(existingOv.before) d.before=existingOv.before;
+  }
+  // A BLP-swap day stays one (a given-away BLP is a working day, not BLP worked at 175%)
+  if((!type||type==='normal')&&(existingOv.type==='blp_given'||existingOv.type==='blp_kept')){
+    d.type=existingOv.type; d.swapPartner=existingOv.swapPartner;
   }
   const altKind=document.getElementById('sm-alt-kind').value;
   if(altKind){
