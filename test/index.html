@@ -7744,13 +7744,14 @@ function masterRosterHours(ds){
 }
 
 // Bumped when the pay maths changes, so saved Pay History estimates are worked out again once
-const PAY_CALC_V=4;
+const PAY_CALC_V=5;
 function calcPayProjection(offsetFortnights){
   const cph=S.settings.cph||66.50;
   const fn=getFortnightDates(offsetFortnights||0);
   const start=fn.start, end=fn.end;
 
   // Scan every day in the fortnight
+  let blpSatHrs=0, blpSunHrs=0;
   let blpHrs=0, satHrs=0, sunHrs=0, phHrs=0, phLabHrs=0, phLabLeisHrs=0, alSatHrs=0, alSunHrs=0, lslHrs=0;
 
   let cur=new Date(start);
@@ -7782,18 +7783,20 @@ function calcPayProjection(offsetFortnights){
     }
 
     // Hours worked — from override start/end
-    let hrs=0;
+    let hrs=0, postMid=0;  // postMid: hours after midnight, which belong to the next day
     if(ov&&ov.start&&ov.end){
       const h=calcHrs(ov.start,ov.end);
-      if(h) hrs=h;
+      if(h){ hrs=h; const sm=parseTime(ov.start), em=parseTime(ov.end); if(em!=null&&sm!=null&&em<=sm) postMid=Math.min(em/60,hrs); }
     }
     // A shift worked as rostered (no times typed): its job card length, so weekend and
     // public holiday penalties are still paid. A cancelled working isn't worked.
     if(!hrs&&!(ov&&ov.alt&&ov.alt.kind==='cancel4')){
       const f=ruleDayFacts(ds);
-      if(f.work&&f.end!=null) hrs=(f.end-f.start)/3600000;
+      if(f.work&&f.end!=null){ hrs=(f.end-f.start)/3600000; const mid=addDays(parseDate(ds),1).getTime(); if(f.end>mid) postMid=Math.min((f.end-mid)/3600000,hrs); }
     }
     if(!hrs) { cur=addDays(cur,1); continue; }
+    // Penalty rates go by the day the hours are worked: up to midnight on this day, after midnight on the next
+    const preMid=hrs-postMid, nextDow=(dow+1)%7;
 
     // BLP/SLP worked — explicit type OR normal override on a BLP/SLP roster day
     const isBlpWorked=!!ov&&(ov.type==='blp_worked'||ov.type==='slp_worked'||
@@ -7803,14 +7806,18 @@ function calcPayProjection(offsetFortnights){
     // leisure rate applies (175%; Labour Day 250%); weekend penalties still apply on top (67.5)
     const isLabour=LABOUR_DAYS.has(ds);
     if(isBlpWorked){
-      if(isPH&&isLabour) phLabLeisHrs+=hrs; else blpHrs+=hrs;
+      // BLP rate up to midnight; worked on into a Saturday or Sunday, the hours after midnight are paid at
+      // the Saturday (150%) or Sunday (200%) rate instead
+      if(isPH&&isLabour) phLabLeisHrs+=hrs;
+      else if(postMid&&nextDow===6){ blpHrs+=preMid; blpSatHrs+=postMid; }
+      else if(postMid&&nextDow===0){ blpHrs+=preMid; blpSunHrs+=postMid; }
+      else blpHrs+=hrs;
     } else if(isPH){
       if(isLabour) phLabHrs+=hrs; else phHrs+=hrs;
       if(dow===6) satHrs+=hrs; else if(dow===0) sunHrs+=hrs;
-    } else if(dow===6){ // Saturday
-      satHrs+=hrs;
-    } else if(dow===0){ // Sunday
-      sunHrs+=hrs;
+    } else {
+      if(dow===6) satHrs+=preMid; else if(dow===0) sunHrs+=preMid;
+      if(nextDow===6) satHrs+=postMid; else if(nextDow===0) sunHrs+=postMid;
     }
     cur=addDays(cur,1);
   }
@@ -7829,6 +7836,7 @@ function calcPayProjection(offsetFortnights){
   const guar=S.settings.guarHrs||80;
   const baseGross=guar*cph;                        // guaranteed ordinary hours per fortnight
   const blpGross=blpHrs*cph*1.75;                  // full 175% (BLP hours replace ordinary hours)
+  const blpSatGross=blpSatHrs*cph*1.50, blpSunGross=blpSunHrs*cph*2.00;  // BLP worked on past midnight into Sat/Sun
   const satGross=satHrs*cph*0.50;                 // 50% extra
   const sunGross=sunHrs*cph*1.00;                 // 100% extra
   const phGross=phHrs*cph*0.50;                   // public holiday worked: +50% (EBA 59.5.1)
@@ -7838,7 +7846,7 @@ function calcPayProjection(offsetFortnights){
   const alSatGross=alSatHrs*cph*0.50, alSunGross=alSunHrs*cph*1.00;  // AL on rostered weekend (EBA 67.6)
   const alWkndGross=alSatGross+alSunGross;
   const lslGross=lslHrs*cph;  // LSL at 100%, no loading — already inside the guaranteed hours, so shown but not added again
-  const totalGross=baseGross+blpGross+satGross+sunGross+phGross+phLabGross+phLabLeisGross+alWkndGross+excessGross+altLeisGross;
+  const totalGross=baseGross+blpGross+satGross+sunGross+phGross+phLabGross+phLabLeisGross+alWkndGross+excessGross+altLeisGross+blpSatGross+blpSunGross;
 
   // ── PRE-TAX DEDUCTIONS — from customDeductions ──
   const preDeds=(S.customDeductions||[]).filter(function(d){ return d.taxType==='pre'; });
@@ -7863,7 +7871,7 @@ function calcPayProjection(offsetFortnights){
   const netPay=totalGross-totalPreTax-totalTax-totalPostTax;
 
   return {
-    baseGross,blpHrs,blpGross,satHrs,satGross,sunHrs,sunGross,
+    baseGross,blpHrs,blpGross,blpSatHrs,blpSatGross,blpSunHrs,blpSunGross,satHrs,satGross,sunHrs,sunGross,
     phHrs,phGross,phLabHrs,phLabGross,phLabLeisHrs,phLabLeisGross,alWkndHrs,alWkndGross,lslHrs,lslGross,alSatHrs,alSunHrs,alSatGross,alSunGross,totalGross,
     cyc,excessHrs,excessGross,altLeisHrs,altLeisGross,calcV:PAY_CALC_V,
     fleetPre,salarySac,volSuper,qri,totalPreTax,
@@ -7960,6 +7968,8 @@ function renderPayProjection(){
   const guarH=S.settings.guarHrs||80, ordGross=guarH*cph;
   html+=payRow('Ord Time ('+guarH+'h guaranteed)',guarH.toFixed(2),'100%',fmt$(ordGross),'');
   if(p.blpHrs>0) html+=payRow('BLP/SLP Wrkd 175%',p.blpHrs.toFixed(2),'175%',fmt$(p.blpGross),'var(--early)');
+  if(p.blpSatHrs>0) html+=payRow('BLP Wrkd after midnight – SAT',p.blpSatHrs.toFixed(2),'150%',fmt$(p.blpSatGross),'var(--early)');
+  if(p.blpSunHrs>0) html+=payRow('BLP Wrkd after midnight – SUN',p.blpSunHrs.toFixed(2),'200%',fmt$(p.blpSunGross),'var(--early)');
   if(p.satHrs>0) html+=payRow('Wknd Pnlty TC SAT',p.satHrs.toFixed(2),'50%',fmt$(p.satGross),'var(--early)');
   if(p.sunHrs>0) html+=payRow('Wknd Pnlty TC SUN',p.sunHrs.toFixed(2),'100%',fmt$(p.sunGross),'var(--early)');
   if(p.phHrs>0) html+=payRow('Public Holiday Wrkd',p.phHrs.toFixed(2),'+50%',fmt$(p.phGross),'var(--early)');
@@ -8661,6 +8671,8 @@ function renderPayHistory(){
       let dhtml='<div style="margin-top:10px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Gross Earnings</div>';
       dhtml+=drow('Ordinary Time (80h)',''+fmt$(p.baseGross),'','');
       if(p.blpHrs>0) dhtml+=drow('BLP/SLP Wrkd 175%',fmt$(p.blpGross),p.blpHrs.toFixed(2)+'h','var(--early)');
+      if(p.blpSatHrs>0) dhtml+=drow('BLP Wrkd after midnight – SAT 150%',fmt$(p.blpSatGross),p.blpSatHrs.toFixed(2)+'h','var(--early)');
+      if(p.blpSunHrs>0) dhtml+=drow('BLP Wrkd after midnight – SUN 200%',fmt$(p.blpSunGross),p.blpSunHrs.toFixed(2)+'h','var(--early)');
       if(p.satHrs>0) dhtml+=drow('Wknd Pnlty SAT',fmt$(p.satGross),p.satHrs.toFixed(2)+'h','var(--early)');
       if(p.sunHrs>0) dhtml+=drow('Wknd Pnlty SUN',fmt$(p.sunGross),p.sunHrs.toFixed(2)+'h','var(--early)');
       if(p.phHrs>0) dhtml+=drow('Public Holiday Wrkd +50%',fmt$(p.phGross),p.phHrs.toFixed(2)+'h','#b45309');
