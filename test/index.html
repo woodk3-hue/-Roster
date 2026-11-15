@@ -7751,7 +7751,7 @@ function calcPayProjection(offsetFortnights){
   const start=fn.start, end=fn.end;
 
   // Scan every day in the fortnight
-  let blpSatHrs=0, blpSunHrs=0;
+  let blpSatHrs=0, blpSunHrs=0; const missing=[];
   let blpHrs=0, satHrs=0, sunHrs=0, phHrs=0, phLabHrs=0, phLabLeisHrs=0, alSatHrs=0, alSunHrs=0, lslHrs=0;
 
   let cur=new Date(start);
@@ -7779,6 +7779,8 @@ function calcPayProjection(offsetFortnights){
         const h=masterRosterHours(ds);
         lslHrs+=h;
       }
+      // Times typed on a day that's booked as leave: say so, it's paid as leave not as a shift
+      if(lvAny&&ov&&ov.start&&!ovLeave) missing.push({ds:ds,why:'is booked as '+String(lvAny.type||'leave').toUpperCase()+', so the shift typed on it isn\'t counted. Remove the leave if you worked it.'});
       cur=addDays(cur,1); continue;
     }
 
@@ -7794,7 +7796,17 @@ function calcPayProjection(offsetFortnights){
       const f=ruleDayFacts(ds);
       if(f.work&&f.end!=null){ hrs=(f.end-f.start)/3600000; const mid=addDays(parseDate(ds),1).getTime(); if(f.end>mid) postMid=Math.min((f.end-mid)/3600000,hrs); }
     }
-    if(!hrs) { cur=addDays(cur,1); continue; }
+    if(!hrs){
+      // Not counted: say why, so a worked day doesn't quietly go missing
+      // (only days that change the pay: weekends, public holidays, or a shift you've started typing)
+      if(!(ov&&ov.alt&&ov.alt.kind==='cancel4')&&(dow===6||dow===0||isPH||(ov&&ov.start))){
+        const f=ruleDayFacts(ds), past=ds<=fmtDate(today());
+        if(ov&&ov.start&&!ov.end) missing.push({ds:ds,why:'has a sign-on ('+ov.start+') but no sign-off time.'});
+        else if(f.work&&f.end==null) missing.push({ds:ds,why:'starts '+f.startStr+' but has no finish time'+(sh.job?' (job '+sh.job+' isn\'t in your job cards)':'')+'.'});
+        else if(past&&f.att&&!f.work) missing.push({ds:ds,why:'is '+(sh.code||'a spare day')+' with no times entered. If you worked it, add the times.'});
+      }
+      cur=addDays(cur,1); continue;
+    }
     // Penalty rates go by the day the hours are worked: up to midnight on this day, after midnight on the next
     const preMid=hrs-postMid, nextDow=(dow+1)%7;
 
@@ -7871,7 +7883,7 @@ function calcPayProjection(offsetFortnights){
   const netPay=totalGross-totalPreTax-totalTax-totalPostTax;
 
   return {
-    baseGross,blpHrs,blpGross,blpSatHrs,blpSatGross,blpSunHrs,blpSunGross,satHrs,satGross,sunHrs,sunGross,
+    baseGross,missing,blpHrs,blpGross,blpSatHrs,blpSatGross,blpSunHrs,blpSunGross,satHrs,satGross,sunHrs,sunGross,
     phHrs,phGross,phLabHrs,phLabGross,phLabLeisHrs,phLabLeisGross,alWkndHrs,alWkndGross,lslHrs,lslGross,alSatHrs,alSunHrs,alSatGross,alSunGross,totalGross,
     cyc,excessHrs,excessGross,altLeisHrs,altLeisGross,calcV:PAY_CALC_V,
     fleetPre,salarySac,volSuper,qri,totalPreTax,
@@ -7967,6 +7979,12 @@ function renderPayProjection(){
   const cph=S.settings.cph||66.50;
   const guarH=S.settings.guarHrs||80, ordGross=guarH*cph;
   html+=payRow('Ord Time ('+guarH+'h guaranteed)',guarH.toFixed(2),'100%',fmt$(ordGross),'');
+  if(p.missing&&p.missing.length){
+    html+='<div class="pay-missing" style="margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.45);font-size:12px;line-height:1.45;">'+
+      '<b style="color:var(--accent);">Not in this estimate yet</b>'+
+      p.missing.map(function(m){ const d=parseDate(m.ds); return '<div style="margin-top:4px;cursor:pointer;" data-ds="'+m.ds+'" onclick="openShiftModal(this.dataset.ds)">• <b>'+DAY3[dayIdx(d)]+' '+fmtDDMM(d)+'</b> '+escHtml(m.why)+' <span style="color:var(--accent);font-weight:700;">Edit ›</span></div>'; }).join('')+
+      '</div>';
+  }
   if(p.blpHrs>0) html+=payRow('BLP/SLP Wrkd 175%',p.blpHrs.toFixed(2),'175%',fmt$(p.blpGross),'var(--early)');
   if(p.blpSatHrs>0) html+=payRow('BLP Wrkd after midnight – SAT',p.blpSatHrs.toFixed(2),'150%',fmt$(p.blpSatGross),'var(--early)');
   if(p.blpSunHrs>0) html+=payRow('BLP Wrkd after midnight – SUN',p.blpSunHrs.toFixed(2),'200%',fmt$(p.blpSunGross),'var(--early)');
