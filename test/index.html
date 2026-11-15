@@ -7744,14 +7744,14 @@ function masterRosterHours(ds){
 }
 
 // Bumped when the pay maths changes, so saved Pay History estimates are worked out again once
-const PAY_CALC_V=5;
+const PAY_CALC_V=6;
 function calcPayProjection(offsetFortnights){
   const cph=S.settings.cph||66.50;
   const fn=getFortnightDates(offsetFortnights||0);
   const start=fn.start, end=fn.end;
 
   // Scan every day in the fortnight
-  let blpSatHrs=0, blpSunHrs=0; const missing=[];
+  let blpSatHrs=0, blpSunHrs=0, blpOrdHrs=0; const missing=[];
   let blpHrs=0, satHrs=0, sunHrs=0, phHrs=0, phLabHrs=0, phLabLeisHrs=0, alSatHrs=0, alSunHrs=0, lslHrs=0;
 
   let cur=new Date(start);
@@ -7818,12 +7818,13 @@ function calcPayProjection(offsetFortnights){
     // leisure rate applies (175%; Labour Day 250%); weekend penalties still apply on top (67.5)
     const isLabour=LABOUR_DAYS.has(ds);
     if(isBlpWorked){
-      // BLP rate up to midnight; worked on into a Saturday or Sunday, the hours after midnight are paid at
-      // the Saturday (150%) or Sunday (200%) rate instead
+      // BLP rate for the whole shift when it runs into another BLP/SLP (rates don't stack). When the next day
+      // is a working day, the hours after midnight take that day's rate: Saturday 150%, Sunday 200%, weekday 100%
+      const nextDs=fmtDate(addDays(parseDate(ds),1)), nov=S.days[nextDs];
+      const nextOff=nov?(nov.type==='blp_kept'||nov.type==='rdo'||(dayIsLeisureRoster(nextDs)&&nov.type!=='blp_given'&&!nov.start)):dayIsLeisureRoster(nextDs);
       if(isPH&&isLabour) phLabLeisHrs+=hrs;
-      else if(postMid&&nextDow===6){ blpHrs+=preMid; blpSatHrs+=postMid; }
-      else if(postMid&&nextDow===0){ blpHrs+=preMid; blpSunHrs+=postMid; }
-      else blpHrs+=hrs;
+      else if(!postMid||nextOff) blpHrs+=hrs;
+      else { blpHrs+=preMid; if(nextDow===6) blpSatHrs+=postMid; else if(nextDow===0) blpSunHrs+=postMid; else blpOrdHrs+=postMid; }
     } else if(isPH){
       if(isLabour) phLabHrs+=hrs; else phHrs+=hrs;
       if(dow===6) satHrs+=hrs; else if(dow===0) sunHrs+=hrs;
@@ -7848,7 +7849,7 @@ function calcPayProjection(offsetFortnights){
   const guar=S.settings.guarHrs||80;
   const baseGross=guar*cph;                        // guaranteed ordinary hours per fortnight
   const blpGross=blpHrs*cph*1.75;                  // full 175% (BLP hours replace ordinary hours)
-  const blpSatGross=blpSatHrs*cph*1.50, blpSunGross=blpSunHrs*cph*2.00;  // BLP worked on past midnight into Sat/Sun
+  const blpSatGross=blpSatHrs*cph*1.50, blpSunGross=blpSunHrs*cph*2.00, blpOrdGross=blpOrdHrs*cph;  // BLP worked on past midnight into a working day
   const satGross=satHrs*cph*0.50;                 // 50% extra
   const sunGross=sunHrs*cph*1.00;                 // 100% extra
   const phGross=phHrs*cph*0.50;                   // public holiday worked: +50% (EBA 59.5.1)
@@ -7858,7 +7859,7 @@ function calcPayProjection(offsetFortnights){
   const alSatGross=alSatHrs*cph*0.50, alSunGross=alSunHrs*cph*1.00;  // AL on rostered weekend (EBA 67.6)
   const alWkndGross=alSatGross+alSunGross;
   const lslGross=lslHrs*cph;  // LSL at 100%, no loading — already inside the guaranteed hours, so shown but not added again
-  const totalGross=baseGross+blpGross+satGross+sunGross+phGross+phLabGross+phLabLeisGross+alWkndGross+excessGross+altLeisGross+blpSatGross+blpSunGross;
+  const totalGross=baseGross+blpGross+satGross+sunGross+phGross+phLabGross+phLabLeisGross+alWkndGross+excessGross+altLeisGross+blpSatGross+blpSunGross+blpOrdGross;
 
   // ── PRE-TAX DEDUCTIONS — from customDeductions ──
   const preDeds=(S.customDeductions||[]).filter(function(d){ return d.taxType==='pre'; });
@@ -7883,7 +7884,7 @@ function calcPayProjection(offsetFortnights){
   const netPay=totalGross-totalPreTax-totalTax-totalPostTax;
 
   return {
-    baseGross,missing,blpHrs,blpGross,blpSatHrs,blpSatGross,blpSunHrs,blpSunGross,satHrs,satGross,sunHrs,sunGross,
+    baseGross,missing,blpHrs,blpGross,blpSatHrs,blpSatGross,blpSunHrs,blpSunGross,blpOrdHrs,blpOrdGross,satHrs,satGross,sunHrs,sunGross,
     phHrs,phGross,phLabHrs,phLabGross,phLabLeisHrs,phLabLeisGross,alWkndHrs,alWkndGross,lslHrs,lslGross,alSatHrs,alSunHrs,alSatGross,alSunGross,totalGross,
     cyc,excessHrs,excessGross,altLeisHrs,altLeisGross,calcV:PAY_CALC_V,
     fleetPre,salarySac,volSuper,qri,totalPreTax,
@@ -7988,6 +7989,7 @@ function renderPayProjection(){
   if(p.blpHrs>0) html+=payRow('BLP/SLP Wrkd 175%',p.blpHrs.toFixed(2),'175%',fmt$(p.blpGross),'var(--early)');
   if(p.blpSatHrs>0) html+=payRow('BLP Wrkd after midnight – SAT',p.blpSatHrs.toFixed(2),'150%',fmt$(p.blpSatGross),'var(--early)');
   if(p.blpSunHrs>0) html+=payRow('BLP Wrkd after midnight – SUN',p.blpSunHrs.toFixed(2),'200%',fmt$(p.blpSunGross),'var(--early)');
+  if(p.blpOrdHrs>0) html+=payRow('BLP Wrkd after midnight – ordinary',p.blpOrdHrs.toFixed(2),'100%',fmt$(p.blpOrdGross),'var(--early)');
   if(p.satHrs>0) html+=payRow('Wknd Pnlty TC SAT',p.satHrs.toFixed(2),'50%',fmt$(p.satGross),'var(--early)');
   if(p.sunHrs>0) html+=payRow('Wknd Pnlty TC SUN',p.sunHrs.toFixed(2),'100%',fmt$(p.sunGross),'var(--early)');
   if(p.phHrs>0) html+=payRow('Public Holiday Wrkd',p.phHrs.toFixed(2),'+50%',fmt$(p.phGross),'var(--early)');
@@ -8691,6 +8693,7 @@ function renderPayHistory(){
       if(p.blpHrs>0) dhtml+=drow('BLP/SLP Wrkd 175%',fmt$(p.blpGross),p.blpHrs.toFixed(2)+'h','var(--early)');
       if(p.blpSatHrs>0) dhtml+=drow('BLP Wrkd after midnight – SAT 150%',fmt$(p.blpSatGross),p.blpSatHrs.toFixed(2)+'h','var(--early)');
       if(p.blpSunHrs>0) dhtml+=drow('BLP Wrkd after midnight – SUN 200%',fmt$(p.blpSunGross),p.blpSunHrs.toFixed(2)+'h','var(--early)');
+      if(p.blpOrdHrs>0) dhtml+=drow('BLP Wrkd after midnight – ordinary 100%',fmt$(p.blpOrdGross),p.blpOrdHrs.toFixed(2)+'h','var(--early)');
       if(p.satHrs>0) dhtml+=drow('Wknd Pnlty SAT',fmt$(p.satGross),p.satHrs.toFixed(2)+'h','var(--early)');
       if(p.sunHrs>0) dhtml+=drow('Wknd Pnlty SUN',fmt$(p.sunGross),p.sunHrs.toFixed(2)+'h','var(--early)');
       if(p.phHrs>0) dhtml+=drow('Public Holiday Wrkd +50%',fmt$(p.phGross),p.phHrs.toFixed(2)+'h','#b45309');
@@ -9143,7 +9146,7 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 const APP_VERSION='2026-11-13';
 const WHATS_NEW=[
-  'Pay: shifts that run past midnight are split at midnight. A Friday night shift gets the Saturday rate from midnight, and a BLP worked into Saturday is paid the BLP rate until midnight and the Saturday rate after.',
+  'Pay: shifts that run past midnight are split at midnight. A Friday night shift gets the Saturday rate from midnight. A BLP worked into another BLP/SLP stays at the BLP rate for the whole shift; into a working day, the hours after midnight take that day\'s rate.',
   'Pay: Saturday, Sunday and public holiday penalties now count for shifts worked as rostered, not only days you typed times into. Long Service Leave shows as its own line in the pay breakdown.',
   'Roster: the new roster PDF layout imports, and the PDF reader is more reliable on phones.',
   'Swaps: a BLP you give away keeps its start time when edited, the Shift Finder keeps every swapped week, and Swap History has bigger buttons.',
