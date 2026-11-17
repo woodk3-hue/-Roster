@@ -1290,6 +1290,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
         <button class="btn btn-accent" style="flex:1;" id="sw-scope-week" onclick="setSwapScope('week')">Whole Week</button>
         <button class="btn" style="flex:1;" id="sw-scope-day" onclick="setSwapScope('day')">Single Day</button>
       </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn" style="flex:1;" id="sw-scope-monfri" onclick="setSwapScope('monfri')">Mon–Fri</button>
+        <button class="btn" style="flex:1;" id="sw-scope-monsat" onclick="setSwapScope('monsat')">Mon–Sat</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Mon–Fri / Mon–Sat: swap part of the week and keep your own weekend (or Sunday), e.g. to make the BLP days match.</div>
     </div>
     <div id="sw-day-pick" style="display:none;margin-bottom:10px;">
       <div class="form-label">Which Day?</div>
@@ -4222,7 +4227,8 @@ function dayIsLeisureRoster(ds){
   const d=parseDate(ds), mon=getMonday(d);
   // A whole-week swap means the other link's roster applies
   const ws=(S.swaps||[]).find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
-  const sh=parseShift(getRaw(ws?ws.linkReceived:getLinkForWeek(mon),dayIdx(d)));
+  const ov=S.days[ds];  // a day swapped on its own (single day, Mon–Fri, Mon–Sat) follows the other link
+  const sh=parseShift(getRaw(ov&&ov.type==='swap'&&ov.swapTo?ov.swapTo:(ws?ws.linkReceived:getLinkForWeek(mon)),dayIdx(d)));
   return sh.typeKey==='blp'||sh.typeKey==='slp';
 }
 // Hours credited to one 4-week cycle: shifts worked, leave (rostered hours) and roster alteration credits
@@ -4311,9 +4317,9 @@ function ruleWeekendCounts(){
 function swapRuleIssues(mon,received,scope,idx){
   const out=[], myLink=getLinkForWeek(mon);
   const theirs=ROSTER[String(received)]||[], mine=ROSTER[String(myLink)]||[];
-  const from=scope==='week'?0:idx, to=scope==='week'?6:idx;
-  if(scope==='week'){
-    const count=function(days){ let n=0; for(let i=0;i<7;i++){ const f=ruleRawFacts(fmtDate(addDays(mon,i)),days[i]); if(f.att) n++; } return n; };
+  const sp=swapSpan(scope,idx), from=sp.from, to=sp.to;
+  if(scope==='week'||SWAP_PART[scope]){
+    const count=function(days){ let n=0; for(let i=from;i<=to;i++){ const f=ruleRawFacts(fmtDate(addDays(mon,i)),days[i]); if(f.att) n++; } return n; };
     const a=count(mine), b=count(theirs);
     if(a!==b) out.push({c:'91.20',msg:'You give '+a+' attendances and get '+b+'. Swaps before the 58-hour roster is final should be '+a+' for '+a+'.'});
   }
@@ -6077,6 +6083,12 @@ function generateSwapEmail(sw){
     const driver=sw.driver||'(driver)';
     text=
       'Hi Roster Team\n\n'+'Could I please request a swap for myself and '+driver+' for '+dateStr+'.\n\n'+myName+' to work '+myTime+' ('+myJob+')\n'+driver+' to work '+theirTime+' ('+theirJob+')\n\n'+'Thanks for your help in advance.\n\n'+'Regards,\n'+myName;
+  } else if(SWAP_PART[sw.scope]){
+    // Part-week link swap: Monday to Friday / Saturday
+    const driver=sw.driver||'(driver)', part=SWAP_PART[sw.scope], d0=parseDate(sw.wc), d1=addDays(d0,part.to);
+    const ds=function(d){ return fmtDDMM(d)+'/'+String(d.getFullYear()).slice(2); };
+    text=
+      'Hi ROSTER\n\n'+'Could I please request a link swap between myself and '+driver+' for '+part.long+' only, '+ds(d0)+' to '+ds(d1)+'. We each keep our own '+part.keep+'.\n\n'+myName+' from link '+sw.linkGiven+' to link '+sw.linkReceived+'\n'+driver+' from link '+sw.linkReceived+' to link '+sw.linkGiven+'\n\n'+'Thanks for your help in advance.\n\n'+'Regards,\n'+myName;
   } else {
     // Link swap email (Fix 5)
     const driver=sw.driver||'(driver)';
@@ -6401,7 +6413,7 @@ function renderSwapLog(){
           '</div>'
         :'<span style="font-size:11px;color:var(--muted);">Link '+sw.linkGiven+'</span>'+
           '<span style="color:var(--accent2);">⇄</span>'+
-          '<span style="font-size:12px;font-weight:700;">Link '+sw.linkReceived+'</span>'+
+          '<span style="font-size:12px;font-weight:700;">Link '+sw.linkReceived+(SWAP_PART[sw.scope]?' <span style="font-size:10px;color:var(--early);">('+SWAP_PART[sw.scope].name+')</span>':'')+'</span>'+
           (sw.driver?'<span style="font-size:11px;color:var(--muted);">· '+sw.driver+'</span>':'')
       )+
       '<span class="swap-pill '+(isPast?'pill-past':'pill-upcoming')+'" style="margin-left:auto;">'+(isPast?'Past':'Upcoming')+'</span>';
@@ -6459,6 +6471,7 @@ function swapDayKeys(sw){
   const mon=parseDate(sw.wc), out=[];
   for(let i=0;i<7;i++){
     if(sw.scope==='day'&&sw.dayIdx!=null&&i!==sw.dayIdx) continue;
+    if(SWAP_PART[sw.scope]&&i>SWAP_PART[sw.scope].to) continue;
     const ds=fmtDate(addDays(mon,i)), d=S.days[ds];
     if(d&&d.type==='swap'&&d.swapTo===sw.linkReceived) out.push(ds);
   }
@@ -6676,14 +6689,19 @@ function populateInlineSwapDaySelect(mon,link){
   }).join('');
 }
 
+// Days a swap covers: whole week, Mon–Fri, Mon–Sat, or one day
+const SWAP_PART={monfri:{to:4,name:'Mon–Fri',long:'Monday to Friday',keep:'weekend'},monsat:{to:5,name:'Mon–Sat',long:'Monday to Saturday',keep:'Sunday'}};
+function swapSpan(scope,dayIdx){
+  if(scope==='day') return {from:dayIdx||0,to:dayIdx||0};
+  if(SWAP_PART[scope]) return {from:0,to:SWAP_PART[scope].to};
+  return {from:0,to:6};
+}
 function setSwapScope(s){
   swapInlineScope=s;
-  const wBtn=document.getElementById('sw-scope-week');
-  const dBtn=document.getElementById('sw-scope-day');
-  if(wBtn){ wBtn.className='btn '+(s==='week'?'btn-accent':''); wBtn.style.flex='1'; }
-  if(dBtn){ dBtn.className='btn '+(s==='day'?'btn-accent':''); dBtn.style.flex='1'; }
+  ['week','day','monfri','monsat'].forEach(function(k){ const b=document.getElementById('sw-scope-'+k); if(b){ b.className='btn '+(s===k?'btn-accent':''); b.style.flex='1'; } });
   const dp=document.getElementById('sw-day-pick');
   if(dp) dp.style.display=s==='day'?'':'none';
+  if(typeof onSwapLinkInput==='function'&&document.getElementById('sw-received')) onSwapLinkInput();
 }
 
 function sgCellHtml(raw, diffClass){
@@ -6720,11 +6738,12 @@ function onSwapLinkInput(){
   let html='<thead><tr><th style="text-align:left;width:60px;">Link</th>';
   DAY3.forEach((d,i)=>{ html+='<th style="color:'+(i>=5?'#ef4444':'var(--muted)')+';">'+d+'</th>'; });
   html+='</tr></thead><tbody>';
+  const span=swapSpan(swapInlineScope,parseInt((document.getElementById('sw-day')||{}).value||'0'));
+  const outSpan=function(i){ return i<span.from||i>span.to; };
   // My row
   html+='<tr><td class="sg-link">'+myLink+'<br><span style="color:var(--muted);font-weight:400;font-size:9px;">You</span></td>';
   for(let i=0;i<7;i++){
-    const diff=myDays[i]!==theirDays[i];
-    html+='<td>'+sgCellHtml(myDays[i],false)+'</td>';
+    html+='<td'+(outSpan(i)?' style="opacity:.35"':'')+'>'+sgCellHtml(myDays[i],false)+'</td>';
   }
   html+='</tr>';
   if(!hasThem){
@@ -6735,21 +6754,26 @@ function onSwapLinkInput(){
   html+='<tr><td class="sg-link">'+lnk+'<br><span style="color:var(--muted);font-weight:400;font-size:9px;">Them</span></td>';
   for(let i=0;i<7;i++){
     const diff=myDays[i]!==theirDays[i];
-    html+='<td>'+sgCellHtml(theirDays[i],diff)+'</td>';
+    html+='<td'+(outSpan(i)?' style="opacity:.35"':'')+'>'+sgCellHtml(theirDays[i],diff&&!outSpan(i))+'</td>';
   }
   html+='</tr></tbody>';
   tbl.innerHTML=html;
-  // BLP/SLP balance check
-  const myB=countBlpSlp(myLink);
-  const theirB=countBlpSlp(lnk);
+  // BLP/SLP balance check, over the days being swapped
+  const part=SWAP_PART[swapInlineScope];
+  const myB=countBlpSlp(myLink,span.from,span.to);
+  const theirB=countBlpSlp(lnk,span.from,span.to);
   const diff=theirB-myB;
   if(warnEl){
+    warnEl.style.display='block';
     if(diff!==0){
-      warnEl.style.display='block';
-      warnEl.innerHTML='<span style="font-weight:700;color:var(--accent);">⚠ BLP/SLP Mismatch</span> — Your Link: '+myB+' · Swap Link: '+theirB+' · Diff: '+(diff>0?'+':'')+diff;
+      warnEl.innerHTML='<span style="font-weight:700;color:var(--accent);">⚠ BLP/SLP Mismatch'+(part?' '+part.name:'')+'</span> — Your Link: '+myB+' · Swap Link: '+theirB+' · Diff: '+(diff>0?'+':'')+diff;
     } else {
-      warnEl.style.display='block';
-      warnEl.innerHTML='<span style="color:var(--early);">✓ BLP/SLP balanced ('+myB+' each)</span>';
+      warnEl.innerHTML='<span style="color:var(--early);">✓ BLP/SLP balanced'+(part?' '+part.name+' ('+myB+' each) — you keep your own '+part.keep:' ('+myB+' each)')+'</span>';
+    }
+    // Whole week doesn't balance: say if a Mon–Sat or Mon–Fri swap would
+    if(diff!==0&&(swapInlineScope==='week'||part)){
+      const fits=['monsat','monfri'].filter(function(k){ return k!==swapInlineScope&&countBlpSlp(myLink,0,SWAP_PART[k].to)===countBlpSlp(lnk,0,SWAP_PART[k].to); });
+      if(fits.length) warnEl.innerHTML+='<div style="margin-top:4px;padding:6px 8px;border-radius:8px;background:rgba(22,163,74,0.15);color:var(--early);font-weight:700;">✓ A '+fits.map(function(k){ return SWAP_PART[k].name; }).join(' or ')+' swap would balance ('+countBlpSlp(myLink,0,SWAP_PART[fits[0]].to)+' each). Tap '+SWAP_PART[fits[0]].name+' above.</div>';
     }
     const ri=swapRuleIssues(mon,lnk,swapInlineScope,parseInt((document.getElementById('sw-day')||{}).value||'0'));
     warnEl.innerHTML+=ri.length?ruleIssuesHtml(ri):'<div style="color:var(--early);margin-top:4px;">✓ Swap meets the EBA rules the app can check (12-hour breaks, attendances, leave)</div>';
@@ -6771,7 +6795,9 @@ function saveSwapInline(){
   const swapIssues=swapRuleIssues(mon,received,swapInlineScope,parseInt(document.getElementById('sw-day').value||'0'));
   if(swapIssues.length&&!confirm(ruleConfirmText(swapIssues))) return;
   {
-    const swapRec={id:uid(),wc:monStr,linkGiven:given,linkReceived:received,driver,scope:swapInlineScope,myBlp:myBlp,theirBlp:theirBlp,blpDiff:theirBlp-myBlp};
+    const sp0=swapSpan(swapInlineScope,parseInt(document.getElementById('sw-day').value||'0'));
+    const myB2=SWAP_PART[swapInlineScope]?countBlpSlp(given,sp0.from,sp0.to):myBlp, thB2=SWAP_PART[swapInlineScope]?countBlpSlp(received,sp0.from,sp0.to):theirBlp;
+    const swapRec={id:uid(),wc:monStr,linkGiven:given,linkReceived:received,driver,scope:swapInlineScope,myBlp:myB2,theirBlp:thB2,blpDiff:thB2-myB2};
     if(swapInlineScope==='day') swapRec.dayIdx=parseInt(document.getElementById('sw-day').value||'0');
     S.swaps.push(swapRec);
     // Each swapped day remembers what was there before, so Undo Swap can put it back
@@ -6780,11 +6806,7 @@ function saveSwapInline(){
       S.days[ds]={type:'swap',swapFrom:given,swapTo:received,swapPartner:driver,start:'',end:'',job:'',guards:'',notes:''};
       if(before) S.days[ds].before=before;
     };
-    if(swapInlineScope==='week'){
-      for(let i=0;i<7;i++) stamp(fmtDate(addDays(mon,i)));
-    } else {
-      stamp(fmtDate(addDays(mon,parseInt(document.getElementById('sw-day').value||'0'))));
-    }
+    for(let i=sp0.from;i<=sp0.to;i++) stamp(fmtDate(addDays(mon,i)));
   }
   saveState();
   // Reset form
@@ -6979,6 +7001,7 @@ function renderShiftFinder(){
       const D3=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
       const what=sw.scope==='blp'?'BLP swap · gave '+(sw.blpGiveIdxs||[]).map(function(i){ return D3[i]; }).join('/')+', got '+(sw.blpRecvIdx!=null?D3[sw.blpRecvIdx]:'—')
         :sw.scope==='day'?'Day swap · '+(sw.dayIdx!=null?D3[sw.dayIdx]:'')+(sw.linkReceived?' → Link '+sw.linkReceived:'')
+        :SWAP_PART[sw.scope]?SWAP_PART[sw.scope].name+' swap · Link '+r.link+' → <b>Link '+sw.linkReceived+'</b>'
         :'Link '+r.link+' → <b>Link '+sw.linkReceived+'</b>';
       const sent=S.swapEmailSent&&S.swapEmailSent[sw.id];
       const cb=document.createElement('input');
@@ -7145,11 +7168,12 @@ function copySelectedSFF(){
 function renderPMFinder(){ renderShiftFinder(); }
 
 
-function countBlpSlp(link){
+function countBlpSlp(link,from,to){
   if(!link||!ROSTER[String(link)]) return 0;
-  return ROSTER[String(link)].filter(function(raw){
+  const a=from==null?0:from, b=to==null?6:to;
+  return ROSTER[String(link)].filter(function(raw,i){
     var sh=parseShift(raw);
-    return sh.typeKey==='blp'||sh.typeKey==='slp';
+    return i>=a&&i<=b&&(sh.typeKey==='blp'||sh.typeKey==='slp');
   }).length;
 }
 
@@ -7256,8 +7280,9 @@ function deleteSwap(id){
   S.swaps=S.swaps.filter(s=>s.id!==id);
   // Remove S.days stamps for this swap
   const mon=parseDate(sw.wc);
-  if(sw.scope==='week'){
-    for(let i=0;i<7;i++){ const ds=fmtDate(addDays(mon,i)); if(S.days[ds]&&S.days[ds].type==='swap') delete S.days[ds]; }
+  if(sw.scope==='week'||SWAP_PART[sw.scope]){
+    const last=sw.scope==='week'?6:SWAP_PART[sw.scope].to;
+    for(let i=0;i<=last;i++){ const ds=fmtDate(addDays(mon,i)); if(S.days[ds]&&S.days[ds].type==='swap') delete S.days[ds]; }
   }
   saveState(); renderSwaps(); toast('Swap removed');
 }
