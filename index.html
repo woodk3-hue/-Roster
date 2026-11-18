@@ -14,6 +14,22 @@ window.IS_TEST_BUILD=/\/test\//.test(location.pathname);
   SP.removeItem=function(k){ return del.call(this,P+k); };
   SP.clear=function(){ for(let i=this.length-1;i>=0;i--){ const k=key.call(this,i); if(k&&k.indexOf(P)===0) del.call(this,k); } };
 })();
+// PARTNER'S ROSTER: one person can keep a second roster (their partner's) in the same app. The partner's
+// copy of the per-person data (shifts, swaps, leave, roster, job cards…) is saved under 'P2:' keys and
+// the app switches between the two with a reload; sync, account and app settings stay shared.
+(function(){
+  const SP=Storage.prototype, get=SP.getItem, set=SP.setItem, del=SP.removeItem;
+  const KEYS=['qr_pwa_v2','roster_data','job_cards','roster_asat','last_export','backup_last','export_snooze_day','sff_type','tc_state'];
+  let active='me'; try{ active=get.call(localStorage,'active_profile')==='partner'&&get.call(localStorage,'partner_name')?'partner':'me'; }catch(e){}
+  window.ACTIVE_PROFILE=active;
+  window.profileKey=function(k,prof){ return (prof||active)==='partner'&&KEYS.indexOf(k)>=0?'P2:'+k:k; };
+  // Read either person's saved data, whichever is showing
+  window.readProfile=function(k,prof){ try{ return get.call(localStorage,window.profileKey(k,prof)); }catch(e){ return null; } };
+  if(active!=='partner') return;
+  SP.getItem=function(k){ return get.call(this,this===localStorage?window.profileKey(k):k); };
+  SP.setItem=function(k,v){ return set.call(this,this===localStorage?window.profileKey(k):k,v); };
+  SP.removeItem=function(k){ return del.call(this,this===localStorage?window.profileKey(k):k); };
+})();
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -717,6 +733,15 @@ body.day-mode .toast{background:rgba(240,242,248,0.96);border-color:var(--border
   margin-bottom:12px;
   box-shadow:var(--card-shadow);
 }
+.profile-switch:empty{display:none}
+.profile-switch{margin-left:auto;margin-right:10px}
+.profile-switch+button{margin-left:0!important}
+.pf-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;white-space:nowrap;max-width:46vw;overflow:hidden;text-overflow:ellipsis}
+body.profile-partner .pf-pill{background:#7c3aed;border-color:#7c3aed;color:#fff}
+body.profile-partner .screen{box-shadow:inset 0 3px 0 #7c3aed}
+.cal-p2{font-size:9.5px;font-weight:800;letter-spacing:-.02em;text-align:center;line-height:1.2;margin-top:2px;padding:1px 2px;border-radius:4px;background:rgba(124,58,237,.18);color:#c4b5fd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.day-mode .cal-p2{color:#5b21b6;background:rgba(124,58,237,.12)}
+.cal-cell.both-off{box-shadow:inset 0 0 0 2px #22c55e}
 .settings-section-title{
   font-size:11px;font-weight:700;
   text-transform:uppercase;letter-spacing:0.08em;
@@ -1082,11 +1107,12 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="screen-subtitle" id="dash-date-sub">—</div>
     </div>
     <button class="owner-only" onclick="openRules()" title="Rules" style="background:none;border:none;font-size:19px;cursor:pointer;padding:0;line-height:1;margin-left:auto;margin-right:14px;">📘</button>
-    <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+    <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
   </div>
 
   <!-- Backup reminder (shown by updateBackupReminder) -->
   <div id="whats-new"></div>
+  <div id="partner-today"></div>
   <div id="backup-reminder" class="owner-only" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
     <div style="font-size:13px;font-weight:700;">💾 Time to back up</div>
     <div id="backup-reminder-text" style="font-size:12px;color:var(--muted);margin:3px 0 10px;"></div>
@@ -1155,7 +1181,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
         <button id="cal-day-btn" onclick="setCalTheme('day')">☀️</button>
       </div>
       <div id="cal-link-badge" class="link-badge" onclick="calToday()" style="cursor:pointer;" title="Go to today">—</div>
-      <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+      <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
     </div>
   </div>
 
@@ -1249,7 +1275,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 <div id="screen-swaps" class="screen">
   <div class="screen-header">
     <div class="screen-title">Swaps</div>
-    <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
+    <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
   </div>
 
   <!-- ── RECORD SWAP FORM (always visible) ── -->
@@ -1424,7 +1450,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="screen-title">Claims</div>
     <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
       <button class="btn btn-sm btn-accent" onclick="openClaimModal()">+ New</button>
-      <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+      <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
     </div>
   </div>
   <div class="tab-row">
@@ -1446,7 +1472,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      PAY
 ════════════════════════════════════════ -->
 <div id="screen-pay" class="screen">
-  <div class="screen-header"><div class="screen-title">Pay & Leave</div><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button></div>
+  <div class="screen-header"><div class="screen-title">Pay & Leave</div><span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button></div>
 
   <!-- Leave Balances — TOP of page, inline editable -->
   <div class="section-label">Leave Balances</div>
@@ -1515,7 +1541,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="screen-title">Contacts</div>
     <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
       <button class="btn btn-sm btn-accent" onclick="openContactModal()">+ Add</button>
-      <button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
+      <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
     </div>
   </div>
 
@@ -1553,7 +1579,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      STATISTICS
 ════════════════════════════════════════ -->
 <div id="screen-stats" class="screen">
-  <div class="screen-header"><div class="screen-title">Statistics</div><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
+  <div class="screen-header"><div class="screen-title">Statistics</div><span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
   <div class="section-label">Pay History</div>
   <div id="pay-history-list" style="margin-bottom:16px;"></div>
   <div class="tab-row">
@@ -1567,7 +1593,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      TOOLS (time check)
 ════════════════════════════════════════ -->
 <div id="screen-tools" class="screen">
-  <div class="screen-header"><div class="screen-title">🧰 Tools</div><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
+  <div class="screen-header"><div class="screen-title">🧰 Tools</div><span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
   <div class="tab-row">
     <button class="tab-btn active" id="tools-tab-time" onclick="setToolsView('time')">⏱ Time check</button>
     <button class="tab-btn" id="tools-tab-rules" onclick="setToolsView('rules')">📘 Rules</button>
@@ -1741,6 +1767,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="settings-section-title">Rules &amp; EBA</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">The Traincrew Enterprise Agreement 2024 and SEQ Roster Protocols in plain English. The app warns you when a swap or edited shift breaks a rule.</div>
     <button class="btn" style="width:100%;" onclick="openRules()">📘 Open Rules</button>
+  </div>
+
+  <div class="settings-section owner-only" id="partner-section">
+    <div class="settings-section-title">Partner's Roster</div>
+    <div id="partner-box"></div>
   </div>
 
   <div class="partner-only" style="font-size:12px;color:var(--muted);margin:0 0 10px;">You're viewing your partner's roster through Family Sync. Their settings stay on their phone.</div>
@@ -2865,6 +2896,85 @@ const QLD_PH = new Set([
 // ═══════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════
+// ── PARTNER'S ROSTER ──
+function partnerName(){ return localStorage.getItem('partner_name')||''; }
+function profileOwnerName(prof){ try{ const s=JSON.parse(readProfile('qr_pwa_v2',prof)||'{}'); return s.myName||''; }catch(e){ return ''; } }
+function otherProfile(){ return window.ACTIVE_PROFILE==='partner'?'me':'partner'; }
+function profileLabel(prof){
+  if(prof==='partner') return partnerName()||'Partner';
+  // Person 2 (Family Sync): the main roster is the Owner's
+  if(localStorage.getItem('syncRole')==='partner'&&localStorage.getItem('syncEnabled')==='1') return localStorage.getItem('sync_owner_name')||'Owner';
+  return profileOwnerName('me')||'Me';
+}
+function switchProfile(prof){
+  if(prof===window.ACTIVE_PROFILE) return;
+  try{ saveState(); }catch(e){}
+  localStorage.setItem('active_profile',prof);  // shared key
+  location.reload();
+}
+function renderProfileSwitch(){
+  const on=!!partnerName();
+  document.body.classList.toggle('profile-partner',on&&window.ACTIVE_PROFILE==='partner');
+  document.querySelectorAll('.profile-switch').forEach(function(el){
+    el.innerHTML=on?'<button class="pf-pill" type="button" onclick="switchProfile(otherProfile())" title="Switch to '+escHtml(profileLabel(otherProfile()))+'">👤 '+escHtml(profileLabel(window.ACTIVE_PROFILE))+' ⇄</button>':'';
+  });
+}
+function renderPartnerSettings(){
+  const box=document.getElementById('partner-box'); if(!box) return;
+  const pn=partnerName();
+  if(!pn){
+    box.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Keep your partner\'s roster in this app too: their own roster PDF and link, their swaps, leave and shift edits. Both show on your calendar, and a switch at the top moves between you.</div>'+
+      '<input class="form-input" id="partner-name-in" placeholder="Partner\'s name" style="margin-bottom:8px;">'+
+      '<button class="btn btn-accent btn-full" onclick="addPartner()">Add partner</button>';
+    return;
+  }
+  const onCal=localStorage.getItem('partner_on_cal')!=='0';
+  box.innerHTML='<div style="font-size:13px;margin-bottom:8px;">Now showing: <b>'+escHtml(profileLabel(window.ACTIVE_PROFILE))+'</b>'+(window.ACTIVE_PROFILE==='partner'?' (partner)':'')+'</div>'+
+    '<button class="btn btn-accent btn-full" onclick="switchProfile(otherProfile())" style="margin-bottom:8px;">Switch to '+escHtml(profileLabel(otherProfile()))+'</button>'+
+    '<label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" '+(onCal?'checked':'')+' onchange="localStorage.setItem(\'partner_on_cal\',this.checked?\'1\':\'0\');renderCal&&renderCal();"> Show the other person\'s shifts on the calendar</label>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Pay, claims, swaps and leave are kept separately for each of you. Family Sync, backups to your account and the fridge only use your own roster.</div>'+
+    '<button class="btn btn-danger btn-sm" style="width:100%;" id="partner-remove-btn" onclick="removePartner(this)">Remove '+escHtml(pn)+'\'s roster</button>';
+}
+function addPartner(){
+  const n=(document.getElementById('partner-name-in').value||'').trim();
+  if(!n){ toast('Enter your partner\'s name'); return; }
+  localStorage.setItem('partner_name',n);
+  switchProfile('partner');
+}
+function removePartner(btn){
+  if(btn.dataset.confirming!=='yes'){ btn.dataset.confirming='yes'; btn.textContent='Tap again to remove their roster and data'; setTimeout(function(){ if(btn.dataset.confirming==='yes'){ btn.dataset.confirming=''; renderPartnerSettings(); } },3500); return; }
+  ['qr_pwa_v2','roster_data','job_cards','roster_asat','last_export','backup_last','export_snooze_day','sff_type','tc_state'].forEach(function(k){ try{ Storage.prototype.removeItem.call(localStorage,window.ACTIVE_PROFILE==='partner'?k:'P2:'+k); }catch(e){} });
+  localStorage.removeItem('partner_name');
+  localStorage.setItem('active_profile','me');
+  try{ pushPartnerSync(); }catch(e){}
+  setTimeout(function(){ location.reload(); },400);
+}
+// The other person's saved data, to show beside yours (read once per calendar draw)
+let otherProfileCache=null;
+function loadOtherProfile(){
+  if(!partnerName()) return null;
+  const prof=otherProfile();
+  try{
+    const s=JSON.parse(readProfile('qr_pwa_v2',prof)||'null'); if(!s||!s.anchorLink) return null;
+    return {name:profileLabel(prof),S:Object.assign({days:{},swaps:[],plannedLeave:[]},s),R:JSON.parse(readProfile('roster_data',prof)||'{}'),J:JSON.parse(readProfile('job_cards',prof)||'{}')};
+  }catch(e){ return null; }
+}
+// Run fn with the other person's data in place of yours (pure reads only)
+function withOtherProfile(o,fn){
+  const s=S, r=ROSTER, j=JOBCARDS, c=rosterSizeCache;
+  S=o.S; ROSTER=o.R; JOBCARDS=o.J; rosterSizeCache={roster:null,n:440};
+  try{ return fn(); } finally { S=s; ROSTER=r; JOBCARDS=j; rosterSizeCache=c; }
+}
+function otherDayInfo(o,ds){
+  return withOtherProfile(o,function(){
+    const lv=(S.plannedLeave||[]).find(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
+    if(lv) return {label:String(lv.type||'leave').toUpperCase(),off:true};
+    const sh=getEffectiveShift(ds), off=dayIsLeisureRoster(ds)&&!(S.days[ds]&&S.days[ds].start);
+    if(['al','lsl','sl','family','repro','lwop','mbo','cbo','ph_booked_off'].includes(sh.typeKey)) return {label:sh.code,off:true};
+    return {label:sh.time||sh.code||'—',off:off,end:sh.endTime||''};
+  });
+}
+
 const STATE_KEY = 'qr_pwa_v2';
 let S = {
   anchorLink: null,
@@ -3299,6 +3409,7 @@ let fbRef=null;
 // Where this sync PIN's shared data lives online (the test copy uses its own area)
 function syncPath(sub){ return 'roster/'+(window.IS_TEST_BUILD?'TEST-':'')+syncPin+(sub||''); }
 function startSync(){
+  if(window.ACTIVE_PROFILE==='partner') return;
   if(!fbDb||!syncPin) return;
   fbRef=fbDb.ref(syncPath());
   // Remove any existing listener first
@@ -3354,6 +3465,7 @@ function startSync(){
         localStorage.setItem('jobcards_sync_sig',data.jobCards.sig);
       }catch(e){ console.warn('Synced job cards could not be read',e); }
     }
+    if(syncRole!=='owner'){ if(data.ownerName) localStorage.setItem('sync_owner_name',data.ownerName); applyPartnerSync(data); }
     localStorage.setItem(STATE_KEY,JSON.stringify(S));
     refreshAllScreens();
   };
@@ -3367,6 +3479,7 @@ function startSync(){
 }
 // Owner: share the job cards with Person 2 (only when they change)
 function pushJobCardsTable(){
+  if(window.ACTIVE_PROFILE==='partner') return;
   if(!syncEnabled||syncRole!=='owner'||!fbDb||!syncPin) return;
   if(!Object.keys(JOBCARDS||{}).length) return;
   const json=JSON.stringify(JOBCARDS), sig=hashString(json), sentKey='jobcards_sent_'+syncPin;
@@ -3385,6 +3498,7 @@ function hashString(str){
 // Owner: share the imported roster table with Person 2. Only sent when it has changed,
 // as it is much bigger than the rest of the synced data.
 function pushRosterTable(){
+  if(window.ACTIVE_PROFILE==='partner') return;
   if(!syncEnabled||syncRole!=='owner'||!fbDb||!syncPin) return;
   if(!Object.keys(ROSTER||{}).length) return;
   const json=JSON.stringify(ROSTER), sig=hashString(json);
@@ -3395,7 +3509,48 @@ function pushRosterTable(){
     .catch(function(e){ console.error('Roster share failed:',e); syncNote(syncErrorText(e),true); });
 }
 
+// Owner with a Partner's Roster: send it too, so Person 2 sees both. Only the partner's shifts, swaps
+// and leave go (no pay or claims); their roster table only when it changes. Removing the partner
+// removes it for Person 2 as well.
+function pushPartnerSync(){
+  if(!syncEnabled||syncRole!=='owner'||!fbDb||!syncPin) return;
+  const pn=partnerName();
+  let st=null; try{ st=JSON.parse(readProfile('qr_pwa_v2','partner')||'null'); }catch(e){}
+  if(!pn||!st||!st.anchorLink){
+    if(localStorage.getItem('p2_sent_'+syncPin)){ fbDb.ref(syncPath('/partner')).remove().catch(function(){}); fbDb.ref(syncPath('/partnerRoster')).remove().catch(function(){}); localStorage.removeItem('p2_sent_'+syncPin); localStorage.removeItem('p2roster_sent_'+syncPin); }
+    return;
+  }
+  const state={myName:st.myName||pn,myRole:st.myRole||'driver',anchorLink:st.anchorLink,anchorDate:st.anchorDate,days:st.days||{},swaps:st.swaps||[],plannedLeave:st.plannedLeave||[],appointments:st.appointments||[],settings:{cycleStart:(st.settings||{}).cycleStart||null}};
+  fbDb.ref(syncPath('/partner')).set(JSON.parse(JSON.stringify({name:pn,state:state,updated:Date.now()})))
+    .then(function(){ try{ localStorage.setItem('p2_sent_'+syncPin,'1'); }catch(e){} })
+    .catch(function(e){ syncNote(syncErrorText(e),true); });
+  const json=readProfile('roster_data','partner')||'';
+  if(json&&json!=='{}'){
+    const sig=hashString(json), sentKey='p2roster_sent_'+syncPin;
+    if(localStorage.getItem(sentKey)!==sig) fbDb.ref(syncPath('/partnerRoster')).set({sig:sig,json:json})
+      .then(function(){ try{ localStorage.setItem(sentKey,sig); }catch(e){} }).catch(function(){});
+  }
+}
+// Person 2: keep the Owner's partner's roster beside the Owner's (shown in purple, switch with 👤)
+function applyPartnerSync(data){
+  const P2set=function(k,v){ try{ Storage.prototype.setItem.call(localStorage,'P2:'+k,v); }catch(e){} };
+  const P2del=function(k){ try{ Storage.prototype.removeItem.call(localStorage,'P2:'+k); }catch(e){} };
+  if(data.partner&&data.partner.state&&data.partner.state.anchorLink){
+    localStorage.setItem('partner_name',data.partner.name||'Partner');
+    P2set('qr_pwa_v2',JSON.stringify(Object.assign({leave:{},claims:[],contacts:[]},data.partner.state)));
+    if(data.partnerRoster&&data.partnerRoster.json&&data.partnerRoster.sig!==localStorage.getItem('p2roster_sync_sig')){
+      P2set('roster_data',data.partnerRoster.json); localStorage.setItem('p2roster_sync_sig',data.partnerRoster.sig);
+    }
+  } else if(localStorage.getItem('partner_name')){
+    ['qr_pwa_v2','roster_data','job_cards'].forEach(P2del);
+    localStorage.removeItem('partner_name'); localStorage.removeItem('p2roster_sync_sig');
+  }
+  renderProfileSwitch();
+}
+
 function pushSync(){
+  // On the partner's screen, Family Sync sends only the partner's roster (for Person 2 to see)
+  if(window.ACTIVE_PROFILE==='partner'){ pushPartnerSync(); return; }
   if(!syncEnabled||!fbDb||!syncPin) return;
   // Safety: only push if we have real data (anchorLink set = app is configured)
   if(!S.anchorLink) return;
@@ -3414,9 +3569,11 @@ function pushSync(){
     leaveAdj:S.leaveAdj,
     settings:S.settings,
     appointments:S.appointments,
+    ownerName:S.myName||'',
     lastUpdated:Date.now(),
     lastUpdatedBy:syncRole
   };
+  pushPartnerSync();
   ref.update(JSON.parse(JSON.stringify(payload))).then(function(){
     syncNote('Last sent '+new Date().toLocaleTimeString('en-AU'));
     setTimeout(function(){ isSyncPushing=false; },1000);
@@ -3429,6 +3586,7 @@ function pushSync(){
 
 // Partner can only push appointments
 function pushSyncAppointments(){
+  if(window.ACTIVE_PROFILE==='partner') return;
   if(!syncEnabled||!fbDb||!syncPin) return;
   fbDb.ref(syncPath('/appointments')).set(S.appointments);
 }
@@ -3594,6 +3752,7 @@ async function acctFirstSync(){
   localStorage.removeItem('acctOn'); acctUI(false); acctNote('Nothing changed. Sign in again when you\'re ready.');
 }
 async function acctUpload(){
+  if(window.ACTIVE_PROFILE==='partner') return;
   if(acctBusy||acctApplying||!hasRealData()) return;
   acctBusy=true;
   try{
@@ -3631,6 +3790,7 @@ async function acctDownload(){
 }
 // On opening the app (and Sync now): bring in newer changes from another phone, or send ours
 async function acctCheck(manual){
+  if(window.ACTIVE_PROFILE==='partner') return;
   if(localStorage.getItem('acctOn')!=='1'||acctBusy) return;
   try{
     const c=await acctSession();
@@ -3645,6 +3805,7 @@ async function acctCheck(manual){
   }catch(e){ acctNote(acctErr(e),true); }
 }
 function acctSyncSoon(){
+  if(window.ACTIVE_PROFILE==='partner') return;
   try{
     if(acctApplying||localStorage.getItem('acctOn')!=='1') return;
     localStorage.setItem('acct_dirty','1');
@@ -3703,6 +3864,7 @@ async function fridgeDisconnect(){
   fridgeUI(false); fridgeNote('Disconnected. Shifts already on the fridge stay there.');
 }
 function fridgeSyncSoon(){
+  if(window.ACTIVE_PROFILE==='partner') return;
   try{
     if(localStorage.getItem('fridgeOn')!=='1') return;
     clearTimeout(fridgeTimer);
@@ -3815,6 +3977,7 @@ async function fridgeSyncEvents(sb,hid){
   }
 }
 async function fridgeSyncNow(manual){
+  if(window.ACTIVE_PROFILE==='partner') return;
   if(fridgeBusy||localStorage.getItem('fridgeOn')!=='1') return;
   fridgeBusy=true;
   try{
@@ -4912,6 +5075,7 @@ function showScreen(name){
   const nb=document.getElementById('nav-'+name);
   if(nb) nb.classList.add('active');
   currentScreen=name;
+  try{ sessionStorage.setItem('resume_screen',name); }catch(e){}
   // The day pop-up and Edit Shift belong to the Calendar: close them when moving to another tab
   if(name!=='cal'){
     if(typeof closeDayPanel==='function') closeDayPanel();
@@ -4932,7 +5096,19 @@ function showScreen(name){
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════
+function renderPartnerToday(){
+  const el=document.getElementById('partner-today'); if(!el) return;
+  const o=loadOtherProfile(); if(!o){ el.innerHTML=''; return; }
+  const td=fmtDate(today()), oi=otherDayInfo(o,td);
+  let both='';
+  for(let i=0;i<60;i++){ const ds=fmtDate(addDays(today(),i)), x=otherDayInfo(o,ds); const lv=(S.plannedLeave||[]).some(function(l){ return ds>=l.start&&ds<=(l.end||l.start); }); if(x.off&&(lv||(dayIsLeisureRoster(ds)&&!(S.days[ds]&&S.days[ds].start)))){ const d=parseDate(ds); both=(i===0?'today':DAY3[dayIdx(d)]+' '+fmtDDMM(d)); break; } }
+  el.innerHTML='<div class="card" style="padding:10px 14px;margin-bottom:10px;border-color:rgba(124,58,237,.45);display:flex;gap:8px;align-items:center;cursor:pointer;" onclick="switchProfile(otherProfile())">'+
+    '<div style="flex:1;font-size:13px;"><b>'+escHtml(o.name)+' today:</b> '+escHtml(oi.label)+(oi.end?'–'+escHtml(oi.end):'')+(oi.off?' (day off)':'')+
+    (both?'<div style="font-size:12px;color:#22c55e;margin-top:2px;">💚 Next day off together: <b>'+both+'</b></div>':'')+'</div>'+
+    '<span style="font-size:12px;font-weight:800;color:#a78bfa;">Switch ⇄</span></div>';
+}
 function renderDash(){
+  try{ renderPartnerToday(); }catch(e){}
   const now=today();
   const mon=getMonday(now);
   const link=(!ROSTER||Object.keys(ROSTER).length===0)?null:getLinkForWeek(mon);
@@ -5264,6 +5440,13 @@ function updateClaimsBadge(){
 // CALENDAR
 // ═══════════════════════════════════════════════════════════
 let calMonthOffset=0;
+// Before the page reloads, note the scroll position and any open day so it comes back the same
+window.addEventListener('pagehide',function(){
+  try{
+    const sc=document.querySelector('.screen.active'); sessionStorage.setItem('resume_scroll',String(sc?Math.round(sc.scrollTop):0));
+    if(typeof dayPanelDate!=='undefined'&&dayPanelDate) sessionStorage.setItem('resume_day',dayPanelDate);
+  }catch(e){}
+});
 let dayPanelDate=null;
 
 function setCalTheme(mode){
@@ -5277,7 +5460,7 @@ function setCalTheme(mode){
     document.getElementById('cal-day-btn').classList.remove('active');
   }
 }
-function calNav(d){ calMonthOffset+=d; closeDayPanel(); renderCal(); }
+function calNav(d){ calMonthOffset+=d; try{ sessionStorage.setItem('resume_cal_month',String(calMonthOffset)); }catch(e){} closeDayPanel(); renderCal(); }
 function toggleLegend(){
   const el=document.getElementById('cal-legend');
   const arrow=document.getElementById('legend-arrow');
@@ -5290,6 +5473,7 @@ function toggleLegend(){
 function calToday(){ calMonthOffset=0; renderCal(); }
 
 function renderCal(){
+  otherProfileCache=localStorage.getItem('partner_on_cal')!=='0'?loadOtherProfile():null;
   const noRoster=!ROSTER||Object.keys(ROSTER).length===0;
   const now=today();
   const ref=new Date(now.getFullYear(), now.getMonth()+calMonthOffset, 1);
@@ -5562,6 +5746,13 @@ function renderCalCell(d, otherMonth){
 
   // Guard quick view handled inline in shift display blocks above
   if(!leavePeriod&&activeRuleIssues(ds).length) inner+='<div class="cal-rule-flag" title="Roster rule check">⚠ rule</div>';
+  // The other person's shift underneath (partner's roster), and a green edge when you're both off
+  if(otherProfileCache){
+    const oi=otherDayInfo(otherProfileCache,ds);
+    inner+='<div class="cal-p2" title="'+escHtml(otherProfileCache.name)+'">'+escHtml(oi.label)+'</div>';  // purple = the other person
+    const myOff=!!leavePeriod||(dayIsLeisureRoster(ds)&&!(S.days[ds]&&S.days[ds].start));
+    if(oi.off&&myOff) cls+=' both-off';
+  }
 
   return '<div class="'+cls+'" data-ds="'+ds+'">'+inner+'</div>';
 }
@@ -5714,6 +5905,13 @@ function renderDayPanel(ds){
   }
   if(ov&&ov.notes&&ov.notes.trim()){
     html+='<div style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--muted);">'+ov.notes+'</div>';
+  }
+  const op=localStorage.getItem('partner_on_cal')!=='0'?loadOtherProfile():null;
+  if(op){
+    const oi=otherDayInfo(op,ds);
+    html+='<div style="margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(124,58,237,.14);border:1px solid rgba(124,58,237,.4);font-size:13px;">'+
+      '<b>'+escHtml(op.name)+':</b> '+escHtml(oi.label)+(oi.end?'–'+escHtml(oi.end):'')+(oi.off?' (day off)':'')+
+      ' <button class="btn btn-sm" style="margin-left:6px;" onclick="switchProfile(otherProfile())">Switch to '+escHtml(op.name)+'</button></div>';
   }
   document.getElementById('day-panel-content').innerHTML=html;
   // Render appointments for this day
@@ -8971,7 +9169,7 @@ function applyBackupData(p){
 // ── AUTOMATIC DEVICE BACKUP ──
 // A second copy of everything is kept in this phone's IndexedDB and overwritten on every
 // change. Nothing leaves the device. If localStorage comes back empty, initApp restores it.
-const BACKUP_DB=window.IS_TEST_BUILD?'shift_roster_backup_test':'shift_roster_backup';
+const BACKUP_DB=(window.IS_TEST_BUILD?'shift_roster_backup_test':'shift_roster_backup')+(window.ACTIVE_PROFILE==='partner'?'_partner':'');
 let autoBackupTimer=null, backupError='';
 function openBackupDb(){
   return new Promise(function(resolve,reject){
@@ -9339,10 +9537,23 @@ function initApp(){
   syncRole=localStorage.getItem('syncRole')||'owner';
   // Leave accrual / leave taken since the app was last opened
   if(runLeaveAuto()){ try{ localStorage.setItem(STATE_KEY,JSON.stringify(S)); }catch(e){} }
-  showScreen('dash');
+  // After a reload (switching person, pull to refresh, update) carry on where you were; a fresh open starts on Home
+  let resume='dash'; try{ resume=sessionStorage.getItem('resume_screen')||'dash'; calMonthOffset=parseInt(sessionStorage.getItem('resume_cal_month')||'0',10)||0; }catch(e){}
+  if(!document.getElementById('screen-'+resume)) resume='dash';
+  showScreen(resume);
+  try{
+    const sy=parseInt(sessionStorage.getItem('resume_scroll')||'0',10), rd=sessionStorage.getItem('resume_day');
+    sessionStorage.removeItem('resume_scroll'); sessionStorage.removeItem('resume_day');
+    setTimeout(function(){
+      const sc=document.querySelector('.screen.active'); if(sc&&sy) sc.scrollTop=sy;
+      if(rd&&resume==='cal'&&typeof tapCalDay==='function') tapCalDay(rd);
+    },60);
+  }catch(e){}
   showWhatsNew();
   applyRoleUI();
   showSetupIfNeeded();
+  renderProfileSwitch(); renderPartnerSettings();
+  if(window.ACTIVE_PROFILE==='partner'&&!S.anchorLink){ const n=document.getElementById('setup-name'); if(n&&!n.value) n.value=partnerName(); }
   restoreFromDeviceBackupIfEmpty().then(function(restored){
     if(!restored) scheduleAutoBackup();
     updateBackupReminder();
