@@ -5075,6 +5075,7 @@ function showScreen(name){
   const nb=document.getElementById('nav-'+name);
   if(nb) nb.classList.add('active');
   currentScreen=name;
+  try{ sessionStorage.setItem('resume_screen',name); }catch(e){}
   // The day pop-up and Edit Shift belong to the Calendar: close them when moving to another tab
   if(name!=='cal'){
     if(typeof closeDayPanel==='function') closeDayPanel();
@@ -5439,6 +5440,13 @@ function updateClaimsBadge(){
 // CALENDAR
 // ═══════════════════════════════════════════════════════════
 let calMonthOffset=0;
+// Before the page reloads, note the scroll position and any open day so it comes back the same
+window.addEventListener('pagehide',function(){
+  try{
+    const sc=document.querySelector('.screen.active'); sessionStorage.setItem('resume_scroll',String(sc?Math.round(sc.scrollTop):0));
+    if(typeof dayPanelDate!=='undefined'&&dayPanelDate) sessionStorage.setItem('resume_day',dayPanelDate);
+  }catch(e){}
+});
 let dayPanelDate=null;
 
 function setCalTheme(mode){
@@ -5452,7 +5460,7 @@ function setCalTheme(mode){
     document.getElementById('cal-day-btn').classList.remove('active');
   }
 }
-function calNav(d){ calMonthOffset+=d; closeDayPanel(); renderCal(); }
+function calNav(d){ calMonthOffset+=d; try{ sessionStorage.setItem('resume_cal_month',String(calMonthOffset)); }catch(e){} closeDayPanel(); renderCal(); }
 function toggleLegend(){
   const el=document.getElementById('cal-legend');
   const arrow=document.getElementById('legend-arrow');
@@ -9529,7 +9537,18 @@ function initApp(){
   syncRole=localStorage.getItem('syncRole')||'owner';
   // Leave accrual / leave taken since the app was last opened
   if(runLeaveAuto()){ try{ localStorage.setItem(STATE_KEY,JSON.stringify(S)); }catch(e){} }
-  showScreen('dash');
+  // After a reload (switching person, pull to refresh, update) carry on where you were; a fresh open starts on Home
+  let resume='dash'; try{ resume=sessionStorage.getItem('resume_screen')||'dash'; calMonthOffset=parseInt(sessionStorage.getItem('resume_cal_month')||'0',10)||0; }catch(e){}
+  if(!document.getElementById('screen-'+resume)) resume='dash';
+  showScreen(resume);
+  try{
+    const sy=parseInt(sessionStorage.getItem('resume_scroll')||'0',10), rd=sessionStorage.getItem('resume_day');
+    sessionStorage.removeItem('resume_scroll'); sessionStorage.removeItem('resume_day');
+    setTimeout(function(){
+      const sc=document.querySelector('.screen.active'); if(sc&&sy) sc.scrollTop=sy;
+      if(rd&&resume==='cal'&&typeof tapCalDay==='function') tapCalDay(rd);
+    },60);
+  }catch(e){}
   showWhatsNew();
   applyRoleUI();
   showSetupIfNeeded();
