@@ -2900,7 +2900,12 @@ const QLD_PH = new Set([
 function partnerName(){ return localStorage.getItem('partner_name')||''; }
 function profileOwnerName(prof){ try{ const s=JSON.parse(readProfile('qr_pwa_v2',prof)||'{}'); return s.myName||''; }catch(e){ return ''; } }
 function otherProfile(){ return window.ACTIVE_PROFILE==='partner'?'me':'partner'; }
-function profileLabel(prof){ return prof==='partner'?(partnerName()||'Partner'):(profileOwnerName('me')||'Me'); }
+function profileLabel(prof){
+  if(prof==='partner') return partnerName()||'Partner';
+  // Person 2 (Family Sync): the main roster is the Owner's
+  if(localStorage.getItem('syncRole')==='partner'&&localStorage.getItem('syncEnabled')==='1') return localStorage.getItem('sync_owner_name')||'Owner';
+  return profileOwnerName('me')||'Me';
+}
 function switchProfile(prof){
   if(prof===window.ACTIVE_PROFILE) return;
   try{ saveState(); }catch(e){}
@@ -2941,7 +2946,8 @@ function removePartner(btn){
   ['qr_pwa_v2','roster_data','job_cards','roster_asat','last_export','backup_last','export_snooze_day','sff_type','tc_state'].forEach(function(k){ try{ Storage.prototype.removeItem.call(localStorage,window.ACTIVE_PROFILE==='partner'?k:'P2:'+k); }catch(e){} });
   localStorage.removeItem('partner_name');
   localStorage.setItem('active_profile','me');
-  location.reload();
+  try{ pushPartnerSync(); }catch(e){}
+  setTimeout(function(){ location.reload(); },400);
 }
 // The other person's saved data, to show beside yours (read once per calendar draw)
 let otherProfileCache=null;
@@ -3459,6 +3465,7 @@ function startSync(){
         localStorage.setItem('jobcards_sync_sig',data.jobCards.sig);
       }catch(e){ console.warn('Synced job cards could not be read',e); }
     }
+    if(syncRole!=='owner'){ if(data.ownerName) localStorage.setItem('sync_owner_name',data.ownerName); applyPartnerSync(data); }
     localStorage.setItem(STATE_KEY,JSON.stringify(S));
     refreshAllScreens();
   };
@@ -3502,8 +3509,48 @@ function pushRosterTable(){
     .catch(function(e){ console.error('Roster share failed:',e); syncNote(syncErrorText(e),true); });
 }
 
+// Owner with a Partner's Roster: send it too, so Person 2 sees both. Only the partner's shifts, swaps
+// and leave go (no pay or claims); their roster table only when it changes. Removing the partner
+// removes it for Person 2 as well.
+function pushPartnerSync(){
+  if(!syncEnabled||syncRole!=='owner'||!fbDb||!syncPin) return;
+  const pn=partnerName();
+  let st=null; try{ st=JSON.parse(readProfile('qr_pwa_v2','partner')||'null'); }catch(e){}
+  if(!pn||!st||!st.anchorLink){
+    if(localStorage.getItem('p2_sent_'+syncPin)){ fbDb.ref(syncPath('/partner')).remove().catch(function(){}); fbDb.ref(syncPath('/partnerRoster')).remove().catch(function(){}); localStorage.removeItem('p2_sent_'+syncPin); localStorage.removeItem('p2roster_sent_'+syncPin); }
+    return;
+  }
+  const state={myName:st.myName||pn,myRole:st.myRole||'driver',anchorLink:st.anchorLink,anchorDate:st.anchorDate,days:st.days||{},swaps:st.swaps||[],plannedLeave:st.plannedLeave||[],appointments:st.appointments||[],settings:{cycleStart:(st.settings||{}).cycleStart||null}};
+  fbDb.ref(syncPath('/partner')).set(JSON.parse(JSON.stringify({name:pn,state:state,updated:Date.now()})))
+    .then(function(){ try{ localStorage.setItem('p2_sent_'+syncPin,'1'); }catch(e){} })
+    .catch(function(e){ syncNote(syncErrorText(e),true); });
+  const json=readProfile('roster_data','partner')||'';
+  if(json&&json!=='{}'){
+    const sig=hashString(json), sentKey='p2roster_sent_'+syncPin;
+    if(localStorage.getItem(sentKey)!==sig) fbDb.ref(syncPath('/partnerRoster')).set({sig:sig,json:json})
+      .then(function(){ try{ localStorage.setItem(sentKey,sig); }catch(e){} }).catch(function(){});
+  }
+}
+// Person 2: keep the Owner's partner's roster beside the Owner's (shown in purple, switch with 👤)
+function applyPartnerSync(data){
+  const P2set=function(k,v){ try{ Storage.prototype.setItem.call(localStorage,'P2:'+k,v); }catch(e){} };
+  const P2del=function(k){ try{ Storage.prototype.removeItem.call(localStorage,'P2:'+k); }catch(e){} };
+  if(data.partner&&data.partner.state&&data.partner.state.anchorLink){
+    localStorage.setItem('partner_name',data.partner.name||'Partner');
+    P2set('qr_pwa_v2',JSON.stringify(Object.assign({leave:{},claims:[],contacts:[]},data.partner.state)));
+    if(data.partnerRoster&&data.partnerRoster.json&&data.partnerRoster.sig!==localStorage.getItem('p2roster_sync_sig')){
+      P2set('roster_data',data.partnerRoster.json); localStorage.setItem('p2roster_sync_sig',data.partnerRoster.sig);
+    }
+  } else if(localStorage.getItem('partner_name')){
+    ['qr_pwa_v2','roster_data','job_cards'].forEach(P2del);
+    localStorage.removeItem('partner_name'); localStorage.removeItem('p2roster_sync_sig');
+  }
+  renderProfileSwitch();
+}
+
 function pushSync(){
-  if(window.ACTIVE_PROFILE==='partner') return;  // Family Sync shares your own roster only
+  // On the partner's screen, Family Sync sends only the partner's roster (for Person 2 to see)
+  if(window.ACTIVE_PROFILE==='partner'){ pushPartnerSync(); return; }
   if(!syncEnabled||!fbDb||!syncPin) return;
   // Safety: only push if we have real data (anchorLink set = app is configured)
   if(!S.anchorLink) return;
@@ -3522,9 +3569,11 @@ function pushSync(){
     leaveAdj:S.leaveAdj,
     settings:S.settings,
     appointments:S.appointments,
+    ownerName:S.myName||'',
     lastUpdated:Date.now(),
     lastUpdatedBy:syncRole
   };
+  pushPartnerSync();
   ref.update(JSON.parse(JSON.stringify(payload))).then(function(){
     syncNote('Last sent '+new Date().toLocaleTimeString('en-AU'));
     setTimeout(function(){ isSyncPushing=false; },1000);
