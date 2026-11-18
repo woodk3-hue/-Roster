@@ -2971,7 +2971,9 @@ function otherDayInfo(o,ds){
     if(lv) return {label:String(lv.type||'leave').toUpperCase(),off:true};
     const sh=getEffectiveShift(ds), off=dayIsLeisureRoster(ds)&&!(S.days[ds]&&S.days[ds].start);
     if(['al','lsl','sl','family','repro','lwop','mbo','cbo','ph_booked_off'].includes(sh.typeKey)) return {label:sh.code,off:true};
-    return {label:sh.time||sh.code||'—',off:off,end:sh.endTime||''};
+    let end=sh.endTime||'';
+    if(!end&&sh.time){ const c=jobCardFor(sh.job||sh.code); if(c&&c.off) end=c.off; }
+    return {label:sh.time||sh.code||'—',off:off,end:end,time:sh.time||'',job:sh.time?(sh.job||''):''};
   });
 }
 
@@ -5132,12 +5134,25 @@ function renderPartnerToday(){
   const el=document.getElementById('partner-today'); if(!el) return;
   const o=loadOtherProfile(); if(!o){ el.innerHTML=''; return; }
   const td=fmtDate(today()), oi=otherDayInfo(o,td);
-  let both='';
+  // Their next shift after today, and the next day you're both off
+  let next=null, both='';
+  for(let i=1;i<21&&!next;i++){ const ds=fmtDate(addDays(today(),i)), x=otherDayInfo(o,ds); if(!x.off&&(x.time||/^(AM|PM)[123]$|^AF[AP]$/.test(x.label))) next={ds:ds,x:x}; }
   for(let i=0;i<60;i++){ const ds=fmtDate(addDays(today(),i)), x=otherDayInfo(o,ds); const lv=(S.plannedLeave||[]).some(function(l){ return ds>=l.start&&ds<=(l.end||l.start); }); if(x.off&&(lv||(dayIsLeisureRoster(ds)&&!(S.days[ds]&&S.days[ds].start)))){ const d=parseDate(ds); both=(i===0?'today':DAY3[dayIdx(d)]+' '+fmtDDMM(d)); break; } }
-  el.innerHTML='<div class="card" style="padding:10px 14px;margin-bottom:10px;border-color:rgba(124,58,237,.45);display:flex;gap:8px;align-items:center;cursor:pointer;" onclick="switchProfile(otherProfile())">'+
-    '<div style="flex:1;font-size:13px;"><b>'+escHtml(o.name)+' today:</b> '+escHtml(oi.label)+(oi.end?'–'+escHtml(oi.end):'')+(oi.off?' (day off)':'')+
-    (both?'<div style="font-size:12px;color:#22c55e;margin-top:2px;">💚 Next day off together: <b>'+both+'</b></div>':'')+'</div>'+
-    '<span style="font-size:12px;font-weight:800;color:#a78bfa;">Switch ⇄</span></div>';
+  const shiftHtml=function(x){
+    if(!x.time) return '<div style="font-size:20px;font-weight:900;color:#c4b5fd;line-height:1.1;">'+escHtml(x.label)+'</div><div style="font-size:11px;color:var(--muted);">'+(x.off?'Day off':'')+'</div>';
+    return '<div style="font-size:20px;font-weight:900;color:var(--text);line-height:1.1;">'+escHtml(x.time)+(x.end?'<span style="font-size:13px;color:var(--muted);font-weight:700;">–'+escHtml(x.end)+'</span>':'')+'</div>'+
+      (x.job?'<div style="font-size:11px;color:#c4b5fd;font-weight:700;">'+escHtml(x.job)+'</div>':'');
+  };
+  const nd=next?parseDate(next.ds):null;
+  el.innerHTML='<div class="card" style="padding:12px 14px;margin-bottom:10px;border:1px solid rgba(124,58,237,.55);background:linear-gradient(180deg,rgba(124,58,237,.16),rgba(124,58,237,.06));">'+
+    '<div style="display:flex;align-items:center;margin-bottom:8px;"><b style="font-size:14px;">👤 '+escHtml(o.name)+'</b>'+
+      '<button class="pf-pill" type="button" style="margin-left:auto;font-size:11px;padding:4px 9px;" onclick="switchProfile(otherProfile())">Switch ⇄</button></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'+
+      '<div style="background:rgba(0,0,0,.18);border-radius:10px;padding:8px 10px;"><div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;">Today</div>'+shiftHtml(oi)+'</div>'+
+      '<div style="background:rgba(0,0,0,.18);border-radius:10px;padding:8px 10px;"><div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;">Next shift'+(nd?' · '+DAY3[dayIdx(nd)]+' '+fmtDDMM(nd):'')+'</div>'+(next?shiftHtml(next.x):'<div style="font-size:12px;color:var(--muted);">None in the next 3 weeks</div>')+'</div>'+
+    '</div>'+
+    (both?'<div style="font-size:12px;color:#22c55e;margin-top:8px;font-weight:700;">💚 Next day off together: '+both+'</div>':'')+
+  '</div>';
 }
 function renderDash(){
   try{ renderPartnerToday(); }catch(e){}
