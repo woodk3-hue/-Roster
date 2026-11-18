@@ -9459,13 +9459,10 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-11-13';
+const APP_VERSION='2026-11-18';
 const WHATS_NEW=[
-  'Pay: shifts that run past midnight are split at midnight. A Friday night shift gets the Saturday rate from midnight. A BLP worked into another BLP/SLP stays at the BLP rate for the whole shift; into a working day, the hours after midnight take that day\'s rate.',
-  'Pay: Saturday, Sunday and public holiday penalties now count for shifts worked as rostered, not only days you typed times into. Long Service Leave shows as its own line in the pay breakdown.',
-  'Roster: the new roster PDF layout imports, and the PDF reader is more reliable on phones.',
-  'Swaps: a BLP you give away keeps its start time when edited, the Shift Finder keeps every swapped week, and Swap History has bigger buttons.',
-  'Pull down from the top of any tab to refresh.'
+  'Help: tap the small ? next to any feature for a quick explanation and step-by-step how-to.',
+  'Home now always shows a short note: this app is a guide only. Your posted roster, payslip and the Enterprise Agreement come first.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
@@ -9474,7 +9471,11 @@ function showWhatsNew(){
   if(!seen&&!S.anchorLink) return; // a brand-new install doesn't need the update notes
   const el=document.getElementById('whats-new'); if(!el) return;
   el.innerHTML='<div class="card whats-new"><div style="display:flex;align-items:center;margin-bottom:6px;"><b>✨ What\'s new in this update</b><button onclick="document.getElementById(\'whats-new\').innerHTML=\'\'" style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">×</button></div>'+
-    '<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.5;">'+WHATS_NEW.map(function(x){ return '<li>'+escHtml(x)+'</li>'; }).join('')+'</ul></div>';
+    '<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.5;">'+WHATS_NEW.map(function(x){ return '<li>'+escHtml(x)+'</li>'; }).join('')+'</ul>'+
+    // Every update: remind people their data lives only on this phone
+    '<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.45);font-size:12.5px;line-height:1.45;">'+
+      '<b>💾 Back up now, or you could lose your data.</b> Your roster, swaps, claims and settings are saved only on this phone. A new phone, deleting the app or clearing your browser wipes them. Save a backup file somewhere safe (email it to yourself or put it in Files / Google Drive).'+
+      '<button class="btn btn-accent btn-sm" style="width:100%;margin-top:8px;" onclick="exportBackup()">⬇ Back Up Now</button></div></div>';
 }
 
 // ═══════════════════════════════════════════════════════════
