@@ -733,6 +733,11 @@ body.day-mode .toast{background:rgba(240,242,248,0.96);border-color:var(--border
   margin-bottom:12px;
   box-shadow:var(--card-shadow);
 }
+.guide-notice{display:flex;gap:9px;align-items:flex-start;margin:0 0 10px;padding:9px 12px;border-radius:12px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.45);font-size:11.5px;line-height:1.45;color:var(--text2)}
+.guide-notice b{color:var(--text)}
+.guide-notice .gn-ico{color:var(--accent);font-size:15px;line-height:1.2}
+.guide-notice a{color:var(--accent);font-weight:700;white-space:nowrap}
+body.day-mode .guide-notice{background:rgba(245,158,11,.12)}
 .profile-switch:empty{display:none}
 .profile-switch{margin-left:auto;margin-right:10px}
 .profile-switch+button{margin-left:0!important}
@@ -1110,6 +1115,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
   </div>
 
+  <!-- Always shown: the app is a guide, not an official tool (people share it with each other) -->
+  <div class="guide-notice" role="note">
+    <span class="gn-ico">⚠</span>
+    <div><b>Guide only. Not an official Queensland Rail or union app.</b> Your posted roster, payslip and the Enterprise Agreement always come first. Pay, rules and times are estimates; check anything important with the Roster Office or your delegate. <a href="#" onclick="openDisclaimer();return false;">Full disclaimer</a></div>
+  </div>
   <!-- Backup reminder (shown by updateBackupReminder) -->
   <div id="whats-new"></div>
   <div id="partner-today"></div>
@@ -1806,7 +1816,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <div class="settings-section partner-keep">
-    <div class="settings-section-title">About &amp; disclaimer</div>
+    <div class="settings-section-title" id="about-disclaimer">About &amp; disclaimer</div>
     <div style="font-size:12px;line-height:1.5;color:var(--muted);">
       <p style="margin:0 0 6px;">Shift Roster is a free, personal tool made by a train driver. It is <b>not made, checked or endorsed by Queensland Rail</b> or any union.</p>
       <ul style="margin:0;padding-left:18px;">
@@ -2897,6 +2907,13 @@ const QLD_PH = new Set([
 // STATE
 // ═══════════════════════════════════════════════════════════
 // ── PARTNER'S ROSTER ──
+function openDisclaimer(){
+  showScreen('settings');
+  setTimeout(function(){
+    const el=document.getElementById('about-disclaimer'), sc=document.getElementById('screen-settings');
+    if(el&&sc) sc.scrollTop=Math.max(0,el.getBoundingClientRect().top-sc.getBoundingClientRect().top+sc.scrollTop-20);
+  },120);
+}
 function partnerName(){ return localStorage.getItem('partner_name')||''; }
 function profileOwnerName(prof){ try{ const s=JSON.parse(readProfile('qr_pwa_v2',prof)||'{}'); return s.myName||''; }catch(e){ return ''; } }
 function otherProfile(){ return window.ACTIVE_PROFILE==='partner'?'me':'partner'; }
