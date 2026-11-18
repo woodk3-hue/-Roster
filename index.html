@@ -662,6 +662,21 @@ body.day-mode #day-panel{background:rgba(240,242,248,0.97);}
   box-shadow:0 2px 8px var(--accent-glow);
 }
 
+/* ── HELP "?" BUTTONS ── */
+.hb{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;min-width:18px;margin-left:5px;padding:0;border-radius:50%;
+  border:1.5px solid var(--accent);background:transparent;color:var(--accent);font:800 11px/1 system-ui,sans-serif;cursor:pointer;vertical-align:middle;
+  text-transform:none;letter-spacing:0;opacity:.85;-webkit-tap-highlight-color:transparent;position:relative;}
+.hb::after{content:"";position:absolute;inset:-10px;}
+.hb:active{background:var(--accent);color:#000;}
+.hb-link{font-size:11px;font-weight:700;color:var(--accent);text-decoration:none;}
+.help-body{font-size:13.5px;line-height:1.55;color:var(--text);}
+.help-body h4{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:14px 0 6px;}
+.help-body p{margin:0 0 6px;}
+.help-body ol,.help-body ul{margin:0 0 6px;padding-left:20px;}
+.help-body li{margin-bottom:5px;}
+.help-tip{margin-top:12px;padding:9px 11px;border-radius:10px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:12.5px;}
+.help-note{margin-top:10px;font-size:11px;color:var(--muted);}
+
 /* ── MODALS ── */
 .modal-overlay{
   position:fixed;inset:0;
@@ -733,6 +748,11 @@ body.day-mode .toast{background:rgba(240,242,248,0.96);border-color:var(--border
   margin-bottom:12px;
   box-shadow:var(--card-shadow);
 }
+.guide-notice{display:flex;gap:9px;align-items:flex-start;margin:0 0 10px;padding:9px 12px;border-radius:12px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.45);font-size:11.5px;line-height:1.45;color:var(--text2)}
+.guide-notice b{color:var(--text)}
+.guide-notice .gn-ico{color:var(--accent);font-size:15px;line-height:1.2}
+.guide-notice a{color:var(--accent);font-weight:700;white-space:nowrap}
+body.day-mode .guide-notice{background:rgba(245,158,11,.12)}
 .profile-switch:empty{display:none}
 .profile-switch{margin-left:auto;margin-right:10px}
 .profile-switch+button{margin-left:0!important}
@@ -1103,13 +1123,18 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 <div id="screen-dash" class="screen active">
   <div class="screen-header">
     <div>
-      <div class="screen-title">🚂 Shift Roster</div>
+      <div class="screen-title">🚂 Shift Roster <button type="button" class="hb" onclick="openHelp('home',event)" aria-label="How to use this">?</button></div>
       <div class="screen-subtitle" id="dash-date-sub">—</div>
     </div>
     <button class="owner-only" onclick="openRules()" title="Rules" style="background:none;border:none;font-size:19px;cursor:pointer;padding:0;line-height:1;margin-left:auto;margin-right:14px;">📘</button>
     <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
   </div>
 
+  <!-- Always shown: the app is a guide, not an official tool (people share it with each other) -->
+  <div class="guide-notice" role="note">
+    <span class="gn-ico">⚠</span>
+    <div><b>Guide only. Not an official Queensland Rail or union app.</b> Your posted roster, payslip and the Enterprise Agreement always come first. Pay, rules and times are estimates; check anything important with the Roster Office or your delegate. <a href="#" onclick="openDisclaimer();return false;">Full disclaimer</a></div>
+  </div>
   <!-- Backup reminder (shown by updateBackupReminder) -->
   <div id="whats-new"></div>
   <div id="partner-today"></div>
@@ -1125,7 +1150,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <!-- Current Link Card (compact) -->
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
     <div>
-      <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Current Link</div>
+      <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Current Link <button type="button" class="hb" onclick="openHelp('link',event)" aria-label="How to use this">?</button></div>
       <div style="font-size:34px;font-weight:900;color:var(--accent);line-height:1.1;font-variant-numeric:tabular-nums;" id="dash-link">—</div>
       <div id="dash-orig-link-row" style="display:none;font-size:11px;color:var(--muted);">
         Rostered: <span id="dash-orig-link" style="font-weight:700;">—</span>
@@ -1141,7 +1166,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <!-- Today's Shift + Next Shift -->
   <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px;">
     <div class="shift-preview-card" id="dash-today-shift" onclick="if(!event.target.closest('details,a,button'))openDashShiftEdit('today')">
-      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Today</div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Today <button type="button" class="hb" onclick="openHelp('today',event)" aria-label="How to use this">?</button></div>
       <div id="dash-today-content"><div style="color:var(--muted);font-size:12px;">—</div></div>
     </div>
     <div class="shift-preview-card" id="dash-next-shift">
@@ -1154,7 +1179,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <div class="dash-grid owner-only">
     <div class="dash-stat">
       <div class="dash-stat-val" id="dash-claims-open">0</div>
-      <div class="dash-stat-lbl">Open Claims</div>
+      <div class="dash-stat-lbl">Open Claims <button type="button" class="hb" onclick="openHelp('claims',event)" aria-label="How to use this">?</button></div>
     </div>
   </div>
 
@@ -1163,7 +1188,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 
   <!-- Alerts -->
   <div class="owner-only">
-    <div class="section-label">Alerts</div>
+    <div class="section-label">Alerts <button type="button" class="hb" onclick="openHelp('alerts',event)" aria-label="How to use this">?</button></div>
     <div id="dash-alerts"><div class="empty-state" style="padding:16px;">No alerts — all good! 👍</div></div>
     <div id="dash-rules"></div>
   </div>
@@ -1174,7 +1199,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 ════════════════════════════════════════ -->
 <div id="screen-cal" class="screen">
   <div class="screen-header">
-    <div class="screen-title">Calendar</div>
+    <div class="screen-title">Calendar <button type="button" class="hb" onclick="openHelp('cal',event)" aria-label="How to use this">?</button></div>
     <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
       <div class="toggle-pill">
         <button id="cal-night-btn" class="active" onclick="setCalTheme('night')">🌙</button>
@@ -1208,7 +1233,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <!-- Calendar Legend -->
   <div style="margin-top:8px;border-top:1px solid var(--border);">
     <div onclick="toggleLegend()" style="display:flex;align-items:center;justify-content:space-between;padding:8px 8px;cursor:pointer;">
-      <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Legend</span>
+      <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Legend <button type="button" class="hb" onclick="openHelp('legend',event)" aria-label="How to use this">?</button></span>
       <span id="legend-arrow" style="color:var(--muted);font-size:14px;">▸</span>
     </div>
     <div id="cal-legend" style="display:none;padding:0 8px 10px;">
@@ -1274,13 +1299,13 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 ════════════════════════════════════════ -->
 <div id="screen-swaps" class="screen">
   <div class="screen-header">
-    <div class="screen-title">Swaps</div>
+    <div class="screen-title">Swaps <button type="button" class="hb" onclick="openHelp('swaps',event)" aria-label="How to use this">?</button></div>
     <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button>
   </div>
 
   <!-- ── RECORD SWAP FORM (always visible) ── -->
   <div class="card swap-form" style="margin-bottom:14px;">
-    <div class="card-title">Record a Swap</div>
+    <div class="card-title">Record a Swap <button type="button" class="hb" onclick="openHelp('recordswap',event)" aria-label="How to use this">?</button></div>
 
     <!-- My link and W/C fill each other in -->
     <div style="display:flex;gap:10px;margin-bottom:10px;">
@@ -1343,7 +1368,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <!-- ── BLP SWAP SECTION ── -->
   <div class="card" style="margin-bottom:14px;">
     <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleBlpSwapSection()">
-      <div class="card-title" style="margin:0;">BLP Swap</div>
+      <div class="card-title" style="margin:0;">BLP Swap <button type="button" class="hb" onclick="openHelp('blpswap',event)" aria-label="How to use this">?</button></div>
       <span id="blp-swap-arrow" style="color:var(--muted);font-size:16px;">▸</span>
     </div>
     <div id="blp-swap-body" style="display:none;margin-top:12px;">
@@ -1395,7 +1420,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 
   <!-- ── BLP SWAP EMAIL DUE ── -->
   <div id="blp-email-due-section" style="display:none;">
-    <div class="section-label">BLP Swap Email Due</div>
+    <div class="section-label">BLP Swap Email Due <button type="button" class="hb" onclick="openHelp('swapemail',event)" aria-label="How to use this">?</button></div>
     <div id="blp-swap-email-cards" style="margin-bottom:12px;"></div>
     <hr class="divider">
   </div>
@@ -1403,7 +1428,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <hr class="divider">
 
   <!-- ── SHIFT FINDER ── -->
-  <div class="section-label">Shift Finder</div>
+  <div class="section-label">Shift Finder <button type="button" class="hb" onclick="openHelp('shiftfinder',event)" aria-label="How to use this">?</button></div>
   <div style="margin-bottom:8px;">
     <div id="sff-year-tabs" style="margin-bottom:10px;"></div>
     <div style="margin-bottom:8px;">
@@ -1436,7 +1461,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 
   <!-- ── SWAP HISTORY (bottom, collapsible) ── -->
   <div role="button" tabindex="0" style="display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;margin:4px 0 8px;padding:14px 16px;min-height:52px;border-radius:14px;background:var(--bg2);border:1px solid var(--border2);" onclick="toggleSwapHistory()">
-    <div style="font-size:15px;font-weight:800;color:var(--text);">🔁 Swap History <span id="swap-history-count" style="font-size:12px;font-weight:700;color:var(--muted);"></span></div>
+    <div style="font-size:15px;font-weight:800;color:var(--text);">🔁 Swap History <button type="button" class="hb" onclick="openHelp('swaphistory',event)" aria-label="How to use this">?</button> <span id="swap-history-count" style="font-size:12px;font-weight:700;color:var(--muted);"></span></div>
     <span id="swap-history-arrow" style="font-size:13px;font-weight:800;color:var(--accent);white-space:nowrap;">Show ▸</span>
   </div>
   <div id="swap-log" style="display:none;"></div>
@@ -1447,7 +1472,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 ════════════════════════════════════════ -->
 <div id="screen-claims" class="screen">
   <div class="screen-header">
-    <div class="screen-title">Claims</div>
+    <div class="screen-title">Claims <button type="button" class="hb" onclick="openHelp('claims',event)" aria-label="How to use this">?</button></div>
     <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
       <button class="btn btn-sm btn-accent" onclick="openClaimModal()">+ New</button>
       <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
@@ -1461,7 +1486,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <div id="claims-list"></div>
 
   <details class="show-more jc-search" ontoggle="if(this.open)renderJobCardSearch()">
-    <summary>🗂 Job card search</summary>
+    <summary>🗂 Job card search <button type="button" class="hb" onclick="openHelp('jobsearch',event)" aria-label="How to use this">?</button></summary>
     <input type="search" class="form-input" id="jcs-q" placeholder="Job number or start time, e.g. PB019, EA6, 16:30" oninput="renderJobCardSearch()" style="margin:6px 0 8px;">
     <div class="jcs-days" id="jcs-days"></div>
     <div id="jcs-results"></div>
@@ -1472,10 +1497,10 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      PAY
 ════════════════════════════════════════ -->
 <div id="screen-pay" class="screen">
-  <div class="screen-header"><div class="screen-title">Pay & Leave</div><span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button></div>
+  <div class="screen-header"><div class="screen-title">Pay &amp; Leave <button type="button" class="hb" onclick="openHelp('pay',event)" aria-label="How to use this">?</button></div><span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button></div>
 
   <!-- Leave Balances — TOP of page, inline editable -->
-  <div class="section-label">Leave Balances</div>
+  <div class="section-label">Leave Balances <button type="button" class="hb" onclick="openHelp('leavebal',event)" aria-label="How to use this">?</button></div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
     <div class="pay-card" style="text-align:center;border-left:3px solid #dc2626;">
       <div class="pay-lbl">Annual Leave</div>
@@ -1515,18 +1540,18 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 
   <!-- Planned Leave -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-    <div class="section-label" style="margin:0;">Planned Leave</div>
+    <div class="section-label" style="margin:0;">Planned Leave <button type="button" class="hb" onclick="openHelp('plannedleave',event)" aria-label="How to use this">?</button></div>
     <button class="btn btn-sm btn-accent" onclick="openLeaveModal()">+ Add Leave</button>
   </div>
   <div id="planned-leave-list"></div>
 
   <!-- Projected Fortnightly Pay -->
-  <div class="section-label">Projected Fortnightly Pay</div>
+  <div class="section-label">Projected Fortnightly Pay <button type="button" class="hb" onclick="openHelp('projpay',event)" aria-label="How to use this">?</button></div>
   <div id="pay-projection-card" class="card" style="margin-bottom:12px;"></div>
 
   <!-- Leave Adjustment History (collapsed, at the bottom) -->
   <details class="show-more collapsible-section">
-    <summary>Balance Adjustment History</summary>
+    <summary>Balance Adjustment History <button type="button" class="hb" onclick="openHelp('leaveadj',event)" aria-label="How to use this">?</button></summary>
     <div id="leave-adj-list" style="margin-top:8px;"></div>
   </details>
 
@@ -1538,7 +1563,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 ════════════════════════════════════════ -->
 <div id="screen-contacts" class="screen">
   <div class="screen-header">
-    <div class="screen-title">Contacts</div>
+    <div class="screen-title">Contacts <button type="button" class="hb" onclick="openHelp('contacts',event)" aria-label="How to use this">?</button></div>
     <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
       <button class="btn btn-sm btn-accent" onclick="openContactModal()">+ Add</button>
       <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
@@ -1579,8 +1604,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      STATISTICS
 ════════════════════════════════════════ -->
 <div id="screen-stats" class="screen">
-  <div class="screen-header"><div class="screen-title">Statistics</div><span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
-  <div class="section-label">Pay History</div>
+  <div class="screen-header"><div class="screen-title">Statistics <button type="button" class="hb" onclick="openHelp('stats',event)" aria-label="How to use this">?</button></div><span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
+  <div class="section-label">Pay History <button type="button" class="hb" onclick="openHelp('payhistory',event)" aria-label="How to use this">?</button></div>
   <div id="pay-history-list" style="margin-bottom:16px;"></div>
   <div class="tab-row">
     <button class="tab-btn active" id="stats-year-btn" onclick="setStatsView('year',this)">This Year</button>
@@ -1593,7 +1618,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      TOOLS (time check)
 ════════════════════════════════════════ -->
 <div id="screen-tools" class="screen">
-  <div class="screen-header"><div class="screen-title">🧰 Tools</div><span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
+  <div class="screen-header"><div class="screen-title">🧰 Tools <button type="button" class="hb" onclick="openHelp('tools',event)" aria-label="How to use this">?</button></div><span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;margin-left:auto;">⚙</button></div>
   <div class="tab-row">
     <button class="tab-btn active" id="tools-tab-time" onclick="setToolsView('time')">⏱ Time check</button>
     <button class="tab-btn" id="tools-tab-rules" onclick="setToolsView('rules')">📘 Rules</button>
@@ -1609,7 +1634,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      RULES (EBA + Roster Protocols)
 ════════════════════════════════════════ -->
 <div id="screen-rules" class="screen">
-  <div class="screen-header"><div class="screen-title">📘 Rules</div><button onclick="showScreen('dash')" style="background:none;border:none;font-size:14px;font-weight:700;cursor:pointer;padding:0;color:var(--accent);margin-left:auto;">Done</button></div>
+  <div class="screen-header"><div class="screen-title">📘 Rules <button type="button" class="hb" onclick="openHelp('rules',event)" aria-label="How to use this">?</button></div><button onclick="showScreen('dash')" style="background:none;border:none;font-size:14px;font-weight:700;cursor:pointer;padding:0;color:var(--accent);margin-left:auto;">Done</button></div>
   <input type="search" class="form-input" id="rules-search" placeholder="Search rules, e.g. swap, 12 hours, meal, 91.20" oninput="rulesQuery=this.value;renderRules()" style="margin-bottom:12px;">
   <div id="rules-content"></div>
 </div>
@@ -1618,12 +1643,12 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
      SETTINGS
 ════════════════════════════════════════ -->
 <div id="screen-settings" class="screen">
-  <div class="screen-header"><div class="screen-title">Settings</div>
+  <div class="screen-header"><div class="screen-title">Settings <button type="button" class="hb" onclick="openHelp('settings',event)" aria-label="How to use this">?</button></div>
     <div id="sync-status" style="font-size:11px;padding:3px 8px;border-radius:8px;background:var(--surface2);color:var(--muted);">Sync Off</div>
   </div>
 
   <div class="settings-section">
-    <div class="settings-section-title">My Roster Link</div>
+    <div class="settings-section-title">My Roster Link <button type="button" class="hb" onclick="openHelp('mylink',event)" aria-label="How to use this">?</button></div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">My Name</label>
@@ -1652,16 +1677,16 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
     <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Import your depot's roster — the Link/Diagram PDF straight from the rostering system, or a roster.txt file.</div>
     <div id="roster-import-status" style="font-size:12px;margin-bottom:8px;"></div>
-    <label for="roster-pdf-input" class="btn btn-accent" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">📄 Import Roster File (.txt or .pdf)</label>
+    <div style="text-align:right;margin:-2px 0 4px;"><a href="#" class="hb-link" onclick="openHelp('importroster',event);return false;">? How to import your roster</a></div><label for="roster-pdf-input" class="btn btn-accent" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">📄 Import Roster File (.txt or .pdf)</label>
     <input type="file" id="roster-pdf-input" accept=".txt,.pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importRosterPDF(this)">
     <div style="font-size:11px;color:var(--muted);margin:14px 0 8px;">Import the job card PDF (all days in one file) to see each shift's job card, sign-off time and length when you tap a day.</div>
     <div id="jobcards-import-status" style="font-size:12px;margin-bottom:8px;"></div>
-    <label for="jobcards-pdf-input" class="btn" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">🗂 Import Job Cards PDF</label>
+    <div style="text-align:right;margin:-2px 0 4px;"><a href="#" class="hb-link" onclick="openHelp('importjobcards',event);return false;">? What are job cards?</a></div><label for="jobcards-pdf-input" class="btn" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">🗂 Import Job Cards PDF</label>
     <input type="file" id="jobcards-pdf-input" accept=".pdf" multiple style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importJobCards(this)">
   </div>
 
   <div class="settings-section">
-    <div class="settings-section-title">Pay Settings</div>
+    <div class="settings-section-title">Pay Settings <button type="button" class="hb" onclick="openHelp('paysettings',event)" aria-label="How to use this">?</button></div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Hourly Rate (CPH)</label>
@@ -1728,7 +1753,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <div class="settings-section">
-    <div class="settings-section-title">Leave Balances</div>
+    <div class="settings-section-title">Leave Balances <button type="button" class="hb" onclick="openHelp('leavebal',event)" aria-label="How to use this">?</button></div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Update after each payslip</div>
     <div class="form-row">
       <div class="form-group">
@@ -1748,7 +1773,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <div class="settings-section">
-    <div class="settings-section-title">Backup & Restore</div>
+    <div class="settings-section-title">Backup & Restore <button type="button" class="hb" onclick="openHelp('backup',event)" aria-label="How to use this">?</button></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn" onclick="exportBackup()">⬇ Export Backup</button>
       <button class="btn" onclick="document.getElementById('import-file').click()">⬆ Import Backup</button>
@@ -1764,19 +1789,19 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <div class="settings-section">
-    <div class="settings-section-title">Rules &amp; EBA</div>
+    <div class="settings-section-title">Rules &amp; EBA <button type="button" class="hb" onclick="openHelp('rules',event)" aria-label="How to use this">?</button></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">The Traincrew Enterprise Agreement 2024 and SEQ Roster Protocols in plain English. The app warns you when a swap or edited shift breaks a rule.</div>
     <button class="btn" style="width:100%;" onclick="openRules()">📘 Open Rules</button>
   </div>
 
   <div class="settings-section owner-only" id="partner-section">
-    <div class="settings-section-title">Partner's Roster</div>
+    <div class="settings-section-title">Partner's Roster <button type="button" class="hb" onclick="openHelp('partner',event)" aria-label="How to use this">?</button></div>
     <div id="partner-box"></div>
   </div>
 
   <div class="partner-only" style="font-size:12px;color:var(--muted);margin:0 0 10px;">You're viewing your partner's roster through Family Sync. Their settings stay on their phone.</div>
   <div class="settings-section partner-keep">
-    <div class="settings-section-title">Family Sync</div>
+    <div class="settings-section-title">Family Sync <button type="button" class="hb" onclick="openHelp('familysync',event)" aria-label="How to use this">?</button></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Share your roster with your partner in real time.</div>
     <div style="font-size:11px;color:#fbbf24;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);border-radius:8px;padding:8px 10px;margin-bottom:10px;">⚠ Sync is the only feature that stores your data online: your roster, swaps, claims, leave and contacts are saved under your sync PIN so your partner can see them. Anyone who knows or guesses the PIN can see it too — use a long PIN that's hard to guess (8+ characters, letters and numbers).</div>
     <div class="form-group">
@@ -1798,7 +1823,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <div class="settings-section partner-keep">
-    <div class="settings-section-title">Help</div>
+    <div class="settings-section-title">Help <button type="button" class="hb" onclick="openHelp('report',event)" aria-label="How to use this">?</button></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Experiencing an issue? Send a report.</div>
     <textarea class="form-textarea" id="report-text" placeholder="Describe the problem…" style="margin-bottom:8px;"></textarea>
     <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Your report and name are sent to the app's developer.</div>
@@ -1806,7 +1831,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <div class="settings-section partner-keep">
-    <div class="settings-section-title">About &amp; disclaimer</div>
+    <div class="settings-section-title" id="about-disclaimer">About &amp; disclaimer</div>
     <div style="font-size:12px;line-height:1.5;color:var(--muted);">
       <p style="margin:0 0 6px;">Shift Roster is a free, personal tool made by a train driver. It is <b>not made, checked or endorsed by Queensland Rail</b> or any union.</p>
       <ul style="margin:0;padding-left:18px;">
@@ -1927,7 +1952,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 <div class="modal-overlay" id="shift-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="shift-modal-title">Edit Shift</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;"><div class="modal-title" id="shift-modal-title" style="margin:0;">Edit Shift</div><button type="button" class="hb" onclick="openHelp('editshift',event)" aria-label="How to use this">?</button></div>
     <div class="form-group">
       <label class="form-label">Shift Type</label>
       <select class="form-select" id="sm-type" onchange="onShiftTypeChange()">
@@ -2021,7 +2046,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 <div class="modal-overlay" id="claim-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="claim-modal-title">New Claim</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;"><div class="modal-title" id="claim-modal-title" style="margin:0;">New Claim</div><button type="button" class="hb" onclick="openHelp('claims',event)" aria-label="How to use this">?</button></div>
     <div class="form-group">
       <label class="form-label">Claim Type</label>
       <select class="form-select" id="cm-type" onchange="onClaimTypeChange()">
@@ -2196,7 +2221,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 <div class="modal-overlay" id="leave-modal" style="display:none;">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="leave-modal-title">Add Planned Leave</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;"><div class="modal-title" id="leave-modal-title" style="margin:0;">Add Planned Leave</div><button type="button" class="hb" onclick="openHelp('plannedleave',event)" aria-label="How to use this">?</button></div>
     <div class="form-group">
       <label class="form-label">Leave Type</label>
       <select class="form-select" id="lm-type">
@@ -2897,6 +2922,13 @@ const QLD_PH = new Set([
 // STATE
 // ═══════════════════════════════════════════════════════════
 // ── PARTNER'S ROSTER ──
+function openDisclaimer(){
+  showScreen('settings');
+  setTimeout(function(){
+    const el=document.getElementById('about-disclaimer'), sc=document.getElementById('screen-settings');
+    if(el&&sc) sc.scrollTop=Math.max(0,el.getBoundingClientRect().top-sc.getBoundingClientRect().top+sc.scrollTop-20);
+  },120);
+}
 function partnerName(){ return localStorage.getItem('partner_name')||''; }
 function profileOwnerName(prof){ try{ const s=JSON.parse(readProfile('qr_pwa_v2',prof)||'{}'); return s.myName||''; }catch(e){ return ''; } }
 function otherProfile(){ return window.ACTIVE_PROFILE==='partner'?'me':'partner'; }
@@ -5004,7 +5036,7 @@ function renderTools(){
   }).join('');
   el.innerHTML=
    '<div class="card" style="margin-bottom:12px;">'+
-    '<div class="tc-title">⏱ Time check</div>'+
+    '<div class="tc-title">⏱ Time check <button type="button" class="hb" onclick="openHelp(\'timecheck\',event)" aria-label="How to use this">?</button></div>'+
     '<div class="tab-row" style="margin-bottom:8px;">'+
       '<button class="tab-btn'+(back?'':' active')+'" onclick="tcSetMode(\'fwd\')">▶ From a start time</button>'+
       '<button class="tab-btn'+(back?' active':'')+'" onclick="tcSetMode(\'back\')">◀ Back from a finish</button></div>'+
@@ -5027,14 +5059,14 @@ function renderTools(){
     '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcClear()">Clear steps</button>'+
    '</div>'+
    '<div class="card" style="margin-bottom:12px;">'+
-    '<div class="tc-title">🍽 Meal window</div>'+
+    '<div class="tc-title">🍽 Meal window <button type="button" class="hb" onclick="openHelp(\'mealwindow\',event)" aria-label="How to use this">?</button></div>'+
     '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">For non-revenue cards (AR / control as required, shunt, prep…). Enter your start and finish to get the shift length and your 60-minute meal break.</div>'+
     '<div class="form-row"><div class="form-group"><label class="form-label">Start</label><input type="time" class="form-input" id="mw-on" oninput="mealCalc()"></div>'+
     '<div class="form-group"><label class="form-label">Finish</label><input type="time" class="form-input" id="mw-off" oninput="mealCalc()"></div></div>'+
     '<div id="mw-result" class="tc-result"><span style="color:var(--muted);">Enter start and finish.</span></div>'+
    '</div>'+
    '<div class="card" style="margin-bottom:12px;">'+
-    '<div class="tc-title">My times</div>'+
+    '<div class="tc-title">My times <button type="button" class="hb" onclick="openHelp(\'mytimes\',event)" aria-label="How to use this">?</button></div>'+
     '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Walks and runs used above. Filled in from the Roster Protocols, the traincrew times card and your job cards; blank ones aren\'t in those documents. Change any to match what you know — saved on this phone.</div>'+
     tcMyTimesHtml()+
     '<button class="btn btn-sm" style="margin-top:8px;" onclick="tcResetMy()">Reset to document times</button>'+
@@ -5145,7 +5177,7 @@ function renderPartnerToday(){
   };
   const nd=next?parseDate(next.ds):null;
   el.innerHTML='<div class="card" style="padding:12px 14px;margin-bottom:10px;border:1px solid rgba(124,58,237,.55);background:linear-gradient(180deg,rgba(124,58,237,.16),rgba(124,58,237,.06));">'+
-    '<div style="display:flex;align-items:center;margin-bottom:8px;"><b style="font-size:14px;">👤 '+escHtml(o.name)+'</b>'+
+    '<div style="display:flex;align-items:center;margin-bottom:8px;"><b style="font-size:14px;">👤 '+escHtml(o.name)+'</b><button type="button" class="hb" onclick="openHelp(\'partnercard\',event)" aria-label="How to use this">?</button>'+
       '<button class="pf-pill" type="button" style="margin-left:auto;font-size:11px;padding:4px 9px;" onclick="switchProfile(otherProfile())">Switch ⇄</button></div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'+
       '<div style="background:rgba(0,0,0,.18);border-radius:10px;padding:8px 10px;"><div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;">Today</div>'+shiftHtml(oi)+'</div>'+
@@ -5203,7 +5235,7 @@ function renderDash(){
     return d>now&&!sent;
   }).sort(function(a,b){ return a.wc.localeCompare(b.wc); });
   if(futureSwaps.length){
-    emailEl.innerHTML='<div class="section-label">Swap Email Due</div>'+
+    emailEl.innerHTML='<div class="section-label">Swap Email Due <button type="button" class="hb" onclick="openHelp(\'swapemail\',event)" aria-label="How to use this">?</button></div>'+
       firstFewThenMore(futureSwaps.map(function(sw){
         const wcDate=parseDate(sw.wc);
         // Email due 3 days before WC
@@ -5546,7 +5578,7 @@ function renderCal(){
       html+='<button class="cal-cycle-chip'+(over?' over':'')+'" onclick="showCycleInfo(\''+fmtDate(c)+'\')">Cycle '+fmtDDMM(ch.start)+'–'+fmtDDMM(ch.end)+' · <b>'+fmtH(ch.total)+'</b> / '+ch.target+'h'+(over?' · +'+fmtH(ch.excess):'')+'</button>';
       c=addDays(c,28);
     }
-    el.innerHTML=html;
+    el.innerHTML=html?'<div style="display:flex;align-items:center;margin:8px 2px 0;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Work cycles<button type="button" class="hb" onclick="openHelp(\'cycles\',event)" aria-label="How to use this">?</button></div>'+html:'';
   })();
 
   // Shift finder status for this month — reflects current sff-type selection
@@ -9427,13 +9459,10 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-11-13';
+const APP_VERSION='2026-11-18';
 const WHATS_NEW=[
-  'Pay: shifts that run past midnight are split at midnight. A Friday night shift gets the Saturday rate from midnight. A BLP worked into another BLP/SLP stays at the BLP rate for the whole shift; into a working day, the hours after midnight take that day\'s rate.',
-  'Pay: Saturday, Sunday and public holiday penalties now count for shifts worked as rostered, not only days you typed times into. Long Service Leave shows as its own line in the pay breakdown.',
-  'Roster: the new roster PDF layout imports, and the PDF reader is more reliable on phones.',
-  'Swaps: a BLP you give away keeps its start time when edited, the Shift Finder keeps every swapped week, and Swap History has bigger buttons.',
-  'Pull down from the top of any tab to refresh.'
+  'Help: tap the small ? next to any feature for a quick explanation and step-by-step how-to.',
+  'Home now always shows a short note: this app is a guide only. Your posted roster, payslip and the Enterprise Agreement come first.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
@@ -9442,7 +9471,11 @@ function showWhatsNew(){
   if(!seen&&!S.anchorLink) return; // a brand-new install doesn't need the update notes
   const el=document.getElementById('whats-new'); if(!el) return;
   el.innerHTML='<div class="card whats-new"><div style="display:flex;align-items:center;margin-bottom:6px;"><b>✨ What\'s new in this update</b><button onclick="document.getElementById(\'whats-new\').innerHTML=\'\'" style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">×</button></div>'+
-    '<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.5;">'+WHATS_NEW.map(function(x){ return '<li>'+escHtml(x)+'</li>'; }).join('')+'</ul></div>';
+    '<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.5;">'+WHATS_NEW.map(function(x){ return '<li>'+escHtml(x)+'</li>'; }).join('')+'</ul>'+
+    // Every update: remind people their data lives only on this phone
+    '<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.45);font-size:12.5px;line-height:1.45;">'+
+      '<b>💾 Back up now, or you could lose your data.</b> Your roster, swaps, claims and settings are saved only on this phone. A new phone, deleting the app or clearing your browser wipes them. Save a backup file somewhere safe (email it to yourself or put it in Files / Google Drive).'+
+      '<button class="btn btn-accent btn-sm" style="width:100%;margin-top:8px;" onclick="exportBackup()">⬇ Back Up Now</button></div></div>';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -9643,5 +9676,140 @@ function initApp(){
   }
 })();
 </script>
+<!-- ═══ HOW-TO POP-UPS: the small "?" next to each feature calls openHelp('key') ═══ -->
+<div class="modal-overlay" id="help-modal" style="display:none;z-index:260;" onclick="if(event.target===this)closeHelp()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="help-title">Help</div>
+    <div class="help-body" id="help-body"></div>
+    <button class="btn btn-accent btn-full" style="margin-top:14px;" onclick="closeHelp()">Got it</button>
+  </div>
+</div>
+<script>
+// Each entry: t = title, w = what it is, h = how to use (steps), x = extra points, tip = handy tip
+const HELP={
+  home:{t:'🚂 Home',w:'Your day at a glance: the link you\'re on this week, today\'s and your next shift, swap emails coming up and any alerts.',
+    h:['Check <b>Current Link</b> and <b>Today</b> when you open the app.','Tap the <b>Today</b> card to change today\'s shift (e.g. a late call-in or new job).','Use the menu at the bottom to move between Calendar, Swaps, Claims, Pay and more.','Tap ⚙ (top right) to set your link, import your roster and change settings.'],
+    tip:'Every feature has a small <b>?</b> like this one. Tap it any time you\'re unsure what something does.'},
+  link:{t:'Current Link',w:'The roster line (link) you\'re working this week, and the week it starts (W/C = week commencing, always a Monday).',
+    x:['If you\'ve swapped this week, it shows the link you swapped onto, with your rostered link underneath.','The app works out your link each week from the link and Monday you set in Settings, so it moves on by itself.'],
+    h:['First time: go to ⚙ Settings → <b>My Roster Link</b>, enter your link this week and that week\'s Monday, then tap <b>Save Link</b>.'],
+    tip:'If the link looks wrong, check the link and Monday you saved in Settings.'},
+  today:{t:'Today & Next Shift',w:'What you\'re rostered for today and your next working shift: start/finish time, job number and any swap or edit.',
+    h:['Tap the <b>Today</b> card to edit today\'s shift.','For any other day, go to <b>Calendar</b>, tap the day, then <b>Edit Shift</b>.'],
+    tip:'Times come from your imported roster and job cards. Always check the posted roster for the final say.'},
+  partnercard:{t:'Partner\'s shifts',w:'Your partner\'s shift today and their next shift, shown next to yours, so you can both see who\'s working when.',
+    h:['Tap <b>Switch ⇄</b> to open your partner\'s roster (calendar, swaps, pay).','Tap it again (or the name at the top) to switch back to yours.','Set up or remove the partner in ⚙ Settings → <b>Partner\'s Roster</b>.']},
+  alerts:{t:'Alerts',w:'Warnings the app spots in your roster, for example a swap or edited shift that may break a roster rule (rest between shifts, too many hours) or a claim to follow up.',
+    h:['Read the alert, then tap it (or the day in the Calendar) for details.','Fix the shift or swap if needed, or check it with the Roster Office.'],
+    tip:'Alerts are a guide only. The Enterprise Agreement and Roster Office have the final say.'},
+  swapemail:{t:'Swap Email Due',w:'A reminder to send your swap request email before the swap week. The card counts down to 3 days before the week starts.',
+    h:['Tap the card to see or change the swap.','Send the email to rostering (use the button on the card if there is one).','Mark it as sent so the reminder goes away.']},
+
+  cal:{t:'📅 Calendar',w:'Your whole roster month by month: every shift time, rest day (BLP/SLP), leave, swap, public holiday and event.',
+    h:['Swipe or use ‹ › to change month. Tap the link badge to jump back to today.','Tap any day to see the details, meal windows and rule checks.','In that panel, tap <b>Edit Shift</b> to change the day or <b>+ Event</b> to add an appointment.','🌙/☀️ switches the calendar between night and day colours.'],
+    tip:'Open <b>Legend</b> at the bottom to see what each colour and label means.'},
+  legend:{t:'Calendar legend',w:'A key for the colours, labels and marks on the calendar.',
+    x:['<b>Start time colour</b>: early AM, AM or PM shift.','<b>Labels</b>: BLP/SLP rest days, AM/PM spares, AFA/AFP, leave types, swaps, book-offs and public holidays.','<b>Borders and marks</b>: today, shifts you\'ve edited, first day of a 4-week cycle, and ⚠ when a day may break a roster rule.']},
+  cycles:{t:'Work cycle hours',w:'Each 4-week cycle that touches this month, with the hours credited so far against the cycle target. Over the target shows as excess time (+hours).',
+    h:['Tap a cycle to see how the hours add up, day by day.','Check your cycle start in ⚙ Settings → Pay Settings if the dates look wrong.'],
+    tip:'An estimate from your roster and edits. Check your payslip for the real figures.'},
+  editshift:{t:'Edit a shift',w:'Change one day: shift type, start/finish, job number, crew, notes, or record a swap for just that day.',
+    h:['Pick the <b>Shift Type</b> (e.g. working, BLP, AL, sick).','Enter the <b>Start</b> and <b>Finish</b> times or a <b>Job Number</b>. With job cards imported, the times fill in for you.','Add notes if you like, then tap <b>Save</b>.','<b>Reset</b> puts the day back to what the roster says.','<b>📄 Add Claim</b> starts a claim (e.g. meal) for this shift.'],
+    tip:'Edited days get a coloured border on the calendar so you can see what you\'ve changed.'},
+
+  swaps:{t:'⇄ Swaps',w:'Record swaps with other drivers or guards, see how the weeks compare, find shifts to swap and keep a history.',
+    h:['<b>Record a Swap</b>: whole week, single day or part week.','<b>BLP Swap</b>: swap a rest day for someone else\'s working day.','<b>Shift Finder</b>: list the weeks you have a certain shift (e.g. PM3) to post for swaps.','<b>Swap History</b>: every swap you\'ve recorded. Tap one to edit or delete it.']},
+  recordswap:{t:'Record a Swap',w:'Save a swap so your calendar, Home screen and pay estimate all show the link you\'re actually working.',
+    h:['Enter <b>My Link</b> or the <b>W/C Date</b> (the Monday). The other one fills in.','Enter the other person\'s name and <b>Other Link</b>.','Pick the scope: <b>Whole Week</b>, <b>Single Day</b>, <b>Mon–Fri</b> or <b>Mon–Sat</b>.','Check the side-by-side comparison and any rule warnings.','Tap <b>Record Swap</b>.'],
+    tip:'Mon–Fri and Mon–Sat swaps keep your own weekend days. The app warns you if the rest days don\'t balance.'},
+  blpswap:{t:'BLP Swap',w:'Swap one of your BLP rest days for someone else\'s working day: you work their shift and they take your rest day (or the other way round).',
+    h:['Tap <b>BLP Swap</b> to open it.','Pick the <b>W/C Date</b>. Your BLP days that week show up.','Enter the other driver\'s name.','Tap the day you\'re receiving, and add their shift time or job number if you know it.','Tap <b>Record BLP Swap</b>.'],
+    tip:'Your pay estimate counts the BLP rate for a worked BLP day.'},
+  shiftfinder:{t:'Shift Finder',w:'Lists every upcoming week where your roster has the shift type you pick, e.g. AM3 or PM3. Handy when posting shifts you want to swap away (or looking for ones you want).',
+    h:['Pick the year and the shift type from the list.','Tick the weeks you want, or tap <b>Select All</b>.','Tap <b>📋 Copy Selected</b> and paste the list into a group chat or swap post.'],
+    tip:'The calendar also shows how many of that shift type are in the month you\'re looking at.'},
+  swaphistory:{t:'Swap History',w:'Every swap you\'ve recorded, past and future.',h:['Tap <b>Show</b> to open the list.','Tap a swap to edit or delete it.']},
+
+  claims:{t:'📄 Claims',w:'Keep track of claims you need to put in (meal, out depot, brought forward, deferred, emergency working) so none get missed.',
+    h:['Tap <b>+ New</b> (or <b>📄 Add Claim</b> when editing a shift).','Pick the claim type, date and job number. Add an incident number if there is one.','Save it. It sits under <b>Pending</b>.','Once you\'ve submitted it at work, enter the submission date. It moves to <b>Submitted</b>.'],
+    tip:'The <b>Open Claims</b> number on Home shows how many are still pending.'},
+  jobsearch:{t:'Job card search',w:'Look up any job from your imported job cards by job number or start time.',
+    h:['Type a job number (e.g. PB019) or a start time (e.g. 16:30).','Pick a day of the week if job cards differ by day.','Tap a result to see the full job details.'],
+    tip:'Import job cards first: ⚙ Settings → <b>Import Job Cards PDF</b>.'},
+
+  pay:{t:'💰 Pay & Leave',w:'Your leave balances, planned leave and an estimate of your next fortnight\'s pay from your roster, swaps and edits.',
+    h:['Keep <b>Leave Balances</b> up to date from your payslip.','Add <b>Planned Leave</b> to see what your balances will be.','Check <b>Projected Fortnightly Pay</b>, then enter your real pay when it arrives to compare.'],
+    tip:'Pay figures are estimates only. Your payslip is always right.'},
+  leavebal:{t:'Leave Balances',w:'Hours of Annual Leave, Long Service Leave and Personal/Carer\'s leave you have, with the days they work out to.',
+    h:['Copy the balances from your latest payslip.','Tap a balance to change it. Every change is saved in <b>Balance Adjustment History</b>.']},
+  plannedleave:{t:'Planned Leave',w:'Leave you\'ve booked or are planning. It shows on the calendar and in your projected balances.',
+    h:['Tap <b>+ Add Leave</b>.','Pick the leave type and the start and end dates.','Save. The card at the top shows your balance after the leave.']},
+  projpay:{t:'Projected Fortnightly Pay',w:'An estimate of your gross and take-home pay for the fortnight, from your rostered shifts, weekend and BLP rates, public holidays, excess time and leave.',
+    h:['Use ‹ › to look at other fortnights.','Open the breakdown to see how each part is worked out.','When pay day comes, enter your <b>actual net pay</b> to save it and see the difference in Statistics.'],
+    x:['Rates come from ⚙ Settings → <b>Pay Settings</b>. Set your hourly rate and tax rate there.'],
+    tip:'Estimate only. Allowances, back pay and tax can make your real pay different.'},
+  leaveadj:{t:'Balance Adjustment History',w:'A log of every change to your leave balances, so you can see when and by how much each one changed.'},
+
+  contacts:{t:'👥 Contacts',w:'Phone numbers for guards, drivers and QR numbers, saved only on your phone.',
+    h:['Tap <b>+ Add</b> to add someone, or <b>⬆ Import</b> a CSV or PDF list.','Switch between <b>Guards</b>, <b>Drivers</b> and <b>QR Nos</b>, or use the search box.','Tap a contact to call, text or edit.']},
+  stats:{t:'📊 Statistics',w:'Your pay history (estimate vs what you were actually paid) plus totals for the year and your lifetime in the app: shifts, hours, swaps, leave and more.',
+    h:['Tap a pay period to see the details.','Switch between <b>This Year</b> and <b>Lifetime</b>.']},
+  payhistory:{t:'Pay History',w:'Each fortnight\'s pay estimate next to the actual pay you entered, with the difference.',
+    h:['On the Pay tab, enter your actual net pay when you get paid.','It shows here. Green means you got more than the estimate, red means less.']},
+
+  tools:{t:'🧰 Tools',w:'Handy calculators: time checks for walks/preps/runs, meal break windows, and the Rules in plain English.'},
+  timecheck:{t:'Time check',w:'Adds up walk, prep and run times to see if the time you\'ve been given is enough, or works back from a finish time to see when you need to leave.',
+    h:['Pick <b>From a start time</b> or <b>Back from a finish</b>.','Enter the time and where you\'re starting from.','Add each step (walk, prep, run, etc.) with <b>+ Add</b>. Change the minutes if you need to.','Read the result at the bottom.'],
+    tip:'Typical times only. Always follow the times control gives you.'},
+  mealwindow:{t:'Meal window',w:'For cards without set meal times (e.g. AR, shunt, prep): works out your shift length and when your meal break should fall.',
+    h:['Enter your start and finish times.','The result shows the shift length and the window for your 60-minute meal break.']},
+  mytimes:{t:'My times',w:'The walk and run times the Time check uses. They come from the Roster Protocols, the traincrew times card and your job cards.',
+    h:['Change any time to match what you know. It\'s saved on this phone.','Blank ones aren\'t in those documents. Fill them in if you know them.']},
+  rules:{t:'📘 Rules',w:'The Traincrew Enterprise Agreement and SEQ Roster Protocols in plain English: rest breaks, swaps, meal breaks, leave, pay rates and more.',
+    h:['Type in the search box (e.g. "swap", "12 hours", "meal").','Tap a rule to read it. The clause number lets you find it in the official document.'],
+    tip:'A plain-English summary only. The official Enterprise Agreement always comes first.'},
+
+  settings:{t:'⚙ Settings',w:'Set the app up for you: your link, roster file, pay rates, leave, backups and sharing.',
+    h:['<b>Start here:</b> enter your name, driver/guard, your link this week and its Monday, then tap <b>Save Link</b>.','Import your roster file, and your job cards if you have them.','Set your pay rates so the pay estimate is close.','Tap <b>⬇ Export Backup</b> now and then and keep the file safe.']},
+  mylink:{t:'My Roster Link',w:'Tells the app who you are and where you are in the roster, so every week works out from this.',
+    h:['Enter your name and pick <b>Driver</b> or <b>Guard</b>.','Enter <b>My Link This Week</b> and the <b>Monday</b> that week starts.','Tap <b>Save Link</b>.','Import your roster file below so the shift times show.']},
+  importroster:{t:'Import your roster',w:'Loads every link\'s shifts from the roster file rostering sends out, so the app knows your times for every week.',
+    h:['Save the roster PDF (or .txt) to your phone, e.g. from email.','Tap <b>📄 Import Roster File</b> and pick the file.','Wait for the "imported" message, then check a few days on the Calendar.'],
+    tip:'When a new roster comes out, import the new file. Your swaps and edits stay.'},
+  importjobcards:{t:'Job cards',w:'Job cards list each job\'s sign-on, sign-off and work. Once imported, typing a job number fills in the times, and you can search jobs on the Claims tab.',
+    h:['Save the job card PDF(s) to your phone.','Tap <b>🗂 Import Job Cards PDF</b> and pick one or more files.']},
+  paysettings:{t:'Pay Settings',w:'The rates the pay estimate uses.',
+    x:['<b>Hourly Rate</b>: your base rate per hour (from your payslip).','<b>Cycle start / nine-day fortnight</b>: so the fortnights and 4-week cycles line up with payroll.','<b>Loadings</b>: Saturday, Sunday, BLP/SLP, public holiday and excess time rates.','<b>Tax Rate</b>: a rough % to estimate take-home pay.'],
+    h:['Fill in what you know (most have sensible defaults), then tap <b>Save Pay Settings</b>.']},
+  backup:{t:'Backup & Restore',w:'Everything is stored only on this phone. A backup file lets you get it all back on a new phone, or if the app gets cleared.',
+    h:['Tap <b>⬇ Export Backup</b> and save the file somewhere safe (email it to yourself, Files, Google Drive).','On a new phone, open the app and tap <b>⬆ Import Backup</b>, then pick that file.'],
+    tip:'Deleting the app or clearing browser data wipes it. Export a backup every few weeks.'},
+  partner:{t:'Partner\'s Roster',w:'Keep a second roster (e.g. your partner\'s) in the same app and switch between the two. Their shifts show on your Home screen too.',
+    h:['Tap to add a partner and give them a name.','Use the switch at the top of any screen to change rosters.','On their side, import their roster file and set their link, the same as yours.','Remove the partner here when you no longer need it.']},
+  familysync:{t:'Family Sync',w:'Shares your roster live with someone else\'s phone (e.g. a partner) using a private PIN.',
+    h:['On your phone pick <b>Owner</b>, make up a PIN (e.g. BLUE-TRAIN-42) and tap <b>Connect</b>.','On their phone pick <b>Person 2</b>, enter the same PIN and tap <b>Connect</b>.','They now see your roster and it updates when you change it.','Tap <b>Disconnect Sync</b> to stop sharing.'],
+    tip:'Anyone with the PIN can see your roster, so keep it private and make it hard to guess.'},
+  report:{t:'Report a problem',w:'Tell the app\'s maker about a bug or something that looks wrong.',
+    h:['Describe what happened and what you expected (e.g. "Saturday pay shows 100% instead of 150%").','Tap <b>📨 Send Report</b>.']}
+};
+function openHelp(key,ev){
+  if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+  const d=HELP[key]; if(!d) return;
+  let h='';
+  if(d.w) h+='<p>'+d.w+'</p>';
+  if(d.x) h+='<ul>'+d.x.map(function(s){ return '<li>'+s+'</li>'; }).join('')+'</ul>';
+  if(d.h) h+='<h4>How to use it</h4><ol>'+d.h.map(function(s){ return '<li>'+s+'</li>'; }).join('')+'</ol>';
+  if(d.tip) h+='<div class="help-tip">💡 '+d.tip+'</div>';
+  h+='<div class="help-note">Guide only. Your posted roster, payslip and the Enterprise Agreement always come first.</div>';
+  document.getElementById('help-title').textContent=d.t;
+  document.getElementById('help-body').innerHTML=h;
+  const m=document.getElementById('help-modal'); m.style.display='flex'; m.classList.add('open');
+  const b=m.querySelector('.modal'); if(b) b.scrollTop=0;
+}
+function closeHelp(){ const m=document.getElementById('help-modal'); m.style.display='none'; m.classList.remove('open'); }
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ const m=document.getElementById('help-modal'); if(m&&m.style.display!=='none') closeHelp(); } });
+</script>
+
 </body>
 </html>
