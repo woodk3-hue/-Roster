@@ -3466,6 +3466,7 @@ function startSync(){
       }catch(e){ console.warn('Synced job cards could not be read',e); }
     }
     if(syncRole!=='owner'){ if(data.ownerName) localStorage.setItem('sync_owner_name',data.ownerName); applyPartnerSync(data); }
+    else if(data.partnerDays) applyPartnerDays(data);
     localStorage.setItem(STATE_KEY,JSON.stringify(S));
     refreshAllScreens();
   };
@@ -3531,13 +3532,44 @@ function pushPartnerSync(){
       .then(function(){ try{ localStorage.setItem(sentKey,sig); }catch(e){} }).catch(function(){});
   }
 }
+// Person 2 is the Owner's partner: on their own roster (the partner side of their app) they can edit
+// their own shifts. Each edit goes to roster/<PIN>/partnerDays/<date>; the Owner's app takes it into
+// the Partner's Roster and clears it. Swaps, leave and the Owner's roster stay with the Owner.
+function p2EditsOwn(){ return syncEnabled&&syncRole==='partner'&&window.ACTIVE_PROFILE==='partner'; }
+function sendPartnerDay(ds){
+  if(!p2EditsOwn()) return;
+  if(!fbDb&&!initFirebase()) { toast('Saved on this phone — it will reach your partner when you\'re online'); }
+  const d=S.days[ds]?JSON.parse(JSON.stringify(S.days[ds])):{deleted:true};
+  d._ts=Date.now();
+  try{
+    fbDb.ref(syncPath('/partnerDays/'+ds)).set(d).then(function(){ toast('Sent to '+profileLabel('me')); }).catch(function(e){ toast(syncErrorText(e)); });
+  }catch(e){}
+}
+// Owner: take Person 2's own edits into the Partner's Roster, then clear them and send the result back
+function applyPartnerDays(data){
+  const pd=data&&data.partnerDays; if(!pd||!partnerName()) return;
+  let st=null; try{ st=JSON.parse(readProfile('qr_pwa_v2','partner')||'null'); }catch(e){}
+  if(!st) return;
+  st.days=st.days||{};
+  const n=Object.keys(pd).length;
+  Object.keys(pd).forEach(function(ds){ const d=Object.assign({},pd[ds]); delete d._ts; if(d.deleted) delete st.days[ds]; else st.days[ds]=d; });
+  const key=window.ACTIVE_PROFILE==='partner'?'qr_pwa_v2':'P2:qr_pwa_v2';
+  try{ Storage.prototype.setItem.call(localStorage,key,JSON.stringify(st)); }catch(e){}
+  fbDb.ref(syncPath('/partnerDays')).remove().catch(function(){});
+  pushPartnerSync();
+  toast(partnerName()+' updated '+n+' shift'+(n>1?'s':''));
+  if(currentScreen==='cal') renderCal();
+  renderDash();
+}
 // Person 2: keep the Owner's partner's roster beside the Owner's (shown in purple, switch with 👤)
 function applyPartnerSync(data){
   const P2set=function(k,v){ try{ Storage.prototype.setItem.call(localStorage,'P2:'+k,v); }catch(e){} };
   const P2del=function(k){ try{ Storage.prototype.removeItem.call(localStorage,'P2:'+k); }catch(e){} };
   if(data.partner&&data.partner.state&&data.partner.state.anchorLink){
     localStorage.setItem('partner_name',data.partner.name||'Partner');
-    P2set('qr_pwa_v2',JSON.stringify(Object.assign({leave:{},claims:[],contacts:[]},data.partner.state)));
+    const ps=Object.assign({leave:{},claims:[],contacts:[]},data.partner.state); ps.days=ps.days||{};
+    if(data.partnerDays) Object.keys(data.partnerDays).forEach(function(ds){ const d=Object.assign({},data.partnerDays[ds]); delete d._ts; if(d.deleted) delete ps.days[ds]; else ps.days[ds]=d; });
+    P2set('qr_pwa_v2',JSON.stringify(ps));
     if(data.partnerRoster&&data.partnerRoster.json&&data.partnerRoster.sig!==localStorage.getItem('p2roster_sync_sig')){
       P2set('roster_data',data.partnerRoster.json); localStorage.setItem('p2roster_sync_sig',data.partnerRoster.sig);
     }
@@ -5999,7 +6031,7 @@ let shiftModalDate=null;
 let shiftModalDs=null;
 function openShiftModal(ds){
   shiftModalDs=ds;
-  if(syncRole==='partner'){ toast('Partner view — cannot edit shifts'); return; }
+  if(syncRole==='partner'&&!p2EditsOwn()){ toast('Partner view — you can edit your own shifts: tap 👤 to switch to your roster'); return; }
   shiftModalDate=ds;
   const d=parseDate(ds);
   const idx=dayIdx(d);
@@ -6084,7 +6116,7 @@ function syncSickLeaveDeduction(ds, ov){
 }
 
 function saveShift(){
-  if(syncRole==='partner'){ toast('Partner view — cannot edit shifts'); return; }
+  if(syncRole==='partner'&&!p2EditsOwn()){ toast('Partner view — cannot edit shifts'); return; }
   const ds=shiftModalDate;
   const type=document.getElementById('sm-type').value;
   const start=document.getElementById('sm-start').value;
@@ -6152,6 +6184,7 @@ function saveShift(){
   closeShiftModal();
   if(currentScreen==='cal'){ renderCal(); if(dayPanelDate===ds) renderDayPanel(ds); }
   if(currentScreen==='dash') renderDash();
+  if(p2EditsOwn()) sendPartnerDay(ds);
   toast('Saved');
 }
 function keepDayAsBLP(){
@@ -6168,6 +6201,8 @@ function keepDayAsBLP(){
 
 function resetShift(){
   const ds=shiftModalDate;
+  if(syncRole==='partner'&&!p2EditsOwn()) return;
+  if(p2EditsOwn()) setTimeout(function(){ sendPartnerDay(ds); },0);
   if(S.days[ds]){
     S.bin.push({id:uid(),kind:'shift',data:{date:ds,...S.days[ds]},deletedAt:new Date().toISOString()});
     // If day belongs to a week swap, restore clean swap state not original roster
