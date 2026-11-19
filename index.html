@@ -662,6 +662,11 @@ body.day-mode #day-panel{background:rgba(240,242,248,0.97);}
   box-shadow:0 2px 8px var(--accent-glow);
 }
 
+/* ── BREAK BEFORE THE NEXT SHIFT ── */
+.rest-next{margin-top:6px;padding:6px 9px;border-radius:8px;background:var(--surface2);font-size:12px;line-height:1.4;color:var(--text);}
+.rest-next.short{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.45);color:#fca5a5;}
+body.day-mode .rest-next.short,.day-mode .rest-next.short{color:#b91c1c;}
+
 /* ── HELP "?" BUTTONS ── */
 .hb{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;min-width:18px;margin-left:5px;padding:0;border-radius:50%;
   border:1.5px solid var(--accent);background:transparent;color:var(--accent);font:800 11px/1 system-ui,sans-serif;cursor:pointer;vertical-align:middle;
@@ -4321,6 +4326,33 @@ function ruleShortRest(prev,next){
   const gap=Math.round((next.start-prev.end)/60000);
   return gap<720?gap:null;
 }
+// "11 hours 30 min" in plain words
+function gapWords(m){
+  const h=Math.floor(m/60), r=m%60;
+  return (h?h+' hour'+(h===1?'':'s'):'')+(h&&r?' ':'')+(r||!h?r+' min':'');
+}
+// Break between this day's shift finish and the next day's start (Home Today card and day panel)
+function restToNextHtml(ds,isToday){
+  const f=ruleDayFacts(ds);
+  if(!f.work||f.end==null) return '';
+  const nextDs=fmtDate(addDays(parseDate(ds),1)), n=ruleDayFacts(nextDs);
+  const tmw=isToday?'tomorrow\'s':ruleDayName(nextDs).split(' ')[0]+'\'s';
+  if(n.work&&n.start!=null){
+    const m=Math.round((n.start-f.end)/60000);
+    if(m<0) return '<div class="rest-next short">⚠ This shift overlaps '+tmw+' shift (starts '+escHtml(n.startStr)+').</div>';
+    const short=m<720;
+    return '<div class="rest-next'+(short?' short':'')+'">'+(short?'⚠ ':'⏳ ')+'<b>'+gapWords(m)+'</b> between this shift and '+tmw+' shift at '+escHtml(n.startStr)+(short?'. That\'s under 12 hours.':'.')+'</div>';
+  }
+  // Next day isn't a worked shift: say when the next one is
+  for(let i=2;i<=14;i++){
+    const ds2=fmtDate(addDays(parseDate(ds),i)), g=ruleDayFacts(ds2);
+    if(g.work&&g.start!=null){
+      const m=Math.round((g.start-f.end)/60000);
+      return '<div class="rest-next">🛌 Day off '+(isToday?'tomorrow':ruleDayName(nextDs).split(' ')[0])+'. <b>'+gapWords(m)+'</b> until your next shift ('+ruleDayName(ds2)+' '+escHtml(g.startStr)+').</div>';
+    }
+  }
+  return '<div class="rest-next">🛌 Day off '+(isToday?'tomorrow':ruleDayName(nextDs).split(' ')[0])+'.</div>';
+}
 
 // Rule problems for one day: [{c:'82.1', msg:'…', side:'after'?}]
 function dayRuleIssues(ds){
@@ -5426,7 +5458,8 @@ function dashTodayHtml(ds,info){
   const end=info.end||f.endStr||'';
   const len=(f.start!=null&&f.end!=null)?Math.round((f.end-f.start)/60000):null;
   let h='<div class="shift-preview-time">'+escHtml(info.start)+(end?'–'+escHtml(end):'')+'</div>'+
-    (len!=null?'<div class="shift-preview-meta">'+ruleGap(len)+' shift</div>':'');
+    (len!=null?'<div class="shift-preview-meta">'+ruleGap(len)+' shift</div>':'')+
+    restToNextHtml(ds,ds===fmtDate(today()));
   // Job number and what it is
   if(jb){
     const d=decodeJob(job);
@@ -5962,6 +5995,7 @@ function renderDayPanel(ds){
   if(!leaveTypeKey){
     // What the job number means — only when there's no job card to show (the card shows the sector)
     if(sh.time&&cardJob&&!jobCardFor(cardJob)&&jobDecodeText(cardJob,sh.time)) html+='<div class="job-decode">🔎 '+escHtml(jobDecodeText(cardJob,sh.time))+' <a href="#" class="rule-ref" style="font-size:11px;" onclick="openRules(\'job card numbers\');return false;">RP 2.13</a></div>';
+    html+=restToNextHtml(ds,ds===fmtDate(today()));
     html+=mealWindowsHtml(ruleDayFacts(ds),cardJob,ds);
     const allIss=dayRuleIssues(ds), acks=ruleAcksFor(ds);
     const act=allIss.filter(function(x){ return acks.indexOf(x.c)<0; }), agreed=allIss.filter(function(x){ return acks.indexOf(x.c)>-1; });
@@ -9695,7 +9729,7 @@ const HELP={
     x:['If you\'ve swapped this week, it shows the link you swapped onto, with your rostered link underneath.','The app works out your link each week from the link and Monday you set in Settings, so it moves on by itself.'],
     h:['First time: go to ⚙ Settings → <b>My Roster Link</b>, enter your link this week and that week\'s Monday, then tap <b>Save Link</b>.'],
     tip:'If the link looks wrong, check the link and Monday you saved in Settings.'},
-  today:{t:'Today & Next Shift',w:'What you\'re rostered for today and your next working shift: start/finish time, job number and any swap or edit.',
+  today:{t:'Today & Next Shift',w:'What you\'re rostered for today and your next working shift: start/finish time, job number and any swap or edit. It also shows the break between today\'s finish and tomorrow\'s start (red if it\'s under 12 hours).',
     h:['Tap the <b>Today</b> card to edit today\'s shift.','For any other day, go to <b>Calendar</b>, tap the day, then <b>Edit Shift</b>.'],
     tip:'Times come from your imported roster and job cards. Always check the posted roster for the final say.'},
   partnercard:{t:'Partner\'s shifts',w:'Your partner\'s shift today and their next shift, shown next to yours, so you can both see who\'s working when.',
