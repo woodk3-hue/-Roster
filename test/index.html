@@ -1715,12 +1715,12 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
     <div class="form-group">
       <label class="form-label">4-week cycle starts (a Monday)</label>
-      <input type="date" class="form-input" id="set-cyclestart">
+      <input type="date" class="form-input" id="set-cyclestart" onchange="saveDateSetting('cycleStart',this)">
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">Used for cycle hours, excess time and pay fortnights.</div>
     </div>
     <div class="form-group">
       <label class="form-label">Nine-day fortnight starts</label>
-      <input type="date" class="form-input" id="set-ninedayfrom">
+      <input type="date" class="form-input" id="set-ninedayfrom" onchange="saveDateSetting('nineDayFrom',this)">
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">From this date: 152h cycles, max 9 attendances / min 5 leisure days a fortnight, and the lower leave accrual rates (EBA 80.2, 93.3). Change it if the start date moves. When it starts, also set guaranteed hours to 76 and your new hourly rate.</div>
     </div>
     <div class="form-row">
@@ -4862,6 +4862,14 @@ function openRules(q){
   if(typeof closeDayPanel==='function'&&dayPanelDate) closeDayPanel();
   showScreen('rules');
 }
+// Rule text says "31 Dec 2026" (the EBA date); show the nine-day start set in Pay Settings instead
+function nineDayRule(r){
+  const d=parseDate(nineDayFromDs());
+  const sh=d.getDate()+' '+d.toLocaleDateString('en-AU',{month:'short'})+' '+d.getFullYear();
+  const lg=d.getDate()+' '+d.toLocaleDateString('en-AU',{month:'long'})+' '+d.getFullYear();
+  const fix=function(s){ return String(s||'').replace(/31 December 2026/g,lg).replace(/31 Dec 2026/g,sh); };
+  return Object.assign({},r,{t:fix(r.t),b:fix(r.b)});
+}
 function renderRules(elId,query){
   const el=document.getElementById(elId||'rules-content'); if(!el) return;
   if(query==null) query=rulesQuery;
@@ -4887,7 +4895,7 @@ function renderRules(elId,query){
   const match=function(r){ const s=(r.c+' '+r.t+' '+r.b+' '+(r.html||'').replace(/<[^>]+>/g,' ')).toLowerCase(); return words.every(function(w){ return s.indexOf(w)>-1; }); };
   let found=0;
   RULE_GROUPS.forEach(function(gr){
-    const list=RULES.filter(function(r){ return r.g===gr[0]&&match(r); });
+    const list=RULES.map(nineDayRule).filter(function(r){ return r.g===gr[0]&&match(r); });
     if(!list.length) return;
     found+=list.length;
     html+='<div class="section-label">'+gr[1]+'</div>';
@@ -9228,6 +9236,17 @@ function saveRosterSettings(){
   if(syncEnabled&&syncRole==='owner') pushSync();
 }
 
+// Nine-day fortnight start / cycle start: saved the moment a date is picked (no need to tap Save)
+function saveDateSetting(key,el){
+  if(!el||!el.value) return;
+  let v=el.value;
+  if(key==='cycleStart'){ v=fmtDate(getMonday(parseDate(v))); el.value=v; }
+  S.settings[key]=v;
+  saveState();
+  try{ refreshAllScreens(); }catch(e){}
+  const d=parseDate(v);
+  toast((key==='nineDayFrom'?'Nine-day fortnight starts ':'4-week cycle starts ')+d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+' ✓');
+}
 function savePaySettings(){
   const f=(id,def)=>{const v=parseFloat(document.getElementById(id).value);return isNaN(v)?def:v;};
   S.settings.cph=f('set-cph',66.50);
