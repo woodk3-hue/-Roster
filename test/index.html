@@ -8195,10 +8195,11 @@ function calcPayProjection(offsetFortnights){
     const isLabour=LABOUR_DAYS.has(ds);
     if(isBlpWorked){
       // BLP rate (175%) for the whole shift when it runs past midnight into another BLP/SLP. Into any other
-      // day: 175% to midnight, and the hours after midnight are credited to the cycle (see blpHoursIntoCycle)
+      // day: 175% to midnight; the hours after midnight are ordinary hours on that day — credited to the cycle
+      // (see blpHoursIntoCycle) with that day's weekend penalty: Saturday 150%, Sunday 200%
       if(isPH&&isLabour) phLabLeisHrs+=hrs;
       else if(!postMid||!blpRunsIntoWorkday(ds)) blpHrs+=hrs;
-      else blpHrs+=preMid;
+      else { blpHrs+=preMid; if(nextDow===6) satHrs+=postMid; else if(nextDow===0) sunHrs+=postMid; }
     } else if(isPH){
       if(isLabour) phLabHrs+=hrs; else phHrs+=hrs;
       if(dow===6) satHrs+=hrs; else if(dow===0) sunHrs+=hrs;
