@@ -4494,6 +4494,23 @@ function leisureWorked(ds){
   if(ov.type==='blp_worked'||ov.type==='slp_worked') return true;
   return !!ov.start&&ov.type!=='blp_given'&&dayIsLeisureRoster(ds);
 }
+// A BLP/SLP worked that runs past midnight into a weekday working day (not Sat/Sun, not another day off)
+function blpRunsIntoWorkday(ds){
+  const d=parseDate(ds), nextDow=(d.getDay()+1)%7;
+  if(nextDow===6||nextDow===0) return false;
+  const nextDs=fmtDate(addDays(d,1)), nov=S.days[nextDs];
+  const nextOff=nov?(nov.type==='blp_kept'||nov.type==='rdo'||(dayIsLeisureRoster(nextDs)&&nov.type!=='blp_given'&&!nov.start)):dayIsLeisureRoster(nextDs);
+  return !nextOff;
+}
+// Hours after midnight of such a shift: credited to the work cycle (the part before midnight is paid at 175%)
+function blpHoursIntoCycle(ds){
+  if(!leisureWorked(ds)||!blpRunsIntoWorkday(ds)) return 0;
+  const ov=S.days[ds]||{};
+  if(ov.start&&ov.end){ const sm=parseTime(ov.start), em=parseTime(ov.end); return (sm!=null&&em!=null&&em<=sm)?em/60:0; }
+  const f=ruleDayFacts(ds); if(!f.work||f.end==null) return 0;
+  const mid=addDays(parseDate(ds),1).getTime();
+  return f.end>mid?(f.end-mid)/3600000:0;
+}
 function dayIsLeisureRoster(ds){
   const d=parseDate(ds), mon=getMonday(d);
   // A whole-week swap means the other link's roster applies
@@ -4504,7 +4521,7 @@ function dayIsLeisureRoster(ds){
 }
 // Hours credited to one 4-week cycle: shifts worked, leave (rostered hours) and roster alteration credits
 function cycleHours(start){
-  const r={start:start,end:addDays(start,27),worked:0,leave:0,alt:0,leisureAlt:0,est:0,target:cycleTarget(start)};
+  const r={start:start,end:addDays(start,27),worked:0,leave:0,alt:0,leisureAlt:0,blpPostMid:0,est:0,target:cycleTarget(start)};
   for(let i=0;i<28;i++){
     const d=addDays(start,i), ds=fmtDate(d), ov=S.days[ds]||null, sh=getEffectiveShift(ds);
     const onLeave=(S.plannedLeave||[]).some(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
@@ -4521,6 +4538,8 @@ function cycleHours(start){
       // A cancelled working that wasn't re-booked isn't worked — its 4-hour credit replaces it
       // A BLP/SLP worked is paid on its own (175%) and isn't credited to the cycle
       if(f.att&&!leisureWorked(ds)&&!(ov&&ov.alt&&ov.alt.kind==='cancel4')){ if(f.work&&f.end!=null) r.worked+=(f.end-f.start)/3600000; else { r.worked+=avgShiftHours(); r.est++; } }
+      // …except the hours after midnight when it runs into a weekday working day
+      const bpm=blpHoursIntoCycle(ds); r.worked+=bpm; r.blpPostMid+=bpm;
     }
     if(ov&&ov.alt&&ov.alt.credit){ if(dayIsLeisureRoster(ds)) r.leisureAlt+=+ov.alt.credit; else r.alt+=+ov.alt.credit; }
   }
@@ -4532,6 +4551,7 @@ function fmtH(h){ return (Math.round(h*100)/100).toFixed(2).replace(/\.?0+$/,'')
 function cycleSummaryText(c){
   return 'Cycle '+fmtDDMM(c.start)+'–'+fmtDDMM(c.end)+'\n\n'+
     'Shifts and available days: '+fmtH(c.worked)+(c.est?' (includes '+c.est+' day'+(c.est>1?'s':'')+' with no times yet, counted at the roster average of '+fmtH(avgShiftHours())+')':'')+'\n'+
+    (c.blpPostMid?'  (includes '+fmtH(c.blpPostMid)+' of BLP/SLP worked after midnight into a working day)\n':'')+
     'Leave (8h a day): '+fmtH(c.leave)+'\n'+
     'Roster alterations: '+fmtH(c.alt)+'\n'+
     'Total credited: '+fmtH(c.total)+' of '+c.target+'h\n'+
@@ -8102,7 +8122,7 @@ function masterRosterHours(ds){
 }
 
 // Bumped when the pay maths changes, so saved Pay History estimates are worked out again once
-const PAY_CALC_V=6;
+const PAY_CALC_V=7;
 function calcPayProjection(offsetFortnights){
   const cph=S.settings.cph||66.50;
   const fn=getFortnightDates(offsetFortnights||0);
@@ -8175,13 +8195,12 @@ function calcPayProjection(offsetFortnights){
     // leisure rate applies (175%; Labour Day 250%); weekend penalties still apply on top (67.5)
     const isLabour=LABOUR_DAYS.has(ds);
     if(isBlpWorked){
-      // BLP rate for the whole shift when it runs into another BLP/SLP (rates don't stack). When the next day
-      // is a working day, the hours after midnight take that day's rate: Saturday 150%, Sunday 200%, weekday 100%
-      const nextDs=fmtDate(addDays(parseDate(ds),1)), nov=S.days[nextDs];
-      const nextOff=nov?(nov.type==='blp_kept'||nov.type==='rdo'||(dayIsLeisureRoster(nextDs)&&nov.type!=='blp_given'&&!nov.start)):dayIsLeisureRoster(nextDs);
+      // BLP rate (175%) for the whole shift when it runs past midnight into a Saturday, a Sunday or another
+      // BLP/SLP. Into a weekday working day: 175% to midnight, and the hours after midnight are credited to
+      // the cycle instead (see blpHoursIntoCycle)
       if(isPH&&isLabour) phLabLeisHrs+=hrs;
-      else if(!postMid||nextOff) blpHrs+=hrs;
-      else { blpHrs+=preMid; if(nextDow===6) blpSatHrs+=postMid; else if(nextDow===0) blpSunHrs+=postMid; else blpOrdHrs+=postMid; }
+      else if(!postMid||!blpRunsIntoWorkday(ds)) blpHrs+=hrs;
+      else blpHrs+=preMid;
     } else if(isPH){
       if(isLabour) phLabHrs+=hrs; else phHrs+=hrs;
       if(dow===6) satHrs+=hrs; else if(dow===0) sunHrs+=hrs;
