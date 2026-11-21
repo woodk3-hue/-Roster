@@ -4494,10 +4494,9 @@ function leisureWorked(ds){
   if(ov.type==='blp_worked'||ov.type==='slp_worked') return true;
   return !!ov.start&&ov.type!=='blp_given'&&dayIsLeisureRoster(ds);
 }
-// A BLP/SLP worked that runs past midnight into a weekday working day (not Sat/Sun, not another day off)
+// A BLP/SLP worked that runs past midnight into a day that isn't another BLP/SLP (any day of the week)
 function blpRunsIntoWorkday(ds){
-  const d=parseDate(ds), nextDow=(d.getDay()+1)%7;
-  if(nextDow===6||nextDow===0) return false;
+  const d=parseDate(ds);
   const nextDs=fmtDate(addDays(d,1)), nov=S.days[nextDs];
   const nextOff=nov?(nov.type==='blp_kept'||nov.type==='rdo'||(dayIsLeisureRoster(nextDs)&&nov.type!=='blp_given'&&!nov.start)):dayIsLeisureRoster(nextDs);
   return !nextOff;
@@ -4551,7 +4550,7 @@ function fmtH(h){ return (Math.round(h*100)/100).toFixed(2).replace(/\.?0+$/,'')
 function cycleSummaryText(c){
   return 'Cycle '+fmtDDMM(c.start)+'–'+fmtDDMM(c.end)+'\n\n'+
     'Shifts and available days: '+fmtH(c.worked)+(c.est?' (includes '+c.est+' day'+(c.est>1?'s':'')+' with no times yet, counted at the roster average of '+fmtH(avgShiftHours())+')':'')+'\n'+
-    (c.blpPostMid?'  (includes '+fmtH(c.blpPostMid)+' of BLP/SLP worked after midnight into a working day)\n':'')+
+    (c.blpPostMid?'  (includes '+fmtH(c.blpPostMid)+' of BLP/SLP worked after midnight into a day that isn\'t a BLP/SLP)\n':'')+
     'Leave (8h a day): '+fmtH(c.leave)+'\n'+
     'Roster alterations: '+fmtH(c.alt)+'\n'+
     'Total credited: '+fmtH(c.total)+' of '+c.target+'h\n'+
@@ -8195,9 +8194,8 @@ function calcPayProjection(offsetFortnights){
     // leisure rate applies (175%; Labour Day 250%); weekend penalties still apply on top (67.5)
     const isLabour=LABOUR_DAYS.has(ds);
     if(isBlpWorked){
-      // BLP rate (175%) for the whole shift when it runs past midnight into a Saturday, a Sunday or another
-      // BLP/SLP. Into a weekday working day: 175% to midnight, and the hours after midnight are credited to
-      // the cycle instead (see blpHoursIntoCycle)
+      // BLP rate (175%) for the whole shift when it runs past midnight into another BLP/SLP. Into any other
+      // day: 175% to midnight, and the hours after midnight are credited to the cycle (see blpHoursIntoCycle)
       if(isPH&&isLabour) phLabLeisHrs+=hrs;
       else if(!postMid||!blpRunsIntoWorkday(ds)) blpHrs+=hrs;
       else blpHrs+=preMid;
