@@ -4498,7 +4498,8 @@ function leisureWorked(ds){
 function blpRunsIntoWorkday(ds){
   const d=parseDate(ds);
   const nextDs=fmtDate(addDays(d,1)), nov=S.days[nextDs];
-  const nextOff=nov?(nov.type==='blp_kept'||nov.type==='rdo'||(dayIsLeisureRoster(nextDs)&&nov.type!=='blp_given'&&!nov.start)):dayIsLeisureRoster(nextDs);
+  // The next day is a BLP/SLP even if you work it too (a worked BLP is still a BLP day); not if it was given away in a BLP swap
+  const nextOff=leisureWorked(nextDs)||(nov?(nov.type==='blp_kept'||nov.type==='rdo'||(dayIsLeisureRoster(nextDs)&&nov.type!=='blp_given')):dayIsLeisureRoster(nextDs));
   return !nextOff;
 }
 // Hours after midnight of such a shift: credited to the work cycle (the part before midnight is paid at 175%)
@@ -8121,7 +8122,7 @@ function masterRosterHours(ds){
 }
 
 // Bumped when the pay maths changes, so saved Pay History estimates are worked out again once
-const PAY_CALC_V=7;
+const PAY_CALC_V=8;
 function calcPayProjection(offsetFortnights){
   const cph=S.settings.cph||66.50;
   const fn=getFortnightDates(offsetFortnights||0);
