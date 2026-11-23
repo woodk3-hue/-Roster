@@ -6037,7 +6037,7 @@ function blpWindowHtml(ds){
   let lines=[], earliest=dayStart, latest=null;
   // A CBO (32 hours off) running into this day comes first
   let cbo=null; try{ cbo=cboOutlook(addDays(d,-30),31).due[ds]||null; }catch(e){}
-  if(cbo&&cbo.to>=dayEnd) return '<div class="rest-next short" style="margin-top:10px;">🛑 <b>Don\'t pick up a shift on this day.</b> It\'s inside your CBO (32 hours off), which runs until <b>'+cboWhen(cbo.to)+'</b> (EBA 96.1).</div>';
+  if(cbo&&cbo.to>=dayEnd) return '<div class="rest-next" style="margin-top:10px;">🛑 <b>You\'re on CBO.</b> Your CBO finishes <b>'+cboWhen(cbo.to)+'</b>.</div>';
   if(prev&&prev.end!=null){
     const e12=prev.end+REST;
     earliest=Math.max(dayStart,e12);
@@ -6046,7 +6046,7 @@ function blpWindowHtml(ds){
   } else if(prev) lines.push('Earliest sign-on: add a finish time to your '+ruleDayName(prev.ds)+' shift to work this out');
   if(cbo&&cbo.to>earliest){
     earliest=cbo.to;
-    lines.push('<b>Not before '+(cbo.to>=dayEnd?hm(cbo.to,true):hm(cbo.to))+'</b>: your CBO (32 hours off) runs until then');
+    lines.push('🛑 You\'re on CBO until <b>'+hm(cbo.to)+'</b>, so the earliest you can sign on is '+hm(cbo.to));
   }
   if(next&&next.start!=null){
     latest=next.start-REST;
@@ -6060,7 +6060,24 @@ function blpWindowHtml(ds){
     if(span<MIN) room='<div style="margin-top:4px;color:#fca5a5;">Not enough room for a 6-hour shift between your shifts.</div>';
     else room='<div style="margin-top:4px;">Room for a shift of up to <b>'+gapWords(Math.round(Math.min(span,MAX)/60000))+'</b>'+(span>MAX?' (9 hours is the longest shift)':'')+'.</div>';
   }
-  return '<div class="rest-next" style="margin-top:10px;">🕑 <b>If you pick up a shift on this day</b><div style="margin-top:4px;">'+lines.join('<br>')+'</div>'+room+
+  // Would working this day put you on CBO?
+  let cboIf='';
+  try{
+    const st0=earliest>dayStart?earliest:dayStart+8*3600000, en0=st0+8*3600000;
+    const t2=function(ms){ const x=new Date(ms); return pad(x.getHours())+':'+pad(x.getMinutes()); };
+    const winStart=addDays(d,-30), len=45;
+    const before=(cboOutlook(winStart,len).win||[]).map(function(w){ return w.d11; });
+    const had=Object.prototype.hasOwnProperty.call(S.days,ds), saved=S.days[ds];
+    S.days[ds]=Object.assign({},saved||{},{type:'blp_worked',start:t2(st0),end:t2(en0)});
+    let after;
+    try{ after=cboOutlook(winStart,len); }
+    finally{ if(had) S.days[ds]=saved; else delete S.days[ds]; }
+    const n=after.n[ds]||1, nw=(after.win||[]).filter(function(w){ return before.indexOf(w.d11)<0; })[0];
+    if(nw) cboIf='<div style="margin-top:6px;">🛑 <b>If you work this day, you\'ll be on CBO</b>: '+(nw.d11===ds?'it would be day 11 in a row':ruleDayName(nw.d11)+' would become day 11 in a row')+
+      ', so your CBO would run <b>'+cboWhen(nw.from)+' to '+cboWhen(nw.to)+'</b>.</div>';
+    else cboIf='<div style="margin-top:6px;">✓ Working this day wouldn\'t put you on CBO (it would be day '+n+' in a row).</div>';
+  }catch(e){}
+  return '<div class="rest-next" style="margin-top:10px;">🕑 <b>If you pick up a shift on this day</b><div style="margin-top:4px;">'+lines.join('<br>')+'</div>'+room+cboIf+
     '<div style="margin-top:4px;font-size:11px;color:var(--muted);">12 hours between shifts at your home depot (EBA 82.1). Guide only.</div></div>';
 }
 // Working day: what being brought forward (an earlier sign-on) means
