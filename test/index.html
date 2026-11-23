@@ -717,6 +717,17 @@ body.day-mode #day-panel{background:rgba(240,242,248,0.97);}
 .fold-title::after{content:'▸';margin-left:auto;color:var(--muted);font-size:14px;}
 #screen-settings .settings-section:not(.folded) > .fold-title::after{content:'▾';}
 
+/* ── SWAPS: choose Record a Swap or BLP Swap ── */
+.swap-choose{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.swap-choose-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px;border-radius:12px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text);cursor:pointer;text-align:left;font:inherit;}
+.swap-choose-btn span{font-size:14px;font-weight:800;}
+.swap-choose-btn small{font-size:11px;color:var(--muted);}
+.swap-choose-btn.active{border-color:var(--accent);background:rgba(245,158,11,.12);box-shadow:0 2px 10px var(--accent-glow);}
+.swap-old-head{pointer-events:none;margin-bottom:6px;}
+.swap-old-head .hb{pointer-events:auto;}
+#rec-swap-arrow,#blp-swap-arrow{display:none;}
+#rec-swap-body,#blp-swap-body{margin-top:4px!important;}
+
 /* ── THIS WEEK (Home) ── */
 .week-card{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:0 2px 12px var(--accent-glow);}
 .week-head{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
@@ -1400,8 +1411,13 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- ── RECORD SWAP FORM (always visible) ── -->
-  <div class="card swap-form" style="margin-bottom:14px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleRecordSwap()">
+  <!-- Choose which swap to record: the form drops down underneath -->
+  <div class="swap-choose">
+    <button type="button" class="swap-choose-btn" id="choose-rec" onclick="chooseSwapForm('rec')"><span>⇄ Record a Swap</span><small>Week, day or part week</small></button>
+    <button type="button" class="swap-choose-btn" id="choose-blp" onclick="chooseSwapForm('blp')"><span>🌙 BLP Swap</span><small>Swap a BLP for a shift</small></button>
+  </div>
+  <div class="card swap-form" id="swap-card-rec" style="margin-bottom:14px;display:none;">
+    <div class="swap-old-head" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleRecordSwap()">
       <div class="card-title" style="margin:0;">Record a Swap <button type="button" class="hb" onclick="openHelp('recordswap',event)" aria-label="How to use this">?</button></div>
       <span id="rec-swap-arrow" style="color:var(--muted);font-size:16px;">▸</span>
     </div>
@@ -1468,11 +1484,9 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
   </div>
 
-  <hr class="divider">
-
   <!-- ── BLP SWAP SECTION ── -->
-  <div class="card" style="margin-bottom:14px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleBlpSwapSection()">
+  <div class="card" id="swap-card-blp" style="margin-bottom:14px;display:none;">
+    <div class="swap-old-head" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleBlpSwapSection()">
       <div class="card-title" style="margin:0;">BLP Swap <button type="button" class="hb" onclick="openHelp('blpswap',event)" aria-label="How to use this">?</button></div>
       <span id="blp-swap-arrow" style="color:var(--muted);font-size:16px;">▸</span>
     </div>
@@ -6933,13 +6947,25 @@ function updateRosterImportStatus(){
 }
 
 function toggleRecordSwap(force){
-  const body=document.getElementById('rec-swap-body'), arrow=document.getElementById('rec-swap-arrow');
-  if(!body) return;
-  const open=force!=null?!force:body.style.display==='block';
-  body.style.display=open?'none':'block';
-  if(arrow) arrow.textContent=open?'▸':'▾';
+  const want=force!=null?force:document.getElementById('swap-card-rec').style.display==='none';
+  setSwapForm(want?'rec':null);
+}
+// Record a Swap / BLP Swap: two buttons side by side; the chosen form drops down underneath
+function setSwapForm(k){
+  [['rec','swap-card-rec','rec-swap-body','choose-rec'],['blp','swap-card-blp','blp-swap-body','choose-blp']].forEach(function(x){
+    const on=x[0]===k, card=document.getElementById(x[1]), body=document.getElementById(x[2]), btn=document.getElementById(x[3]);
+    if(card) card.style.display=on?'':'none';
+    if(body) body.style.display=on?'block':'none';
+    if(btn) btn.classList.toggle('active',on);
+  });
+}
+function chooseSwapForm(k){
+  const open=document.getElementById(k==='rec'?'swap-card-rec':'swap-card-blp').style.display!=='none';
+  setSwapForm(open?null:k);
+  if(!open) setTimeout(function(){ const c=document.getElementById(k==='rec'?'swap-card-rec':'swap-card-blp'); if(c) c.scrollIntoView({behavior:'smooth',block:'nearest'}); },60);
 }
 function toggleBlpSwapSection(){
+  setSwapForm(document.getElementById('swap-card-blp').style.display==='none'?'blp':null); return;
   const body=document.getElementById('blp-swap-body');
   const arrow=document.getElementById('blp-swap-arrow');
   if(!body) return;
