@@ -6080,8 +6080,11 @@ function blpWindowHtml(ds){
   return '<div class="rest-next" style="margin-top:10px;">🕑 <b>If you pick up a shift on this day</b><div style="margin-top:4px;">'+lines.join('<br>')+'</div>'+room+cboIf+
     '<div style="margin-top:4px;font-size:11px;color:var(--muted);">12 hours between shifts at your home depot (EBA 82.1). Guide only.</div></div>';
 }
+// "What if I'm brought forward?" stays hidden until the owner has confirmed how payroll pays it
+const BROUGHT_FWD_READY=false;
 // Working day: what being brought forward (an earlier sign-on) means
 function broughtFwdHtml(ds){
+  if(!BROUGHT_FWD_READY) return '';
   return '<details class="show-more" style="margin-top:8px;"><summary>⏪ What if I\'m brought forward?</summary>'+
     '<div style="font-size:12px;color:var(--muted);margin:4px 0 6px;">Type the new sign-on time the roster gave you.</div>'+
     '<input type="time" class="form-input" id="bf-time" oninput="broughtFwdCalc(\''+ds+'\')" style="max-width:160px;">'+
