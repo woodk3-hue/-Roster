@@ -489,6 +489,7 @@ html,body{
   gap:2px;
 }
 .cal-cell{
+  position:relative;
   min-height:88px;
   background:var(--surface);
   border:1px solid var(--border);
@@ -957,6 +958,7 @@ details.show-more{margin:4px 0 10px;}
 #cal-cycles{text-align:center;margin:10px 0 0;}
 .cal-cell.cycle-start{box-shadow:inset 3px 0 0 var(--accent2);}
 .cal-rule-flag{font-size:10px;color:#ef4444;font-weight:800;margin-top:auto;line-height:1;}
+.pay-dot{position:absolute;top:3px;right:15px;width:15px;height:15px;border-radius:50%;background:#16a34a;color:#fff;font:900 10px/15px system-ui,sans-serif;text-align:center;pointer-events:none;}
 .cal-cbo-flag{font-size:9px;font-weight:800;color:#fb923c;line-height:1.1;}
 .cal-cbo-flag.over{color:#ef4444;}
 .cbo-due{background:transparent!important;border:1.5px dashed #ea580c;color:#fb923c!important;font-size:8px!important;white-space:nowrap;padding:1px 2px!important;letter-spacing:-.02em;}
@@ -1273,6 +1275,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="lg-item"><span class="cal-badge b-mbo lg-badge">INC</span><span>Incoming (not worked, counts as a day)</span></div>
       <div class="lg-item"><span class="cal-badge b-cbo cbo-due lg-badge">CBO due</span><span>Day after day 11 in a row: 32 hours off needed</span></div>
       <div class="lg-item"><b class="cal-cbo-flag" style="font-size:10px;">D11</b><span>Day 11 (or more) in a row</span></div>
+      <div class="lg-item"><span class="pay-dot" style="position:static;display:inline-block;">$</span><span>Pay day</span></div>
       <div class="lg-item"><span class="cal-badge lg-badge" style="background:#b45309;color:#fde68a;">PH</span><span>Public Holiday</span></div>
       <div class="lg-item"><span class="lg-badge" style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:#1d4ed8;color:#fff;">Event</span><span>Personal event</span></div>
     </div>
@@ -5952,6 +5955,7 @@ function renderCalCell(d, otherMonth){
   }
 
   // Guard quick view handled inline in shift display blocks above
+  if(payDayFor(ds)) inner+='<span class="pay-dot" title="Pay day">$</span>';
   if(CAL_CBO){
     if(CAL_CBO.due[ds]) inner+='<div class="cal-badge b-cbo cbo-due">CBO due</div>';
     const cn=CAL_CBO.n[ds]; if(cn>=11) inner+='<div class="cal-cbo-flag'+(cn>11?' over':'')+'" title="Days in a row">D'+cn+'</div>';
@@ -6247,6 +6251,8 @@ function renderDayPanel(ds){
   if(ov&&ov.notes&&ov.notes.trim()){
     html+='<div style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--muted);">'+ov.notes+'</div>';
   }
+  // Pay day
+  try{ const pd=payDayFor(ds); if(pd) html+='<div class="rest-next" style="margin-top:10px;">💰 <b>Pay day</b>: pay for the fortnight '+fmtDDMM(pd.fnStart)+'–'+fmtDDMM(pd.fnEnd)+' goes in by today (EBA 64).</div>'; }catch(e){}
   // BLP/SLP day not worked: when a picked-up shift could start and finish; working day: brought forward
   try{
     if(!lv&&(['blp','slp'].includes(sh.typeKey)||(sh.typeKey==='swap'&&['blp','slp'].includes(sh.swapInnerType)))&&!leisureWorked(ds)) html+=blpWindowHtml(ds);
@@ -8337,6 +8343,13 @@ function calcAnnualTax(fnTaxable,payDate){
   return Math.max(0,Math.round(y))*2;
 }
 
+// Pay day: the Wednesday after each pay fortnight ends (paid fortnightly "no later than Wednesday", EBA 64)
+function payDayFor(ds){
+  const d=parseDate(ds); if(d.getDay()!==3) return null;
+  const a=parseDate(cycleAnchorDs()), days=Math.round((d-a)/86400000);
+  if(((days%14)+14)%14!==2) return null;
+  return {fnStart:addDays(d,-16), fnEnd:addDays(d,-3)};
+}
 function getFortnightDates(offsetFortnights){
   // Current fortnight: from last even Monday (pay period is 2 weeks)
   const now=today();
