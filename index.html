@@ -954,6 +954,9 @@ details.show-more{margin:4px 0 10px;}
 #cal-cycles{text-align:center;margin:10px 0 0;}
 .cal-cell.cycle-start{box-shadow:inset 3px 0 0 var(--accent2);}
 .cal-rule-flag{font-size:10px;color:#ef4444;font-weight:800;margin-top:auto;line-height:1;}
+.cal-cbo-flag{font-size:9px;font-weight:800;color:#fb923c;line-height:1.1;}
+.cal-cbo-flag.over{color:#ef4444;}
+.cbo-due{background:transparent!important;border:1.5px dashed #ea580c;color:#fb923c!important;font-size:8px!important;white-space:nowrap;padding:1px 2px!important;letter-spacing:-.02em;}
 details.show-more>summary{cursor:pointer;list-style:none;font-size:12px;font-weight:700;color:var(--accent);padding:6px 2px;}
 details.show-more>summary::-webkit-details-marker{display:none;}
 details.show-more>summary::before{content:'▸ ';}
@@ -1264,6 +1267,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="lg-item"><span class="cal-badge b-cbo lg-badge">CBO</span><span>Compulsory Book Off</span></div>
       <div class="lg-item"><span class="cal-badge b-mbo lg-badge">MBO</span><span>Mandatory Book Off</span></div>
       <div class="lg-item"><span class="cal-badge b-mbo lg-badge">INC</span><span>Incoming (not worked, counts as a day)</span></div>
+      <div class="lg-item"><span class="cal-badge b-cbo cbo-due lg-badge">CBO due</span><span>Day after day 11 in a row: 32 hours off needed</span></div>
+      <div class="lg-item"><b class="cal-cbo-flag" style="font-size:10px;">D11</b><span>Day 11 (or more) in a row</span></div>
       <div class="lg-item"><span class="cal-badge lg-badge" style="background:#b45309;color:#fde68a;">PH</span><span>Public Holiday</span></div>
       <div class="lg-item"><span class="lg-badge" style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:#1d4ed8;color:#fff;">Event</span><span>Personal event</span></div>
     </div>
@@ -4452,6 +4457,30 @@ function cboDayCounts(start,days){
   return out;
 }
 
+// Days in a row for every day in a window, plus where a CBO falls due (the day after day 11)
+function cboOutlook(start,days){
+  const o={n:{},kind:{},due:{}};
+  const run=cboDayCounts(start,days);
+  run.forEach(function(r){ o.n[r.ds]=r.n; o.kind[r.ds]=r.kind; });
+  run.forEach(function(r){
+    if(r.n!==11) return;
+    const next=fmtDate(addDays(parseDate(r.ds),1));
+    if(cboDayKind(next)!=='reset') o.due[next]=r.ds;   // not already a CBO / leave
+  });
+  return o;
+}
+// Day-11 days from yesterday to 8 weeks ahead (to spot a new CBO after a shift is saved)
+function cboDay11List(){
+  const o=cboOutlook(addDays(today(),-30),87), t0=fmtDate(addDays(today(),-1));
+  return Object.keys(o.n).filter(function(ds){ return o.n[ds]===11&&ds>=t0; });
+}
+// Pop-up notice (reuses the help pop-up)
+function showNotice(title,html){
+  document.getElementById('help-title').textContent=title;
+  document.getElementById('help-body').innerHTML=html;
+  const m=document.getElementById('help-modal'); m.style.display='flex'; m.classList.add('open');
+}
+
 // 4-week cycle (or, from the nine-day fortnight, the fortnight) holding a date, with its counts
 function rulePeriodFor(d){
   const a=parseDate(cycleAnchorDs());
@@ -5353,7 +5382,7 @@ function renderDash(){
 
   // CBO alert — consecutive days (EBA 96): sick counts, leave resets, 32 hours off restarts
   (function(){
-    const run=cboDayCounts(addDays(now,-30),45);
+    const run=cboDayCounts(addDays(now,-30),58);
     const todayStr=fmtDate(now);
     let hit=null, cur=0;
     run.forEach(function(r){ if(r.ds<=todayStr) cur=r.n; else if(!hit&&r.n>=11) hit=r; });
@@ -5707,6 +5736,7 @@ function renderCal(){
 
   let html='';
   let cur=new Date(gridStart);
+  try{ CAL_CBO=cboOutlook(addDays(gridStart,-30),Math.round((gridEnd-gridStart)/86400000)+31); }catch(e){ CAL_CBO=null; }
   while(cur<=gridEnd){
     html+=renderCalCell(cur, cur.getMonth()!==mo);
     cur.setDate(cur.getDate()+1);
@@ -5715,6 +5745,7 @@ function renderCal(){
   initCalGrid();
 }
 
+let CAL_CBO=null;
 function renderCalCell(d, otherMonth){
   const ds=fmtDate(d);
   const now=today();
@@ -5897,6 +5928,10 @@ function renderCalCell(d, otherMonth){
   }
 
   // Guard quick view handled inline in shift display blocks above
+  if(CAL_CBO){
+    if(CAL_CBO.due[ds]) inner+='<div class="cal-badge b-cbo cbo-due">CBO due</div>';
+    const cn=CAL_CBO.n[ds]; if(cn>=11) inner+='<div class="cal-cbo-flag'+(cn>11?' over':'')+'" title="Days in a row">D'+cn+'</div>';
+  }
   if(!leavePeriod&&activeRuleIssues(ds).length) inner+='<div class="cal-rule-flag" title="Roster rule check">⚠ rule</div>';
   // The other person's shift underneath (partner's roster), and a green edge when you're both off
   if(otherProfileCache){
@@ -6059,6 +6094,14 @@ function renderDayPanel(ds){
   if(ov&&ov.notes&&ov.notes.trim()){
     html+='<div style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--muted);">'+ov.notes+'</div>';
   }
+  // Days in a row / CBO due
+  try{
+    const co=cboOutlook(addDays(parseDate(ds),-30),31), cn=co.n[ds];
+    if(co.due[ds]) html+='<div class="rest-next short" style="margin-top:10px;">🛑 <b>CBO due</b>: '+ruleDayName(co.due[ds])+' is day 11 in a row. You need at least 32 hours off at home from the end of that shift (EBA 96.1).</div>';
+    else if(cn>=12) html+='<div class="rest-next short" style="margin-top:10px;">⚠ <b>Day '+cn+' in a row.</b> A CBO (32 hours off) was due after day 11 (EBA 96.1).</div>';
+    else if(cn===11) html+='<div class="rest-next" style="margin-top:10px;border:1px solid rgba(234,88,12,.5);">⚠ <b>Day 11 in a row.</b> A CBO (32 hours off at home) is due after this shift (EBA 96.1).</div>';
+    else if(cn>=9&&co.kind[ds]!=='incoming') html+='<div class="rest-next" style="margin-top:10px;">Day <b>'+cn+'</b> in a row. A CBO is due after 11.</div>';
+  }catch(e){}
   // Incoming day: no shift, but it counts toward the days in a row (CBO)
   try{
     const cr=cboDayCounts(addDays(parseDate(ds),-30),31).filter(function(r){ return r.ds===ds; })[0];
@@ -6256,6 +6299,7 @@ function saveShift(){
   const notes=document.getElementById('sm-notes').value.trim();
 
 
+  let cboBefore=[]; try{ cboBefore=cboDay11List(); }catch(e){}
   const existingOv=S.days[ds]||{};
   const d={type,start,end,job,guards,notes};
   // Editing a day in a swapped week: it stays part of the swap (and keeps what Undo Swap restores)
@@ -6316,6 +6360,20 @@ function saveShift(){
   if(currentScreen==='dash') renderDash();
   if(p2EditsOwn()) sendPartnerDay(ds);
   toast('Saved');
+  cboWarnNew(cboBefore);
+}
+// After a shift is saved: a run that now reaches 11 days in a row gets a pop-up saying a CBO is coming
+function cboWarnNew(before){
+  try{
+    const now=cboDay11List().filter(function(x){ return before.indexOf(x)<0; });
+    if(!now.length) return;
+    const d11=now[0], due=fmtDate(addDays(parseDate(d11),1));
+    setTimeout(function(){
+      showNotice('🛑 CBO coming up','<p>With this shift, <b>'+ruleDayName(d11)+'</b> becomes <b>day 11 in a row</b>.</p>'+
+        '<p>You need a <b>CBO</b>: at least 32 hours off at home from the end of that shift, so from <b>'+ruleDayName(due)+'</b> (EBA 96.1). It\'s marked <b>CBO due</b> on the calendar.</p>'+
+        '<div class="help-note">Days count from shifts, sick days and incoming days. Annual leave, MBO, CBO or 32 hours off restart the count. Guide only. Check with the Roster Office.</div>');
+    },350);
+  }catch(e){}
 }
 function keepDayAsBLP(){
   const ds=shiftModalDate;
