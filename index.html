@@ -1263,6 +1263,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="lg-item"><span class="cal-badge b-swap lg-badge">⇄</span><span>Swap (week or single day)</span></div>
       <div class="lg-item"><span class="cal-badge b-cbo lg-badge">CBO</span><span>Compulsory Book Off</span></div>
       <div class="lg-item"><span class="cal-badge b-mbo lg-badge">MBO</span><span>Mandatory Book Off</span></div>
+      <div class="lg-item"><span class="cal-badge b-mbo lg-badge">INC</span><span>Incoming (not worked, counts as a day)</span></div>
       <div class="lg-item"><span class="cal-badge lg-badge" style="background:#b45309;color:#fde68a;">PH</span><span>Public Holiday</span></div>
       <div class="lg-item"><span class="lg-badge" style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:#1d4ed8;color:#fff;">Event</span><span>Personal event</span></div>
     </div>
@@ -1970,6 +1971,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
         <option value="single_day_swap">Single Day Swap</option>
         <option value="mbo">MBO (Mandatory Book Off)</option>
         <option value="cbo">CBO (Compulsory Book Off)</option>
+        <option value="incoming">Incoming (can't work it after an overnight shift; counts as a day)</option>
         <option value="ph_worked">PH Worked (150%)</option>
         <option value="ph_booked_off">PH Booked Off</option>
       </select>
@@ -3007,7 +3009,7 @@ function otherDayInfo(o,ds){
     const lv=(S.plannedLeave||[]).find(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
     if(lv) return {label:String(lv.type||'leave').toUpperCase(),off:true};
     const sh=getEffectiveShift(ds), off=dayIsLeisureRoster(ds)&&!(S.days[ds]&&S.days[ds].start);
-    if(['al','lsl','sl','family','repro','lwop','mbo','cbo','ph_booked_off'].includes(sh.typeKey)) return {label:sh.code,off:true};
+    if(['al','lsl','sl','family','repro','lwop','mbo','cbo','ph_booked_off','incoming'].includes(sh.typeKey)) return {label:sh.code,off:true};
     let end=sh.endTime||'';
     if(!end&&sh.time){ const c=jobCardFor(sh.job||sh.code); if(c&&c.off) end=c.off; }
     return {label:sh.time||sh.code||'—',off:off,end:end,time:sh.time||'',job:sh.time?(sh.job||''):''};
@@ -4237,6 +4239,7 @@ if(t==='sick')    return {code:'SL',time:null,typeKey:'sl',link,idx,ov,guards:ov
   if(t==='ph_booked_off') return {code:'PH Off',time:null,typeKey:'ph_booked_off',link,idx,ov,guards:ov.guards||''};
   if(t==='mbo')        return {code:'MBO',time:null,typeKey:'mbo',link,idx,ov,guards:ov.guards||''};
   if(t==='cbo')        return {code:'CBO',time:null,typeKey:'cbo',link,idx,ov,guards:ov.guards||''};
+  if(t==='incoming')   return {code:'INC',time:null,typeKey:'incoming',link,idx,ov,guards:ov.guards||''};
   if(t==='slp_worked') return {code:'SLP✓',time:ov.start,typeKey:'slp_worked',link,idx,ov,endTime:ov.end,guards:ov.guards||''};
   if(t==='ot')      return {code:'OT',time:ov.start,typeKey:'ot',link,idx,ov,endTime:ov.end,guards:ov.guards||''};
   if(t==='swap'){
@@ -4426,6 +4429,7 @@ function cboDayKind(ds){
   const tk=getEffectiveShift(ds).typeKey;
   if(tk==='sl'||tk==='sick'||tk==='repro') return 'sick';
   if(['al','lsl','family','lwop','mbo','cbo','ph_booked_off'].includes(tk)) return 'reset';
+  if(tk==='incoming') return 'incoming';
   return ruleDayFacts(ds).work?'work':'off';
 }
 function cboDayCounts(start,days){
@@ -4434,8 +4438,11 @@ function cboDayCounts(start,days){
   for(let i=0;i<days;i++){
     const ds=fmtDate(addDays(start,i)), k=cboDayKind(ds);
     if(k==='reset'){ n=0; lastEnd=null; continue; }
-    if(k==='off') continue;
     const dayStart=parseDate(ds).getTime();
+    // "Incoming": no shift, but the day still counts — either marked so, or the day before's shift
+    // finished on it (payroll counts every day a shift touches)
+    if(k==='incoming'||(k==='off'&&lastEnd!=null&&lastEnd>dayStart)){ n++; out.push({ds:ds,n:n,kind:'incoming'}); continue; }
+    if(k==='off') continue;
     let st=dayStart, en=dayStart+86400000;
     if(k==='work'){ const f=ruleDayFacts(ds); st=f.start; en=f.end!=null?f.end:f.start+8*3600000; }
     if(lastEnd!=null&&st-lastEnd>=GAP) n=0;
@@ -5414,6 +5421,7 @@ function getShiftDisplayForDate(ds){
   const dur=start&&end?calcDur(start,end):null;
   const guards=(ov&&ov.guards)?ov.guards.split('\n')[0]:'';
   const typeKey=(ov&&ov.type&&ov.type!=='normal')?ov.type:sh.typeKey;
+  if(typeKey==='incoming'||typeKey==='mbo'||typeKey==='cbo') return {start:null,end:null,dur:null,guards,typeKey,code:typeKey==='incoming'?'INC':typeKey.toUpperCase(),link:effectiveLink};
   return {start,end,dur,guards,typeKey,code:sh.code,link:effectiveLink};
 }
 
@@ -5431,7 +5439,7 @@ function renderDashShift(which){
       const ov=S.days[candidate];
       const hasRecordedShift=ov&&ov.start; // user entered actual times
       // Always skip leave/LWOP/RDO
-      if(['al','lsl','sick','family','lwop','rdo'].includes(info.typeKey)) continue;
+      if(['al','lsl','sick','family','lwop','rdo','incoming','mbo','cbo'].includes(info.typeKey)) continue;
       // Skip BLP/SLP only when no actual shift recorded
       if(['blp','slp'].includes(info.typeKey)&&!hasRecordedShift) continue;
       // This day has work — use it
@@ -5447,6 +5455,10 @@ function renderDashShift(which){
 
   if(['blp','slp'].includes(info.typeKey)&&!info.start){
     el.innerHTML='<div style="font-size:13px;font-weight:700;color:var(--muted);">'+(info.typeKey==='blp'?'BLP':'SLP')+'</div><div style="font-size:10px;color:var(--muted);">Rest day</div>';
+    return;
+  }
+  if(info.typeKey==='incoming'){
+    el.innerHTML='<div style="font-size:13px;font-weight:700;color:var(--muted);">Incoming</div><div style="font-size:10px;color:var(--muted);">No shift today. Still counts as a day in a row (CBO).</div>';
     return;
   }
   if(['al','lsl','sick','family'].includes(info.typeKey)){
@@ -5800,9 +5812,9 @@ function renderCalCell(d, otherMonth){
     if(sh.time) inner+='<div class="cal-time" style="'+timeColor(sh.time)+';">'+sh.time+'</div>';
   } else if(tk==='ph_booked_off'){
     inner+='<div class="cal-badge" style="background:#78350f;color:#fde68a;font-size:9px;padding:1px 4px;border-radius:3px;margin-bottom:2px;">PH Off</div>';
-  } else if(['al','lsl','afp','afa','blp','slp','sl','family','repro','lwop','blp_worked','slp_worked','mbo','cbo'].includes(tk)){
-    const labels={al:'AL',lsl:'LSL',afp:'AFP',afa:'AFA',blp:'BLP',slp:'SLP',sl:'SL',family:'FL',repro:'Repo Leave',lwop:'LWOP',blp_worked:'BLP✓',slp_worked:'SLP✓',mbo:'MBO',cbo:'CBO'};
-    const bcls={al:'b-al',lsl:'b-lsl',afp:'b-afp',afa:'b-afa',blp:'b-blp',slp:'b-slp',sl:'b-sl',family:'b-sl',repro:'b-sl',lwop:'b-al',blp_worked:'b-am1',slp_worked:'b-slp',mbo:'b-mbo',cbo:'b-cbo'};
+  } else if(['al','lsl','afp','afa','blp','slp','sl','family','repro','lwop','blp_worked','slp_worked','mbo','cbo','incoming'].includes(tk)){
+    const labels={al:'AL',lsl:'LSL',afp:'AFP',afa:'AFA',blp:'BLP',slp:'SLP',sl:'SL',family:'FL',repro:'Repo Leave',lwop:'LWOP',blp_worked:'BLP✓',slp_worked:'SLP✓',mbo:'MBO',cbo:'CBO',incoming:'INC'};
+    const bcls={al:'b-al',lsl:'b-lsl',afp:'b-afp',afa:'b-afa',blp:'b-blp',slp:'b-slp',sl:'b-sl',family:'b-sl',repro:'b-sl',lwop:'b-al',blp_worked:'b-am1',slp_worked:'b-slp',mbo:'b-mbo',cbo:'b-cbo',incoming:'b-mbo'};
     inner+='<div class="cal-badge '+bcls[tk]+'">'+labels[tk]+'</div>';
   } else if(tk==='swap'){
     const swapInner=sh.swapInnerType||'normal';
@@ -6047,6 +6059,15 @@ function renderDayPanel(ds){
   if(ov&&ov.notes&&ov.notes.trim()){
     html+='<div style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--muted);">'+ov.notes+'</div>';
   }
+  // Incoming day: no shift, but it counts toward the days in a row (CBO)
+  try{
+    const cr=cboDayCounts(addDays(parseDate(ds),-30),31).filter(function(r){ return r.ds===ds; })[0];
+    if(cr&&cr.kind==='incoming'){
+      const pf=ruleDayFacts(fmtDate(addDays(parseDate(ds),-1)));
+      html+='<div class="rest-next" style="margin-top:10px;">↪ <b>Incoming</b>: '+(sh.typeKey==='incoming'?'not worked':(pf.work&&pf.end!=null?'the shift before finished here at '+escHtml(pf.endStr):'no shift'))+
+        ', but it counts as <b>day '+cr.n+'</b> in a row for the CBO (11 days, EBA 96.1).'+(sh.typeKey!=='incoming'&&sh.time?' If you can\'t work the rostered shift, set this day to <b>Incoming</b> in Edit Shift.':'')+'</div>';
+    }
+  }catch(e){}
   const op=localStorage.getItem('partner_on_cal')!=='0'?loadOtherProfile():null;
   if(op){
     const oi=otherDayInfo(op,ds);
@@ -9787,7 +9808,7 @@ const HELP={
     h:['Tap a cycle to see how the hours add up, day by day.','Check your cycle start in ⚙ Settings → Pay Settings if the dates look wrong.'],
     tip:'An estimate from your roster and edits. Check your payslip for the real figures.'},
   editshift:{t:'Edit a shift',w:'Change one day: shift type, start/finish, job number, crew, notes, or record a swap for just that day.',
-    h:['Pick the <b>Shift Type</b> (e.g. working, BLP, AL, sick).','Enter the <b>Start</b> and <b>Finish</b> times or a <b>Job Number</b>. With job cards imported, the times fill in for you.','Add notes if you like, then tap <b>Save</b>.','<b>Reset</b> puts the day back to what the roster says.','<b>📄 Add Claim</b> starts a claim (e.g. meal) for this shift.'],
+    h:['Pick the <b>Shift Type</b> (e.g. working, BLP, AL, sick).','Enter the <b>Start</b> and <b>Finish</b> times or a <b>Job Number</b>. With job cards imported, the times fill in for you.','Add notes if you like, then tap <b>Save</b>.','<b>Reset</b> puts the day back to what the roster says.','<b>📄 Add Claim</b> starts a claim (e.g. meal) for this shift.','Couldn\'t work a day because the shift before finished after midnight? Pick <b>Incoming</b>: no shift or hours that day, but it still counts as a day toward the 11 days in a row (unlike MBO, which resets it).'],
     tip:'Edited days get a coloured border on the calendar so you can see what you\'ve changed.'},
 
   swaps:{t:'⇄ Swaps',w:'Record swaps with other drivers or guards, see how the weeks compare, find shifts to swap and keep a history.',
