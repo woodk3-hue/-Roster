@@ -728,6 +728,11 @@ body.day-mode #day-panel{background:rgba(240,242,248,0.97);}
 #rec-swap-arrow,#blp-swap-arrow{display:none;}
 #rec-swap-body,#blp-swap-body{margin-top:4px!important;}
 
+/* ── HOME HEADER: current link ── */
+.dash-link-badge{font-size:22px;padding:6px 12px;margin-right:12px;cursor:pointer;line-height:1.1;}
+.dash-link-line{font-size:12px;color:var(--muted);margin-top:2px;}
+.dash-link-line b{color:var(--text);}
+
 /* ── THIS WEEK (Home) ── */
 .week-card{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:0 2px 12px var(--accent-glow);}
 .week-head{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
@@ -1226,8 +1231,10 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div>
       <div class="screen-title">🚂 Shift Roster <button type="button" class="hb" onclick="openHelp('home',event)" aria-label="How to use this">?</button></div>
       <div class="screen-subtitle" id="dash-date-sub">—</div>
+      <div class="dash-link-line" id="dash-link-line"></div>
     </div>
-    <button class="owner-only" onclick="openRules()" title="Rules" style="background:none;border:none;font-size:19px;cursor:pointer;padding:0;line-height:1;margin-left:auto;margin-right:14px;">📘</button>
+    <button class="owner-only" onclick="openRules()" title="Rules" style="background:none;border:none;font-size:19px;cursor:pointer;padding:0;line-height:1;margin-left:auto;margin-right:10px;">📘</button>
+    <div class="link-badge dash-link-badge" id="dash-link-badge" title="Link you're working this week" onclick="openHelp('link',event)">—</div>
     <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
   </div>
 
@@ -1249,8 +1256,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
   </div>
 
-  <!-- Current Link Card (compact) -->
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+  <!-- Current Link Card (compact) — now shown in the header (badge + line under the date) -->
+  <div id="dash-link-card" style="display:none;"background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
     <div>
       <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Current Link <button type="button" class="hb" onclick="openHelp('link',event)" aria-label="How to use this">?</button></div>
       <div style="font-size:34px;font-weight:900;color:var(--accent);line-height:1.1;font-variant-numeric:tabular-nums;" id="dash-link">—</div>
@@ -5484,6 +5491,12 @@ function renderDash(){
     document.getElementById('dash-link-sub').textContent=link?'On roster — no swap this week':'Set your link in Settings';
   }
 
+  // Header: the link you're working as a badge, and W/C · rostered link · swap on the line under the date
+  try{
+    const lb=document.getElementById('dash-link-badge'); if(lb) lb.textContent=currentLink||'?';
+    const ll=document.getElementById('dash-link-line');
+    if(ll) ll.innerHTML='W/C '+fmtDDMM(mon)+(weekSwapRec&&link?' · Rostered <b>'+link+'</b> · Swapped'+(weekSwapRec.driver?' · '+escHtml(weekSwapRec.driver):''):link?' · On roster':' · Set your link in Settings');
+  }catch(e){}
   // Stats
   const openClaims=S.claims.filter(function(c){ return !c.submitted; }).length;
   const upcomingSwaps=S.swaps.filter(function(sw){ const d=parseDate(sw.wc); return d>=now; }).length;
