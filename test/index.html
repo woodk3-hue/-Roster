@@ -1134,6 +1134,14 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       </div>
     </div>
     <div class="form-group">
+      <label class="form-label">Which shifts do you prefer? <span style="text-transform:none;font-weight:500;">(optional)</span></label>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" style="flex:1;" id="setup-pref-am" onclick="setSetupPref(setupPref==='am'?'none':'am')">🌅 AM</button>
+        <button class="btn" style="flex:1;" id="setup-pref-pm" onclick="setSetupPref(setupPref==='pm'?'none':'pm')">🌆 PM</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Leave blank if you don't mind. The Shift Finder looks for the other kind to swap away; change it any time in Swaps → Shift Finder.</div>
+    </div>
+    <div class="form-group">
       <label class="form-label">My Name</label>
       <input type="text" class="form-input" id="setup-name" placeholder="(your name)">
     </div>
@@ -1529,7 +1537,9 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <div style="margin-bottom:8px;">
     <div id="sff-year-tabs" style="margin-bottom:10px;"></div>
     <div style="margin-bottom:8px;">
+      <div style="font-size:11px;color:var(--muted);margin:-2px 0 4px;">Shifts to find (to swap away):</div>
       <select class="form-select" id="sff-type" onchange="localStorage.setItem('sff_type',this.value);renderShiftFinder();renderCal();" style="font-size:12px;">
+        <option value="off">— Choose which shifts to find —</option>
         <optgroup label="AM Shifts">
           <option value="am">Any AM (AM1, AM2, AM3, AFA)</option>
           <option value="am1">AM1 only (00:01–05:00)</option>
@@ -3471,12 +3481,19 @@ function setSetupRole(role){
   if(d) d.className='btn'+(role==='driver'?' btn-accent':'');
   if(g) g.className='btn'+(role==='guard'?' btn-accent':'');
 }
+// Preferred shifts: prefer AM → look for PM shifts to swap away (and the other way round)
+let setupPref='none';
+function setSetupPref(p){
+  setupPref=p;
+  ['am','pm'].forEach(function(k){ const b=document.getElementById('setup-pref-'+k); if(b) b.className='btn'+(k===p?' btn-accent':''); });
+}
 function showSetupIfNeeded(){
   const el=document.getElementById('setup-screen');
   if(!el) return;
   // Only for a fresh app: once a link is set (or data restored) it never shows again
   if(S.anchorLink||localStorage.getItem('syncEnabled')==='1'){ el.style.display='none'; return; }
   setSetupRole(S.myRole||'driver');
+  setSetupPref('none');
   document.getElementById('setup-name').value=S.myName||'';
   document.getElementById('setup-date').value=fmtDate(getMonday(today()));
   el.style.display='block';
@@ -3506,6 +3523,7 @@ function finishSetup(){
   S.leaveAdjBase={al:S.leave.al,lsl:S.leave.lsl,pc:S.leave.pc}; // starting point, not an adjustment
   S.myName=name;
   S.myRole=setupRole;
+  try{ localStorage.setItem('sff_type',setupPref==='am'?'pm':setupPref==='pm'?'am':'off'); }catch(e){}
   S.anchorLink=link;
   S.anchorDate=fmtDate(getMonday(new Date(y,m-1,d)));
   saveState();
@@ -5861,7 +5879,9 @@ function renderCal(){
   const pmStatusEl=document.getElementById('cal-pm-status');
   if(pmStatusEl){
     const nowD=today();
-    const typeFilter=(document.getElementById('sff-type')?document.getElementById('sff-type').value:null)||localStorage.getItem('sff_type')||'pm';
+    const typeFilter=localStorage.getItem('sff_type')||(document.getElementById('sff-type')?document.getElementById('sff-type').value:null)||'off';
+    if(typeFilter==='off'){ pmStatusEl.style.display='none'; }
+    else {
     const filterLabels={
       'am':'AM','am1':'AM1','am2':'AM2','am3':'AM3','afa':'AFA',
       'pm':'PM','pm1':'PM1','pm2':'PM2','pm3':'PM3','afp':'AFP'
@@ -5895,6 +5915,7 @@ function renderCal(){
     } else {
       if(pmStatusEl){ pmStatusEl.style.display='block'; pmStatusEl.style.color='var(--accent)'; pmStatusEl.textContent=futureUnswapped+' '+filterLabel+' Week'+(futureUnswapped>1?'s':'')+' Remaining To Swap'; }
     }
+    } // end: a shift type is chosen
   }
 
   // Grid start = Monday of week containing 1st
@@ -7657,9 +7678,13 @@ function renderShiftFinder(){
       return '<button class="pmf-year-btn'+(y===sffYear?' active':'')+'" onclick="setSFFYear('+y+')">'+y+'</button>';
     }).join('');
   }
-  const typeFilter=document.getElementById('sff-type')?document.getElementById('sff-type').value:'pm';
+  const sffSel=document.getElementById('sff-type');
+  const savedT=localStorage.getItem('sff_type');
+  if(sffSel&&savedT&&sffSel.value!==savedT) sffSel.value=savedT;
+  const typeFilter=sffSel?sffSel.value:(savedT||'off');
   const el=document.getElementById('sff-results');
   if(!el) return;
+  if(typeFilter==='off'){ el.innerHTML='<div class="empty-state">Pick which shifts you want to find above, e.g. <b>Any PM</b> if you prefer AM shifts.</div>'; return; }
 
   if(!S.anchorLink||!S.anchorDate){
     el.innerHTML='<div class="empty-state">Set your link in Settings first.</div>';
