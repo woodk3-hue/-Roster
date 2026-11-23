@@ -131,6 +131,35 @@ body.day-mode{
   --grad-settings:linear-gradient(160deg,#e4e0f5 0%,#dde3f5 100%);
 }
 
+/* Light mode: stronger colours so labels and times stay readable on white */
+body.day-mode{
+  --muted:#5b6382;
+  --early:#047857;
+  --mid:#b45309;
+  --late:#c81e1e;
+  --accent:#d97706;
+}
+body.day-mode .b-blp,body.day-mode .b-slp{background:rgba(79,70,229,.16);color:#3730a3;font-weight:800;}
+body.day-mode .b-al{background:rgba(220,38,38,.14);color:#b91c1c;font-weight:800;}
+body.day-mode .b-lsl{background:rgba(13,148,136,.15);color:#0f766e;font-weight:800;}
+body.day-mode .b-sick{background:rgba(3,105,161,.15);color:#075985;font-weight:800;}
+body.day-mode .b-swap{background:rgba(124,58,237,.14);color:#5b21b6;}
+body.day-mode .c-al{background:rgba(220,38,38,.10)!important;}
+body.day-mode .c-blp,body.day-mode .c-slp{background:rgba(99,102,241,.12)!important;}
+body.day-mode .cal-cell.other-month{opacity:.45;}
+/* pale text colours made for the dark theme */
+body.day-mode [style*="#fca5a5"]{color:#b91c1c!important;}
+body.day-mode [style*="#fbbf24"]{color:#b45309!important;}
+body.day-mode [style*="#c4b5fd"]{color:#5b21b6!important;}
+body.day-mode [style*="#a5b4fc"]{color:#3730a3!important;}
+body.day-mode [style*="#86efac"]{color:#15803d!important;}
+body.day-mode .week-row.bad .week-day{color:#b91c1c;}
+body.day-mode .week-row.warn .week-day{color:#b45309;}
+body.day-mode .cal-cbo-flag{color:#c2410c;}
+body.day-mode .cal-cbo-flag.over{color:#b91c1c;}
+body.day-mode .cbo-due{color:#c2410c!important;}
+body.day-mode .owner-note{background:rgba(99,102,241,.08);}
+
 /* ── RESET & BASE ── */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{
