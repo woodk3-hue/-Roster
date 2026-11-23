@@ -6094,17 +6094,37 @@ function broughtFwdCalc(ds){
   const sm=parseTime(f.startStr), nm=parseTime(v);
   let diff=sm-nm; if(diff<-720) diff+=1440; if(diff>720) diff-=1440;
   if(diff<=0){ out.innerHTML='<span style="color:var(--muted);">That isn\'t earlier than your rostered '+escHtml(f.startStr)+' sign-on. A later sign-on is "deferred" (Edit Shift → Roster alteration).</span>'; return; }
-  const credit=altCredit('brought',f.startStr,v), leis=dayIsLeisureRoster(ds);
-  const newStart=f.start-diff*60000;
+  const credit=altCredit('brought',f.startStr,v);
+  const newStart=f.start-diff*60000, dayStart=parseDate(ds).getTime();
   const prevDs=fmtDate(addDays(parseDate(ds),-1)), pf=ruleDayFacts(prevDs);
+  // Sign-on moved back onto the day before, and that day is a BLP/SLP you weren't working (EBA 86.3.2)
+  const ontoLeis=newStart<dayStart&&dayIsLeisureRoster(prevDs)&&!pf.work;
+  const leis=dayIsLeisureRoster(ds)||ontoLeis;
   let rest='';
-  if(pf.work&&pf.end!=null){
+  if(ontoLeis){
+    // the last shift before that BLP, for the 12-hour check
+    for(let i=2;i<=7;i++){ const g=ruleDayFacts(fmtDate(addDays(parseDate(ds),-i))); if(g.work){ if(g.end!=null){ const m=Math.round((newStart-g.end)/60000); rest=m<720?'<div style="color:#fca5a5;">⚠ Only <b>'+gapWords(Math.max(m,0))+'</b> off after your '+ruleDayName(g.ds)+' shift. You need 12 hours (EBA 82.1).</div>':''; } break; } }
+  } else if(pf.work&&pf.end!=null){
     const g=Math.round((newStart-pf.end)/60000);
     rest=g<720?'<div style="color:#fca5a5;">⚠ Only <b>'+gapWords(Math.max(g,0))+'</b> off after your '+ruleDayName(prevDs)+' shift (finishes '+escHtml(pf.endStr)+'). You need 12 hours (EBA 82.1).</div>'
       :'<div>✓ '+gapWords(g)+' off after your '+ruleDayName(prevDs)+' shift, so the 12-hour break is OK.</div>';
   }
   const cph=(S.settings&&S.settings.cph)||0;
-  out.innerHTML='<div>Brought forward <b>'+gapWords(diff)+'</b> ('+escHtml(f.startStr)+' → '+escHtml(v)+').</div>'+
+  const shiftH=f.end!=null?(f.end-newStart)/3600000:null;
+  const money=function(h){ return cph?' (≈ '+fmt$(h*cph*1.75)+')':''; };
+  const r2=function(h){ return Math.round(h*100)/100; };
+  const over2=diff>120?'<div style="color:#fca5a5;">Brought forward more than 2 hours: that\'s only allowed if you agree (EBA 90.7).</div>':'';
+  if(ontoLeis){
+    out.innerHTML='<div>Brought forward <b>'+gapWords(diff)+'</b> ('+escHtml(f.startStr)+' → '+escHtml(v)+' on '+ruleDayName(prevDs)+').</div>'+
+      '<div style="margin-top:4px;">🟢 <b>Your sign-on now falls on your '+(parseShift(getRaw(getLinkForWeek(getMonday(parseDate(prevDs))),dayIdx(parseDate(prevDs)))).typeKey==='slp'?'SLP':'BLP')+'.</b> An altered working that puts your sign-on on a leisure period isn\'t credited to your cycle (EBA 86.3.2); time worked on a leisure period is paid at <b>175%</b> (67.9).</div>'+
+      '<div>• The shift: '+(shiftH!=null?'<b>'+r2(shiftH)+'h at 175%</b>'+money(shiftH):'paid at 175% (add a finish time to see the hours)')+', not credited.</div>'+
+      '<div>• Alteration payment: <b>'+r2(credit)+'h at 175%</b>'+money(credit)+' instead of credited (91.2).</div>'+
+      over2+rest+
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px;">How the EBA reads (86.3.2, 67.9, 91.2). Check your payslip; tell the app\'s maker if payroll does it differently. Only applies when the roster changes it, not if you asked (91.10).</div>'+
+      '<button class="btn btn-sm btn-accent" style="margin-top:6px;" onclick="recordBroughtFwd(\''+ds+'\',\''+v+'\',\''+f.startStr+'\')">Record it in Edit Shift</button>';
+    return;
+  }
+  out.innerHTML='<div>Brought forward <b>'+gapWords(diff)+'</b> ('+escHtml(f.startStr)+' → '+escHtml(v)+').</div>'+over2+
     (leis?'<div>On a leisure day it\'s <b>paid at 175%</b> instead of credited: about <b>'+(Math.round(credit*100)/100)+'h</b>'+(cph?' (≈ '+fmt$(credit*cph*1.75)+')':'')+'.</div>'
       :'<div>You get <b>'+(Math.round(credit*100)/100)+'h credited</b> to your cycle hours: 50% of the time brought forward'+(diff<60?' (under 1 hour counts as 1 hour)':'')+' (EBA 91.4–91.5). It only adds to your pay if the cycle goes over its total (excess time).</div>')+
     rest+
