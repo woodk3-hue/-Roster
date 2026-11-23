@@ -9610,10 +9610,9 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-11-18';
+const APP_VERSION='2026-11-23';
 const WHATS_NEW=[
-  'Help: tap the small ? next to any feature for a quick explanation and step-by-step how-to.',
-  'Home now always shows a short note: this app is a guide only. Your posted roster, payslip and the Enterprise Agreement come first.'
+  'Incoming days: if a shift finishes after midnight and you can\'t work the next day\'s shift, that day is an "Incoming" day (INC on the calendar). It has no hours, but it still counts as a day toward the 11 days in a row for a CBO. To mark one: tap the day on the Calendar, then Edit Shift, then Incoming.'
 ];
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
