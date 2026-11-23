@@ -9614,6 +9614,8 @@ const APP_VERSION='2026-11-23';
 const WHATS_NEW=[
   'Incoming days: if a shift finishes after midnight and you can\'t work the next day\'s shift, that day is an "Incoming" day (INC on the calendar). It has no hours, but it still counts as a day toward the 11 days in a row for a CBO. To mark one: tap the day on the Calendar, then Edit Shift, then Incoming.'
 ];
+// Optional personal note shown at the top of the What's new card for this update ('' = none)
+const WHATS_NEW_NOTE='Hi everyone, I know a few more people are using this app now. Some things might not be accurate or correct, as I don\'t know all the rules for everything. If you have any issues, or fixes that need doing, please let me know. Kim Wood (find my number on the Drivers list) :)';
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
   if(seen===APP_VERSION) return;
@@ -9621,9 +9623,11 @@ function showWhatsNew(){
   if(!seen&&!S.anchorLink) return; // a brand-new install doesn't need the update notes
   const el=document.getElementById('whats-new'); if(!el) return;
   el.innerHTML='<div class="card whats-new"><div style="display:flex;align-items:center;margin-bottom:6px;"><b>✨ What\'s new in this update</b><button onclick="document.getElementById(\'whats-new\').innerHTML=\'\'" style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">×</button></div>'+
+    (WHATS_NEW_NOTE?'<div style="margin:0 0 10px;padding:10px 12px;border-radius:10px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.4);font-size:13px;line-height:1.5;">👋 '+escHtml(WHATS_NEW_NOTE)+'</div>':'')+
     '<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.5;">'+WHATS_NEW.map(function(x){ return '<li>'+escHtml(x)+'</li>'; }).join('')+'</ul>'+
     // Every update: remind people their data lives only on this phone
-    '<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.45);font-size:12.5px;line-height:1.45;">'+
+    '<div style="margin-top:12px;font-size:13px;font-weight:800;">Remember to back up regularly or risk losing your data.</div>'+
+    '<div style="margin-top:6px;padding:10px 12px;border-radius:10px;background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.45);font-size:12.5px;line-height:1.45;">'+
       '<b>💾 Back up now, or you could lose your data.</b> Your roster, swaps, claims and settings are saved only on this phone. A new phone, deleting the app or clearing your browser wipes them. Save a backup file somewhere safe (email it to yourself or put it in Files / Google Drive).'+
       '<button class="btn btn-accent btn-sm" style="width:100%;margin-top:8px;" onclick="exportBackup()">⬇ Back Up Now</button></div></div>';
 }
