@@ -131,6 +131,35 @@ body.day-mode{
   --grad-settings:linear-gradient(160deg,#e4e0f5 0%,#dde3f5 100%);
 }
 
+/* Light mode: stronger colours so labels and times stay readable on white */
+body.day-mode{
+  --muted:#5b6382;
+  --early:#047857;
+  --mid:#b45309;
+  --late:#c81e1e;
+  --accent:#d97706;
+}
+body.day-mode .b-blp,body.day-mode .b-slp{background:rgba(79,70,229,.16);color:#3730a3;font-weight:800;}
+body.day-mode .b-al{background:rgba(220,38,38,.14);color:#b91c1c;font-weight:800;}
+body.day-mode .b-lsl{background:rgba(13,148,136,.15);color:#0f766e;font-weight:800;}
+body.day-mode .b-sick{background:rgba(3,105,161,.15);color:#075985;font-weight:800;}
+body.day-mode .b-swap{background:rgba(124,58,237,.14);color:#5b21b6;}
+body.day-mode .c-al{background:rgba(220,38,38,.10)!important;}
+body.day-mode .c-blp,body.day-mode .c-slp{background:rgba(99,102,241,.12)!important;}
+body.day-mode .cal-cell.other-month{opacity:.45;}
+/* pale text colours made for the dark theme */
+body.day-mode [style*="#fca5a5"]{color:#b91c1c!important;}
+body.day-mode [style*="#fbbf24"]{color:#b45309!important;}
+body.day-mode [style*="#c4b5fd"]{color:#5b21b6!important;}
+body.day-mode [style*="#a5b4fc"]{color:#3730a3!important;}
+body.day-mode [style*="#86efac"]{color:#15803d!important;}
+body.day-mode .week-row.bad .week-day{color:#b91c1c;}
+body.day-mode .week-row.warn .week-day{color:#b45309;}
+body.day-mode .cal-cbo-flag{color:#c2410c;}
+body.day-mode .cal-cbo-flag.over{color:#b91c1c;}
+body.day-mode .cbo-due{color:#c2410c!important;}
+body.day-mode .owner-note{background:rgba(99,102,241,.08);}
+
 /* ── RESET & BASE ── */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{
@@ -489,6 +518,7 @@ html,body{
   gap:2px;
 }
 .cal-cell{
+  position:relative;
   min-height:88px;
   background:var(--surface);
   border:1px solid var(--border);
@@ -661,6 +691,60 @@ body.day-mode #day-panel{background:rgba(240,242,248,0.97);}
   border-color:transparent;
   box-shadow:0 2px 8px var(--accent-glow);
 }
+
+/* ── TODAY + NEXT SHIFT SIDE BY SIDE (Home) ── */
+.dash-shift-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;align-items:stretch;}
+.dash-shift-row .shift-preview-card{min-width:0;padding:10px 10px;}
+.dash-shift-row .shift-preview-time{font-size:21px!important;line-height:1.15;word-break:break-word;}
+.dash-shift-row .rest-next{font-size:11px;padding:5px 7px;}
+.dash-shift-row .dash-today-row{font-size:11.5px;}
+.dash-shift-row details.show-more>summary{font-size:11px;}
+.dash-shift-row .dash-today-meal{display:none;}   /* meal break is in the day panel; keeps the two boxes level */
+.dash-shift-row .dash-today-warn{font-size:11px;}
+
+/* ── COMPACT SWAP EMAIL LINES (Home) ── */
+.swap-email-row{display:flex;align-items:center;gap:6px;padding:8px 10px!important;cursor:pointer;}
+.ser-main{flex:1;min-width:0;}
+.ser-top{font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ser-who{font-weight:500;color:var(--muted);}
+.ser-sub{font-size:11px;color:var(--muted);}
+.ser-btn{font-size:11px!important;padding:5px 9px!important;white-space:nowrap;flex:0 0 auto;}
+
+/* ── SETTINGS: sections fold up (tap a heading) ── */
+#screen-settings .settings-section.folded > :not(.settings-section-title){display:none!important;}
+#screen-settings .settings-section.folded > .settings-section-title{margin-bottom:0;}
+.fold-title{cursor:pointer;display:flex;align-items:center;gap:4px;}
+.fold-title::after{content:'▸';margin-left:auto;color:var(--muted);font-size:14px;}
+#screen-settings .settings-section:not(.folded) > .fold-title::after{content:'▾';}
+
+/* ── SWAPS: choose Record a Swap or BLP Swap ── */
+.swap-choose{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.swap-choose-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px;border-radius:12px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text);cursor:pointer;text-align:left;font:inherit;}
+.swap-choose-btn span{font-size:14px;font-weight:800;}
+.swap-choose-btn small{font-size:11px;color:var(--muted);}
+.swap-choose-btn.active{border-color:var(--accent);background:rgba(245,158,11,.12);box-shadow:0 2px 10px var(--accent-glow);}
+.swap-old-head{pointer-events:none;margin-bottom:6px;}
+.swap-old-head .hb{pointer-events:auto;}
+#rec-swap-arrow,#blp-swap-arrow{display:none;}
+#rec-swap-body,#blp-swap-body{margin-top:4px!important;}
+
+/* ── HOME HEADER: current link ── */
+.dash-link-badge{font-size:22px;padding:6px 12px;margin-right:12px;cursor:pointer;line-height:1.1;}
+.dash-link-line{font-size:12px;color:var(--muted);margin-top:2px;}
+.dash-link-line b{color:var(--text);}
+
+/* ── THIS WEEK (Home) ── */
+.week-card{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:0 2px 12px var(--accent-glow);}
+.week-head{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.week-head span{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0;text-transform:none;margin-left:auto;}
+.week-row{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid var(--border);font-size:13px;line-height:1.4;cursor:pointer;}
+.week-row:first-of-type{border-top:none;}
+.week-day{flex:0 0 74px;font-size:11px;font-weight:800;color:var(--muted);padding-top:2px;}
+.week-ico{flex:0 0 18px;text-align:center;}
+.week-txt{flex:1;min-width:0;}
+.week-row.bad .week-day{color:#fca5a5;}
+.week-row.warn .week-day{color:#fbbf24;}
+.week-empty{font-size:13px;color:var(--muted);padding:4px 0;}
 
 /* ── BREAK BEFORE THE NEXT SHIFT ── */
 .rest-next{margin-top:6px;padding:6px 9px;border-radius:8px;background:var(--surface2);font-size:12px;line-height:1.4;color:var(--text);}
@@ -957,6 +1041,8 @@ details.show-more{margin:4px 0 10px;}
 #cal-cycles{text-align:center;margin:10px 0 0;}
 .cal-cell.cycle-start{box-shadow:inset 3px 0 0 var(--accent2);}
 .cal-rule-flag{font-size:10px;color:#ef4444;font-weight:800;margin-top:auto;line-height:1;}
+.pay-dot{position:absolute;top:3px;right:15px;width:15px;height:15px;border-radius:50%;background:#16a34a;color:#fff;font:900 10px/15px system-ui,sans-serif;text-align:center;pointer-events:none;}
+.pay-dot.late{background:#f59e0b;color:#000;}
 .cal-cbo-flag{font-size:9px;font-weight:800;color:#fb923c;line-height:1.1;}
 .cal-cbo-flag.over{color:#ef4444;}
 .cbo-due{background:transparent!important;border:1.5px dashed #ea580c;color:#fb923c!important;font-size:8px!important;white-space:nowrap;padding:1px 2px!important;letter-spacing:-.02em;}
@@ -1064,6 +1150,14 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       </div>
     </div>
     <div class="form-group">
+      <label class="form-label">Which shifts do you prefer? <span style="text-transform:none;font-weight:500;">(optional)</span></label>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" style="flex:1;" id="setup-pref-am" onclick="setSetupPref(setupPref==='am'?'none':'am')">🌅 AM</button>
+        <button class="btn" style="flex:1;" id="setup-pref-pm" onclick="setSetupPref(setupPref==='pm'?'none':'pm')">🌆 PM</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Leave blank if you don't mind. The Shift Finder looks for the other kind to swap away; change it any time in Swaps → Shift Finder.</div>
+    </div>
+    <div class="form-group">
       <label class="form-label">My Name</label>
       <input type="text" class="form-input" id="setup-name" placeholder="(your name)">
     </div>
@@ -1080,7 +1174,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="form-group">
       <label class="form-label">Hourly Pay Rate ($)</label>
       <input type="number" class="form-input" id="setup-cph" step="any" min="0" placeholder="e.g. 66.504" inputmode="decimal">
-      <div style="font-size:11px;color:var(--muted);margin-top:4px;">From your payslip&#39;s RATE CPH column (cents per hour): move the decimal point two places left, e.g. <b>6650.40</b> = <b>66.504</b>.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Payslip RATE CPH ÷ 100, e.g. <b>6650.40</b> → <b>66.504</b>.</div>
     </div>
     <div class="form-group">
       <label class="form-label">Starting Leave Balances (hours, from your payslip)</label>
@@ -1137,8 +1231,10 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div>
       <div class="screen-title">🚂 Shift Roster <button type="button" class="hb" onclick="openHelp('home',event)" aria-label="How to use this">?</button></div>
       <div class="screen-subtitle" id="dash-date-sub">—</div>
+      <div class="dash-link-line" id="dash-link-line"></div>
     </div>
-    <button class="owner-only" onclick="openRules()" title="Rules" style="background:none;border:none;font-size:19px;cursor:pointer;padding:0;line-height:1;margin-left:auto;margin-right:14px;">📘</button>
+    <button class="owner-only" onclick="openRules()" title="Rules" style="background:none;border:none;font-size:19px;cursor:pointer;padding:0;line-height:1;margin-left:auto;margin-right:10px;">📘</button>
+    <div class="link-badge dash-link-badge" id="dash-link-badge" title="Link you're working this week" onclick="openHelp('link',event)">—</div>
     <span class="profile-switch"></span><button onclick="showScreen('settings')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:#9ca3af;">⚙</button>
   </div>
 
@@ -1149,6 +1245,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
   <!-- Backup reminder (shown by updateBackupReminder) -->
   <div id="whats-new"></div>
+  <div id="dash-week" class="owner-only"></div>
   <div id="partner-today"></div>
   <div id="backup-reminder" class="owner-only" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
     <div style="font-size:13px;font-weight:700;">💾 Time to back up</div>
@@ -1159,8 +1256,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
   </div>
 
-  <!-- Current Link Card (compact) -->
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+  <!-- Current Link Card (compact) — now shown in the header (badge + line under the date) -->
+  <div id="dash-link-card" style="display:none;"background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
     <div>
       <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Current Link <button type="button" class="hb" onclick="openHelp('link',event)" aria-label="How to use this">?</button></div>
       <div style="font-size:34px;font-weight:900;color:var(--accent);line-height:1.1;font-variant-numeric:tabular-nums;" id="dash-link">—</div>
@@ -1176,7 +1273,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- Today's Shift + Next Shift -->
-  <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px;">
+  <div class="dash-shift-row">
     <div class="shift-preview-card" id="dash-today-shift" onclick="if(!event.target.closest('details,a,button'))openDashShiftEdit('today')">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Today <button type="button" class="hb" onclick="openHelp('today',event)" aria-label="How to use this">?</button></div>
       <div id="dash-today-content"><div style="color:var(--muted);font-size:12px;">—</div></div>
@@ -1188,7 +1285,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- Quick stats -->
-  <div class="dash-grid owner-only">
+  <div class="dash-grid owner-only" id="dash-claims-tile">
     <div class="dash-stat">
       <div class="dash-stat-val" id="dash-claims-open">0</div>
       <div class="dash-stat-lbl">Open Claims <button type="button" class="hb" onclick="openHelp('claims',event)" aria-label="How to use this">?</button></div>
@@ -1273,6 +1370,8 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="lg-item"><span class="cal-badge b-mbo lg-badge">INC</span><span>Incoming (not worked, counts as a day)</span></div>
       <div class="lg-item"><span class="cal-badge b-cbo cbo-due lg-badge">CBO due</span><span>Day after day 11 in a row: 32 hours off needed</span></div>
       <div class="lg-item"><b class="cal-cbo-flag" style="font-size:10px;">D11</b><span>Day 11 (or more) in a row</span></div>
+      <div class="lg-item"><span class="pay-dot" style="position:static;display:inline-block;">$</span><span>Pay day</span></div>
+      <div class="lg-item"><span class="pay-dot late" style="position:static;display:inline-block;">$</span><span>Pay day, may be delayed (public holiday Mon/Tue)</span></div>
       <div class="lg-item"><span class="cal-badge lg-badge" style="background:#b45309;color:#fde68a;">PH</span><span>Public Holiday</span></div>
       <div class="lg-item"><span class="lg-badge" style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:#1d4ed8;color:#fff;">Event</span><span>Personal event</span></div>
     </div>
@@ -1319,8 +1418,17 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- ── RECORD SWAP FORM (always visible) ── -->
-  <div class="card swap-form" style="margin-bottom:14px;">
-    <div class="card-title">Record a Swap <button type="button" class="hb" onclick="openHelp('recordswap',event)" aria-label="How to use this">?</button></div>
+  <!-- Choose which swap to record: the form drops down underneath -->
+  <div class="swap-choose">
+    <button type="button" class="swap-choose-btn" id="choose-rec" onclick="chooseSwapForm('rec')"><span>⇄ Record a Swap</span><small>Week, day or part week</small></button>
+    <button type="button" class="swap-choose-btn" id="choose-blp" onclick="chooseSwapForm('blp')"><span>🌙 BLP Swap</span><small>Swap a BLP for a shift</small></button>
+  </div>
+  <div class="card swap-form" id="swap-card-rec" style="margin-bottom:14px;display:none;">
+    <div class="swap-old-head" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleRecordSwap()">
+      <div class="card-title" style="margin:0;">Record a Swap <button type="button" class="hb" onclick="openHelp('recordswap',event)" aria-label="How to use this">?</button></div>
+      <span id="rec-swap-arrow" style="color:var(--muted);font-size:16px;">▸</span>
+    </div>
+    <div id="rec-swap-body" style="display:none;margin-top:12px;">
 
     <!-- My link and W/C fill each other in -->
     <div style="display:flex;gap:10px;margin-bottom:10px;">
@@ -1375,14 +1483,17 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
 
     <div id="sw-blp-warn" style="display:none;margin-bottom:8px;padding:8px 10px;background:var(--surface2);border-radius:6px;font-size:11px;"></div>
-    <button class="btn btn-accent btn-full" style="margin-top:4px;" onclick="saveSwapInline()">Record Swap</button>
+    <div id="sw-edit-note" style="display:none;font-size:12px;margin:4px 0 6px;padding:6px 9px;border-radius:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);"></div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn" id="sw-edit-cancel" style="display:none;flex:1;" onclick="cancelSwapEdit()">Cancel</button>
+      <button class="btn btn-accent btn-full" id="sw-save-btn" style="flex:2;" onclick="saveSwapInline()">Record Swap</button>
+    </div>
+    </div>
   </div>
 
-  <hr class="divider">
-
   <!-- ── BLP SWAP SECTION ── -->
-  <div class="card" style="margin-bottom:14px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleBlpSwapSection()">
+  <div class="card" id="swap-card-blp" style="margin-bottom:14px;display:none;">
+    <div class="swap-old-head" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleBlpSwapSection()">
       <div class="card-title" style="margin:0;">BLP Swap <button type="button" class="hb" onclick="openHelp('blpswap',event)" aria-label="How to use this">?</button></div>
       <span id="blp-swap-arrow" style="color:var(--muted);font-size:16px;">▸</span>
     </div>
@@ -1447,7 +1558,9 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <div style="margin-bottom:8px;">
     <div id="sff-year-tabs" style="margin-bottom:10px;"></div>
     <div style="margin-bottom:8px;">
+      <div style="font-size:11px;color:var(--muted);margin:-2px 0 4px;">Shifts to find (to swap away):</div>
       <select class="form-select" id="sff-type" onchange="localStorage.setItem('sff_type',this.value);renderShiftFinder();renderCal();" style="font-size:12px;">
+        <option value="off">— Choose which shifts to find —</option>
         <optgroup label="AM Shifts">
           <option value="am">Any AM (AM1, AM2, AM3, AFA)</option>
           <option value="am1">AM1 only (00:01–05:00)</option>
@@ -1556,7 +1669,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <!-- Planned Leave -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
     <div class="section-label" style="margin:0;">Planned Leave <button type="button" class="hb" onclick="openHelp('plannedleave',event)" aria-label="How to use this">?</button></div>
-    <button class="btn btn-sm btn-accent" onclick="openLeaveModal()">+ Add Leave</button>
+    <button class="btn btn-accent" style="font-size:14px;padding:10px 16px;" onclick="openLeaveModal()">+ Add Leave</button>
   </div>
   <div id="planned-leave-list"></div>
 
@@ -1691,11 +1804,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div style="font-size:11px;color:var(--accent);min-height:16px;margin-bottom:10px;" id="set-link-preview"></div>
     <button class="btn btn-accent" onclick="saveRosterSettings()">Save Link</button>
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Import your depot's roster — the Link/Diagram PDF straight from the rostering system, or a roster.txt file.</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">The Link/Diagram PDF from rostering (or a .txt file).</div>
     <div id="roster-import-status" style="font-size:12px;margin-bottom:8px;"></div>
     <div style="text-align:right;margin:-2px 0 4px;"><a href="#" class="hb-link" onclick="openHelp('importroster',event);return false;">? How to import your roster</a></div><label for="roster-pdf-input" class="btn btn-accent" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">📄 Import Roster File (.txt or .pdf)</label>
     <input type="file" id="roster-pdf-input" accept=".txt,.pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importRosterPDF(this)">
-    <div style="font-size:11px;color:var(--muted);margin:14px 0 8px;">Import the job card PDF (all days in one file) to see each shift's job card, sign-off time and length when you tap a day.</div>
+    <div style="font-size:11px;color:var(--muted);margin:14px 0 8px;">Adds sign-off times and job details to each day.</div>
     <div id="jobcards-import-status" style="font-size:12px;margin-bottom:8px;"></div>
     <div style="text-align:right;margin:-2px 0 4px;"><a href="#" class="hb-link" onclick="openHelp('importjobcards',event);return false;">? What are job cards?</a></div><label for="jobcards-pdf-input" class="btn" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">🗂 Import Job Cards PDF</label>
     <input type="file" id="jobcards-pdf-input" accept=".pdf" multiple style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importJobCards(this)">
@@ -1707,7 +1820,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="form-group">
         <label class="form-label">Hourly Rate (CPH)</label>
         <input type="number" class="form-input" id="set-cph" step="any" placeholder="66.504">
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">From your payslip&#39;s RATE CPH column (cents per hour): move the decimal point two places left, e.g. <b>6650.40</b> = <b>66.504</b>.</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Payslip RATE CPH ÷ 100, e.g. <b>6650.40</b> → <b>66.504</b>.</div>
       </div>
       <div class="form-group">
         <label class="form-label">OT Multiplier</label>
@@ -1732,7 +1845,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="form-group">
       <label class="form-label">Nine-day fortnight starts</label>
       <input type="date" class="form-input" id="set-ninedayfrom" onchange="saveDateSetting('nineDayFrom',this)">
-      <div style="font-size:11px;color:var(--muted);margin-top:4px;">From this date: 152h cycles, max 9 attendances / min 5 leisure days a fortnight, and the lower leave accrual rates (EBA 80.2, 93.3). Change it if the start date moves. When it starts, also set guaranteed hours to 76 and your new hourly rate.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">152h cycles from this date (EBA 80.2, 93.3). Then set guaranteed hours to 76 and your new rate.</div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -1797,16 +1910,16 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
       <div style="font-size:13px;font-weight:700;">📱 Automatic Device Backup</div>
-      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Every change is copied to a second spot on this phone, replacing the old copy. Nothing is sent online. If the app's saved data goes missing, it restores itself from this copy.</div>
+      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">A second copy is kept on this phone and restores itself if your data goes missing.</div>
       <div id="backup-status" style="font-size:11px;color:var(--muted);">—</div>
       <div id="export-status" style="font-size:11px;color:var(--muted);margin-top:2px;">—</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px;">Clearing the browser's data or deleting the app removes both copies — tap <b>Export Backup</b> now and then and keep the file safe.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">Deleting the app wipes both copies, so <b>Export Backup</b> now and then.</div>
     </div>
   </div>
 
   <div class="settings-section">
     <div class="settings-section-title">Rules &amp; EBA <button type="button" class="hb" onclick="openHelp('rules',event)" aria-label="How to use this">?</button></div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">The Traincrew Enterprise Agreement 2024 and SEQ Roster Protocols in plain English. The app warns you when a swap or edited shift breaks a rule.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">The EBA and Roster Protocols in plain English.</div>
     <button class="btn" style="width:100%;" onclick="openRules()">📘 Open Rules</button>
   </div>
 
@@ -2926,14 +3039,39 @@ const SPARE_TIMES = {AM1:'~03:00',AM2:'~04:30',AM3:'~08:00',PM1:'~12:00',PM2:'~1
 const HOME_LINK = null;
 
 // QLD Labour Day (first Monday in May) — paid differently from other public holidays (EBA 59.7)
-const LABOUR_DAYS=new Set(['2025-05-05','2026-05-04','2027-05-03','2028-05-01']);
-// QLD public holidays (YYYY-MM-DD)
-const QLD_PH = new Set([
-  '2026-01-01','2026-01-26','2026-04-03','2026-04-04','2026-04-05','2026-04-06',
-  '2026-04-25','2026-05-04','2026-08-12','2026-10-05','2026-12-25','2026-12-26','2026-12-28',
-  '2025-01-01','2025-01-27','2025-04-18','2025-04-19','2025-04-20','2025-04-21',
-  '2025-04-25','2025-05-05','2025-08-13','2025-10-06','2025-12-25','2025-12-26'
-]);
+// QLD public holidays, worked out for any year from the rules on qld.gov.au (Brisbane: Ekka included).
+// New Year's Day and Australia Day on a weekend move to Monday; Anzac Day on a Sunday moves to Monday;
+// Christmas / Boxing Day on a weekend get Monday (and Tuesday) substitutes.
+const QLD_PH_EXTRA=[];   // any one-off holiday the state declares: 'YYYY-MM-DD'
+function qldHolidays(y){
+  const out=[], f=function(d){ return fmtDate(d); }, D=function(m,d){ return new Date(y,m-1,d); };
+  const nextMon=function(d){ const x=new Date(d); while(x.getDay()!==1) x.setDate(x.getDate()+1); return x; };
+  const firstMon=function(m){ return nextMon(D(m,1)); };
+  // New Year's Day
+  const ny=D(1,1); out.push(f(ny)); if(ny.getDay()===6||ny.getDay()===0) out.push(f(nextMon(ny)));
+  // Australia Day
+  const au=D(1,26); out.push(f(au.getDay()===6||au.getDay()===0?nextMon(au):au));
+  // Easter (Good Friday to Easter Monday)
+  const a=y%19,b=Math.floor(y/100),c=y%100,dd=Math.floor(b/4),e=b%4,ff=Math.floor((b+8)/25),g=Math.floor((b-ff+1)/3),
+        h=(19*a+b-dd-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+        em=Math.floor((h+l-7*m+114)/31), ed=((h+l-7*m+114)%31)+1, es=D(em,ed);
+  [-2,-1,0,1].forEach(function(o){ out.push(f(addDays(es,o))); });
+  // Anzac Day (Sunday → Monday)
+  const an=D(4,25); out.push(f(an.getDay()===0?addDays(an,1):an));
+  // Labour Day, King's Birthday: first Monday in May / October
+  out.push(f(firstMon(5))); out.push(f(firstMon(10)));
+  // Ekka (Brisbane): the show starts on the first Friday in August, or the second if that's before the 5th; Wednesday after
+  let fr=D(8,1); while(fr.getDay()!==5) fr=addDays(fr,1); if(fr.getDate()<5) fr=addDays(fr,7); out.push(f(addDays(fr,5)));
+  // Christmas and Boxing Day
+  const xm=D(12,25), bx=D(12,26); out.push(f(xm)); out.push(f(bx));
+  if(xm.getDay()===6){ out.push(f(D(12,27))); out.push(f(D(12,28))); }       // Sat + Sun → Mon + Tue
+  else if(xm.getDay()===0) out.push(f(D(12,27)));                              // Sun → Tue (Boxing Day is Mon)
+  else if(bx.getDay()===6) out.push(f(D(12,28)));                              // Boxing Day Sat → Mon
+  return out;
+}
+const _phCache={};
+const QLD_PH={ has:function(ds){ const y=+String(ds).slice(0,4); if(!_phCache[y]) _phCache[y]=new Set(qldHolidays(y)); return _phCache[y].has(ds)||QLD_PH_EXTRA.indexOf(ds)>-1; } };
+const LABOUR_DAYS={ has:function(ds){ const d=parseDate(ds); return d.getMonth()===4&&d.getDay()===1&&d.getDate()<=7; } };
 
 // ═══════════════════════════════════════════════════════════
 // STATE
@@ -2943,6 +3081,7 @@ function openDisclaimer(){
   showScreen('settings');
   setTimeout(function(){
     const el=document.getElementById('about-disclaimer'), sc=document.getElementById('screen-settings');
+    unfoldSettingFor(el);
     if(el&&sc) sc.scrollTop=Math.max(0,el.getBoundingClientRect().top-sc.getBoundingClientRect().top+sc.scrollTop-20);
   },120);
 }
@@ -3363,12 +3502,19 @@ function setSetupRole(role){
   if(d) d.className='btn'+(role==='driver'?' btn-accent':'');
   if(g) g.className='btn'+(role==='guard'?' btn-accent':'');
 }
+// Preferred shifts: prefer AM → look for PM shifts to swap away (and the other way round)
+let setupPref='none';
+function setSetupPref(p){
+  setupPref=p;
+  ['am','pm'].forEach(function(k){ const b=document.getElementById('setup-pref-'+k); if(b) b.className='btn'+(k===p?' btn-accent':''); });
+}
 function showSetupIfNeeded(){
   const el=document.getElementById('setup-screen');
   if(!el) return;
   // Only for a fresh app: once a link is set (or data restored) it never shows again
   if(S.anchorLink||localStorage.getItem('syncEnabled')==='1'){ el.style.display='none'; return; }
   setSetupRole(S.myRole||'driver');
+  setSetupPref('none');
   document.getElementById('setup-name').value=S.myName||'';
   document.getElementById('setup-date').value=fmtDate(getMonday(today()));
   el.style.display='block';
@@ -3380,6 +3526,7 @@ function setupAsPartner(){
   showScreen('settings');
   setTimeout(function(){
     const pin=document.getElementById('sync-pin');
+    unfoldSettingFor(pin);
     if(pin){ pin.scrollIntoView({behavior:'smooth',block:'center'}); pin.focus(); }
   },150);
   toast('Enter your partner\'s sync PIN and tap Connect');
@@ -3397,6 +3544,7 @@ function finishSetup(){
   S.leaveAdjBase={al:S.leave.al,lsl:S.leave.lsl,pc:S.leave.pc}; // starting point, not an adjustment
   S.myName=name;
   S.myRole=setupRole;
+  try{ localStorage.setItem('sff_type',setupPref==='am'?'pm':setupPref==='pm'?'am':'off'); }catch(e){}
   S.anchorLink=link;
   S.anchorDate=fmtDate(getMonday(new Date(y,m-1,d)));
   saveState();
@@ -4576,7 +4724,7 @@ function dayIsLeisureRoster(ds){
   // A whole-week swap means the other link's roster applies
   const ws=(S.swaps||[]).find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
   const ov=S.days[ds];  // a day swapped on its own (single day, Mon–Fri, Mon–Sat) follows the other link
-  const sh=parseShift(getRaw(ov&&ov.type==='swap'&&ov.swapTo?ov.swapTo:(ws?ws.linkReceived:getLinkForWeek(mon)),dayIdx(d)));
+  const sh=parseShift(getRaw(ov&&ov.swapTo&&['swap','blp_given','blp_kept'].includes(ov.type)?ov.swapTo:(ws?ws.linkReceived:getLinkForWeek(mon)),dayIdx(d)));
   return sh.typeKey==='blp'||sh.typeKey==='slp';
 }
 // Hours credited to one 4-week cycle: shifts worked, leave (rostered hours) and roster alteration credits
@@ -5236,6 +5384,7 @@ function setToolsView(v){
 // ── Rules card on the Dash ──
 function renderDashRules(){
   const el=document.getElementById('dash-rules'); if(!el) return;
+  el.innerHTML=''; return;   // Rules open from the 📘 button at the top of Home
   if(!S.anchorLink||!ROSTER||!Object.keys(ROSTER).length){ el.innerHTML=''; return; }
   const p=rulePeriodFor(today()), w=ruleWeekendCounts();
   let probs=0; for(let i=0;i<28;i++) activeRuleIssues(fmtDate(addDays(today(),i))).forEach(function(x){ if(x.side!=='after') probs++; });
@@ -5342,10 +5491,17 @@ function renderDash(){
     document.getElementById('dash-link-sub').textContent=link?'On roster — no swap this week':'Set your link in Settings';
   }
 
+  // Header: the link you're working as a badge, and W/C · rostered link · swap on the line under the date
+  try{
+    const lb=document.getElementById('dash-link-badge'); if(lb) lb.textContent=currentLink||'?';
+    const ll=document.getElementById('dash-link-line');
+    if(ll) ll.innerHTML='W/C '+fmtDDMM(mon)+(weekSwapRec&&link?' · Rostered <b>'+link+'</b> · Swapped'+(weekSwapRec.driver?' · '+escHtml(weekSwapRec.driver):''):link?' · On roster':' · Set your link in Settings');
+  }catch(e){}
   // Stats
   const openClaims=S.claims.filter(function(c){ return !c.submitted; }).length;
   const upcomingSwaps=S.swaps.filter(function(sw){ const d=parseDate(sw.wc); return d>=now; }).length;
   document.getElementById('dash-claims-open').textContent=openClaims;
+  const clTile=document.getElementById('dash-claims-tile'); if(clTile) clTile.style.display=openClaims?'':'none';
 
   // Upcoming Swap Email Cards
   const emailEl=document.getElementById('dash-swap-emails');
@@ -5355,29 +5511,20 @@ function renderDash(){
     return d>now&&!sent;
   }).sort(function(a,b){ return a.wc.localeCompare(b.wc); });
   if(futureSwaps.length){
-    emailEl.innerHTML='<div class="section-label">Swap Email Due <button type="button" class="hb" onclick="openHelp(\'swapemail\',event)" aria-label="How to use this">?</button></div>'+
+    emailEl.innerHTML='<div class="section-label">Swap Emails <button type="button" class="hb" onclick="openHelp(\'swapemail\',event)" aria-label="How to use this">?</button></div>'+
       firstFewThenMore(futureSwaps.map(function(sw){
         const wcDate=parseDate(sw.wc);
         // Email due 3 days before WC
         const emailDue=addDays(wcDate,-3);
         const daysLeft=Math.ceil((emailDue-now)/(24*60*60*1000));
         const sent=S.swapEmailSent[sw.id];
-        const countdown=daysLeft<=0?'<span style="color:#ef4444;font-weight:700;">Due Now!</span>':daysLeft===1?'<span style="color:var(--accent);">Tomorrow</span>':'<span class="swap-email-countdown">'+daysLeft+'</span> days remaining';
-        return '<div class="swap-email-card" id="sec-'+sw.id+'" data-swid="'+sw.id+'" style="cursor:pointer;" onclick="if(!event.target.closest(\'button,input,.swap-edit\'))editSwap(\''+sw.id+'\',this)">'+
-          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">'+
-            '<div>'+
-              '<div style="font-size:12px;font-weight:800;">W/C '+fmtDDMM(wcDate)+' &nbsp;<span style="font-weight:400;color:var(--muted);">'+(sw.scope==='blp'?'<span style="color:#6366f1;font-weight:700;">BLP swap</span>':'Link '+sw.linkGiven+' → '+sw.linkReceived)+'</span></div>'+
-              (sw.driver?'<div style="font-size:11px;color:var(--muted);">'+sw.driver+'</div>':'')+
-              '<div style="font-size:11px;color:var(--muted);">Email due: '+fmtDDMM(emailDue)+' · '+countdown+'</div>'+
-            '</div>'+
-            (sent
-              ?'<div style="text-align:right;white-space:nowrap;"><span style="color:var(--early);font-size:11px;font-weight:700;">✓ Sent</span><br><button class="btn btn-sm" style="font-size:9px;padding:2px 6px;margin-top:2px;" data-swapid="'+sw.id+'" onclick="undoSwapEmailSentById(this)">Undo</button></div>'
-              :'<button class="btn btn-sm btn-accent" style="font-size:10px;white-space:nowrap;" data-swapid="'+sw.id+'" onclick="markSwapEmailSentById(this)">Mark Sent</button>')+
-          '</div>'+
-          '<div style="display:flex;gap:6px;margin-top:6px;">'+
-            '<button class="btn btn-sm" style="font-size:10px;flex:1;" onclick="editSwap(\''+sw.id+'\',this.closest(\'.swap-email-card\'))">✏️ Edit</button>'+
-            '<button class="btn btn-sm" style="font-size:10px;flex:2;" data-swapid="'+sw.id+'" onclick="generateSwapEmailById(this)">📧 Generate Email</button>'+
-          '</div>'+
+        const countdown=daysLeft<=0?'<span style="color:#ef4444;font-weight:700;">Due Now!</span>':daysLeft===1?'<span style="color:var(--accent);">Tomorrow</span>':'in <span class="swap-email-countdown">'+daysLeft+'</span> days';
+        // One compact line per swap: tap it to edit, ✉ writes the email, Sent ticks it off
+        return '<div class="swap-email-card swap-email-row" id="sec-'+sw.id+'" data-swid="'+sw.id+'" onclick="if(!event.target.closest(\'button,input,.swap-edit\'))editSwap(\''+sw.id+'\',this)">'+
+          '<div class="ser-main"><div class="ser-top">W/C '+fmtDDMM(wcDate)+' · '+(sw.scope==='blp'?'<span style="color:#6366f1;">BLP swap</span>':sw.linkGiven+' → '+sw.linkReceived)+(sw.driver?' <span class="ser-who">· '+escHtml(sw.driver)+'</span>':'')+'</div>'+
+          '<div class="ser-sub">Email by '+fmtDDMM(emailDue)+' · '+countdown+'</div></div>'+
+          '<button class="btn btn-sm ser-btn" title="Write the email" data-swapid="'+sw.id+'" onclick="generateSwapEmailById(this)">✉</button>'+
+          '<button class="btn btn-sm btn-accent ser-btn" data-swapid="'+sw.id+'" onclick="markSwapEmailSentById(this)">Sent</button>'+
         '</div>';
       }),3);
   } else {
@@ -5398,11 +5545,12 @@ function renderDash(){
     // One alert per leave once it's within the first reminder window (it used to add one per window)
     if(daysUntil>0&&daysUntil<=leaveThresholds[0].days){
       const msg=daysUntil===1?labels[lv.type]+' starts Tomorrow':''+labels[lv.type]+' starts in '+daysUntil+' days ('+fmtDDMM(start)+')';
-      alerts.push({dot:'dot-green',msg:msg,pri:2});
+      alerts.push({dot:'dot-green',msg:msg,pri:2,ds:lv.start});
     }
   });
 
   if(openClaims>0) alerts.push({dot:'dot-red',msg:openClaims+' unsubmitted claim'+(openClaims>1?'s':'')+' pending.',pri:3});
+
 
   // CBO alert — consecutive days (EBA 96): sick counts, leave resets, 32 hours off restarts
   (function(){
@@ -5413,16 +5561,16 @@ function renderDash(){
     if(cur>=11) hit={ds:todayStr,n:cur};
     if(hit){
       const d=parseDate(hit.ds);
-      alerts.push({dot:'dot-orange',msg:'⚠ '+(hit.ds===todayStr?'Today is day '+hit.n:'Day 11 in a row on '+DAY3[dayIdx(d)]+' '+fmtDDMM(d))+' — you must get 32 hours off at home after 11 days (CBO, EBA 96.1).',pri:1,key:'cbo-'+hit.ds});
+      alerts.push({dot:'dot-orange',msg:'⚠ '+(hit.ds===todayStr?'Today is day '+hit.n:'Day 11 in a row on '+DAY3[dayIdx(d)]+' '+fmtDDMM(d))+' — you must get 32 hours off at home after 11 days (CBO, EBA 96.1).',pri:1,key:'cbo-'+hit.ds,ds:hit.ds});
     } else if(cur>=9){
-      alerts.push({dot:'dot-orange',msg:'⚠ '+cur+' days in a row so far — a CBO is due after 11 (EBA 96.1).',pri:1,key:'cbo-'+todayStr});
+      alerts.push({dot:'dot-orange',msg:'⚠ '+cur+' days in a row so far — a CBO is due after 11 (EBA 96.1).',pri:1,key:'cbo-'+todayStr,ds:todayStr});
     }
   })();
   // Roster rule checks (EBA) for the next 4 weeks and this/next cycle
   if(syncRole!=='partner'&&S.anchorLink&&ROSTER&&Object.keys(ROSTER).length){
     for(let i=0;i<28;i++){
       const ds=fmtDate(addDays(now,i));
-      activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') alerts.push({dot:'dot-red',msg:'⚠ <b>'+ruleDayName(ds)+'</b>: '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+ds+'-'+x.c+'-'+x.msg.length}); });
+      activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') alerts.push({dot:'dot-red',msg:'⚠ <b>'+ruleDayName(ds)+'</b>: '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+ds+'-'+x.c+'-'+x.msg.length,ds:ds}); });
     }
     const p1=rulePeriodFor(now), p2=rulePeriodFor(addDays(p1.end,1));
     p1.issues.concat(p2.issues).forEach(function(x){ alerts.push({dot:'dot-red',msg:'⚠ '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+x.msg}); });
@@ -5437,7 +5585,9 @@ function renderDash(){
   alerts.sort(function(a,b){ return (a.pri||9)-(b.pri||9); });
 
   if(!S.dismissedAlerts) S.dismissedAlerts=[];
-  const visibleAlerts=alerts.filter(function(a){ return !S.dismissedAlerts.includes(a.key||a.msg); });
+  const weekEndStr=fmtDate(addDays(now,6));
+  try{ renderDashWeek(now); }catch(e){}
+  const visibleAlerts=alerts.filter(function(a){ return !S.dismissedAlerts.includes(a.key||a.msg)&&!(a.ds&&a.ds<=weekEndStr); });
   const alEl=document.getElementById('dash-alerts');
   if(visibleAlerts.length){
     alEl.innerHTML=firstFewThenMore(visibleAlerts.map(function(a){
@@ -5457,6 +5607,48 @@ function renderDash(){
   updateClaimsBadge();
 }
 
+// "This week" on Home: everything that needs attention in the next 7 days, in date order
+function renderDashWeek(now){
+  const el=document.getElementById('dash-week'); if(!el) return;
+  if(syncRole==='partner'||!S.anchorLink){ el.innerHTML=''; return; }
+  const items=[], add=function(ds,ico,html,cls){ items.push({ds:ds,ico:ico,html:html,cls:cls||''}); };
+  const todayStr=fmtDate(now), end=addDays(now,6), endStr=fmtDate(end);
+  let co=null; try{ co=cboOutlook(addDays(now,-30),37); }catch(e){}
+  for(let i=0;i<7;i++){
+    const d=addDays(now,i), ds=fmtDate(d);
+    const pd=payDayFor(ds);
+    if(pd) add(ds,'💰','<b>Pay day</b> (fortnight '+fmtDDMM(pd.fnStart)+'–'+fmtDDMM(pd.fnEnd)+')'+(pd.ph?'. <span style="color:#fbbf24;">May be delayed: public holiday '+DAY3[dayIdx(pd.ph)]+' '+fmtDDMM(pd.ph)+'.</span>':''),pd.ph?'warn':'');
+    if(QLD_PH.has(ds)) add(ds,'🎉','<b>Public holiday</b>');
+    (S.plannedLeave||[]).forEach(function(lv){ if(lv.start===ds){ const lab={al:'Annual leave',lsl:'Long service leave',sl:'Sick leave'}[lv.type]||'Leave'; add(ds,'✈️','<b>'+lab+' starts</b>'+(lv.notes?' · '+escHtml(lv.notes):'')+(lv.end&&lv.end!==lv.start?' (to '+fmtDDMM(parseDate(lv.end))+')':'')); } });
+    if(co){
+      if(co.n[ds]===11){ const w=(co.win||[]).filter(function(x){ return x.d11===ds; })[0]; add(ds,'🛑','<b>Day 11 in a row</b>. CBO'+(w?' '+cboWhen(w.from)+' to '+cboWhen(w.to):' due after this shift'),'bad'); }
+      else if(co.n[ds]>11) add(ds,'🛑','<b>Day '+co.n[ds]+' in a row</b>. A CBO was due after day 11','bad');
+    }
+    (S.swaps||[]).forEach(function(sw){
+      if(S.swapEmailSent&&S.swapEmailSent[sw.id]) return;
+      if(fmtDate(addDays(parseDate(sw.wc),-3))===ds) add(ds,'✉️','<b>Swap email due</b>: W/C '+fmtDDMM(parseDate(sw.wc))+', link '+sw.linkGiven+' → '+sw.linkReceived+(sw.driver?' ('+escHtml(sw.driver)+')':''));
+    });
+    try{ activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') add(ds,'⚠','<span style="color:#fca5a5;">'+escHtml(x.msg)+'</span> <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>','bad'); }); }catch(e){}
+  }
+  // Already on a CBO, or a run building up
+  if(co){
+    const cur=co.n[todayStr]||0, inCbo=co.due[todayStr];
+    if(inCbo) items.unshift({ds:todayStr,ico:'🛑',html:'<b>You\'re on CBO</b> until '+cboWhen(inCbo.to),cls:'bad'});
+    else if(cur>=9&&cur<11) items.unshift({ds:todayStr,ico:'📈',html:'<b>Day '+cur+' in a row</b> today. A CBO is due after 11'});
+  }
+  items.sort(function(a,b){ return a.ds<b.ds?-1:a.ds>b.ds?1:0; });
+  const dayLbl=function(ds){ return ds===todayStr?'Today':ds===fmtDate(addDays(now,1))?'Tomorrow':ruleDayName(ds); };
+  el.innerHTML='<div class="week-card"><div class="week-head">📅 This week <span>'+fmtDDMM(now)+'–'+fmtDDMM(end)+'</span><button type="button" class="hb" onclick="openHelp(\'week\',event)" aria-label="How to use this">?</button></div>'+
+    (items.length?items.map(function(it){ return '<div class="week-row '+it.cls+'" onclick="openDayFromDash(\''+it.ds+'\')"><span class="week-day">'+dayLbl(it.ds)+'</span><span class="week-ico">'+it.ico+'</span><span class="week-txt">'+it.html+'</span></div>'; }).join('')
+      :'<div class="week-empty">Nothing coming up this week ✓</div>')+'</div>';
+}
+function openDayFromDash(ds){
+  const d=parseDate(ds), now=today();
+  calMonthOffset=(d.getFullYear()-now.getFullYear())*12+(d.getMonth()-now.getMonth());
+  showScreen('cal');
+  try{ renderCal(); }catch(e){}
+  setTimeout(function(){ const c=document.querySelector('.cal-cell[data-ds="'+ds+'"]'); if(c) c.click(); },120);
+}
 function getShiftDisplayForDate(ds){
   const d=parseDate(ds);
   const mon=getMonday(d);
@@ -5495,6 +5687,9 @@ function renderDashShift(which){
       if(['al','lsl','sick','family','lwop','rdo','incoming','mbo','cbo'].includes(info.typeKey)) continue;
       // Skip BLP/SLP only when no actual shift recorded
       if(['blp','slp'].includes(info.typeKey)&&!hasRecordedShift) continue;
+      // A day off inside a swap (the other link's BLP/SLP) or with no shift at all isn't a next shift
+      const fx=ruleDayFacts(candidate);
+      if(!fx.work&&!fx.att) continue;
       // This day has work — use it
       ds=candidate;
       break;
@@ -5711,7 +5906,9 @@ function renderCal(){
   const pmStatusEl=document.getElementById('cal-pm-status');
   if(pmStatusEl){
     const nowD=today();
-    const typeFilter=(document.getElementById('sff-type')?document.getElementById('sff-type').value:null)||localStorage.getItem('sff_type')||'pm';
+    const typeFilter=localStorage.getItem('sff_type')||(document.getElementById('sff-type')?document.getElementById('sff-type').value:null)||'off';
+    if(typeFilter==='off'){ pmStatusEl.style.display='none'; }
+    else {
     const filterLabels={
       'am':'AM','am1':'AM1','am2':'AM2','am3':'AM3','afa':'AFA',
       'pm':'PM','pm1':'PM1','pm2':'PM2','pm3':'PM3','afp':'AFP'
@@ -5745,6 +5942,7 @@ function renderCal(){
     } else {
       if(pmStatusEl){ pmStatusEl.style.display='block'; pmStatusEl.style.color='var(--accent)'; pmStatusEl.textContent=futureUnswapped+' '+filterLabel+' Week'+(futureUnswapped>1?'s':'')+' Remaining To Swap'; }
     }
+    } // end: a shift type is chosen
   }
 
   // Grid start = Monday of week containing 1st
@@ -5952,6 +6150,7 @@ function renderCalCell(d, otherMonth){
   }
 
   // Guard quick view handled inline in shift display blocks above
+  const pdc=payDayFor(ds); if(pdc) inner+='<span class="pay-dot'+(pdc.ph?' late':'')+'" title="Pay day'+(pdc.ph?' (may be delayed: public holiday)':'')+'">$</span>';
   if(CAL_CBO){
     if(CAL_CBO.due[ds]) inner+='<div class="cal-badge b-cbo cbo-due">CBO due</div>';
     const cn=CAL_CBO.n[ds]; if(cn>=11) inner+='<div class="cal-cbo-flag'+(cn>11?' over':'')+'" title="Days in a row">D'+cn+'</div>';
@@ -6247,6 +6446,9 @@ function renderDayPanel(ds){
   if(ov&&ov.notes&&ov.notes.trim()){
     html+='<div style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--muted);">'+ov.notes+'</div>';
   }
+  // Pay day
+  try{ const pd=payDayFor(ds); if(pd) html+='<div class="rest-next" style="margin-top:10px;">💰 <b>Pay day</b>: pay for the fortnight '+fmtDDMM(pd.fnStart)+'–'+fmtDDMM(pd.fnEnd)+' goes in by today (EBA 64).'+
+    (pd.ph?'<div style="margin-top:4px;color:#fbbf24;">⚠ Pay may be delayed because of the public holiday on '+DAY3[dayIdx(pd.ph)]+' '+fmtDDMM(pd.ph)+'.</div>':'')+'</div>'; }catch(e){}
   // BLP/SLP day not worked: when a picked-up shift could start and finish; working day: brought forward
   try{
     if(!lv&&(['blp','slp'].includes(sh.typeKey)||(sh.typeKey==='swap'&&['blp','slp'].includes(sh.swapInnerType)))&&!leisureWorked(ds)) html+=blpWindowHtml(ds);
@@ -6757,7 +6959,26 @@ function updateRosterImportStatus(){
   }
 }
 
+function toggleRecordSwap(force){
+  const want=force!=null?force:document.getElementById('swap-card-rec').style.display==='none';
+  setSwapForm(want?'rec':null);
+}
+// Record a Swap / BLP Swap: two buttons side by side; the chosen form drops down underneath
+function setSwapForm(k){
+  [['rec','swap-card-rec','rec-swap-body','choose-rec'],['blp','swap-card-blp','blp-swap-body','choose-blp']].forEach(function(x){
+    const on=x[0]===k, card=document.getElementById(x[1]), body=document.getElementById(x[2]), btn=document.getElementById(x[3]);
+    if(card) card.style.display=on?'':'none';
+    if(body) body.style.display=on?'block':'none';
+    if(btn) btn.classList.toggle('active',on);
+  });
+}
+function chooseSwapForm(k){
+  const open=document.getElementById(k==='rec'?'swap-card-rec':'swap-card-blp').style.display!=='none';
+  setSwapForm(open?null:k);
+  if(!open) setTimeout(function(){ const c=document.getElementById(k==='rec'?'swap-card-rec':'swap-card-blp'); if(c) c.scrollIntoView({behavior:'smooth',block:'nearest'}); },60);
+}
 function toggleBlpSwapSection(){
+  setSwapForm(document.getElementById('swap-card-blp').style.display==='none'?'blp':null); return;
   const body=document.getElementById('blp-swap-body');
   const arrow=document.getElementById('blp-swap-arrow');
   if(!body) return;
@@ -6773,18 +6994,21 @@ function onBlpSwapWCChange(){
   const mon=getMonday(parseDate(wc));
   const link=getLinkForWeek(mon);
   if(!link){ container.innerHTML='<div style="font-size:12px;color:var(--muted);">No roster link found for this week</div>'; return; }
-  // Find BLP days for this link this week
+  // Your BLP days on the roster you're actually working: a swapped week (or swapped days) uses the
+  // other link's BLPs, plus any day you kept as your BLP ("Keep this BLP")
   const DAY3N=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const ws=(S.swaps||[]).find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
   blpSwapGiveDays=[];
-  let html='';
+  let html='', swappedDays=false;
   for(let i=0;i<7;i++){
-    const raw=getRaw(link,i);
-    const sh=parseShift(raw);
-    if(sh.typeKey==='blp'||sh.typeKey==='slp'){
-      html+='<button class="btn btn-sm" data-day="'+i+'" onclick="toggleBlpGive(this)" style="background:#312e81;color:#c7d2fe;">'+DAY3N[i]+'</button>';
-    }
+    const ds=fmtDate(addDays(mon,i)), ov=S.days[ds];
+    if(ov&&ov.type==='swap') swappedDays=true;
+    const isBlp=(ov&&ov.type==='blp_kept')||(dayIsLeisureRoster(ds)&&!(ov&&(ov.type==='blp_given'||ov.start)));
+    if(isBlp) html+='<button class="btn btn-sm" data-day="'+i+'" onclick="toggleBlpGive(this)" style="background:#312e81;color:#c7d2fe;">'+DAY3N[i]+'</button>';
   }
-  container.innerHTML=html||'<div style="font-size:12px;color:var(--muted);">No BLP/SLP days found this week</div>';
+  const note=ws?'<div style="width:100%;font-size:11px;color:var(--muted);margin-bottom:2px;">Swapped this week: BLPs from link '+ws.linkReceived+(ws.driver?' ('+escHtml(ws.driver)+')':'')+'</div>'
+    :swappedDays?'<div style="width:100%;font-size:11px;color:var(--muted);margin-bottom:2px;">Includes the BLPs of the days you swapped</div>':'';
+  container.innerHTML=note+(html||'<div style="font-size:12px;color:var(--muted);">No BLP/SLP days found this week</div>');
 }
 
 function toggleBlpGive(btn){
@@ -6851,7 +7075,7 @@ function saveBlpSwap(){
   // Save swap record
   const swapRec={
     id:uid(), wc:monStr, driver:driver, scope:'blp',
-    linkGiven:link, linkReceived:null,
+    linkGiven:(function(){ const w=(S.swaps||[]).find(function(sw){ return sw.wc===monStr&&sw.scope==='week'; }); return w?w.linkReceived:link; })(), linkReceived:null,
     blpGiveIdxs:[...blpSwapGiveDays],
     blpRecvIdx:blpSwapRecvDay,
     recvTime:recvTime||'',
@@ -6862,14 +7086,16 @@ function saveBlpSwap(){
 
   // Stamp calendar
   // Given days → clear to normal working day (green dot)
+  // A day that was part of a link swap keeps that link (and what was there before), so Undo works
+  const keepSwap=function(ds,rec){ const o=S.days[ds]; if(o&&o.type==='swap'){ rec.swapFrom=o.swapFrom; rec.swapTo=o.swapTo; rec.linkSwapPartner=o.swapPartner; if(o.before) rec.before=o.before; } else if(o&&!rec.before) rec.before=JSON.parse(JSON.stringify(o)); return rec; };
   blpSwapGiveDays.forEach(function(i){
     const ds=fmtDate(addDays(mon,i));
-    S.days[ds]={type:'blp_given',swapPartner:driver,start:'',end:'',job:'',guards:'',notes:'BLP given to '+driver+' (BLP swap)'};
+    S.days[ds]=keepSwap(ds,{type:'blp_given',swapPartner:driver,start:'',end:'',job:'',guards:'',notes:'BLP given to '+driver+' (BLP swap)'});
   });
 
   // Received day → BLP (with optional shift info)
   const recvDs=fmtDate(addDays(mon,blpSwapRecvDay));
-  S.days[recvDs]={
+  S.days[recvDs]=keepSwap(recvDs,{
     type:'blp_kept',
     swapPartner:driver,
     start:recvTime||'',
@@ -6877,7 +7103,7 @@ function saveBlpSwap(){
     job:recvJob||recvCode||'',
     guards:'',
     notes:'BLP received from '+driver+(recvTime?' · '+recvTime:recvCode?' · '+recvCode:'')+(recvJob?' · '+recvJob:'')
-  };
+  });
 
   // Capture for toast before reset
   const gaveStr=blpSwapGiveDays.map(function(i){ return ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]; }).join('/');
@@ -7070,6 +7296,7 @@ function swapDayKeys(sw){
 function editSwap(id,el){
   if(syncRole==='partner') return;
   const sw=S.swaps.find(function(x){ return x.id===id; }); if(!sw) return;
+  if(sw.scope!=='blp'){ editSwapFull(id); return; }
   const div=el||document.querySelector('#swap-log [data-swid="'+id+'"]'); if(!div||div.querySelector('.swap-edit')) return;
   const blp=sw.scope==='blp';
   const box=document.createElement('div');
@@ -7084,6 +7311,37 @@ function editSwap(id,el){
   const f=document.getElementById('swe-driver-'+id); if(f) f.focus();
 }
 function swapEditDone(){ renderSwapLog(); renderDash(); }
+// Edit a saved swap in the full Record a Swap form (change the week, links, other driver or scope)
+let swapEditingId=null;
+function editSwapFull(id){
+  const sw=S.swaps.find(function(x){ return x.id===id; }); if(!sw) return;
+  showScreen('swaps');
+  toggleRecordSwap(true);
+  document.getElementById('sw-wc').value=sw.wc;
+  onSwapWCChange();
+  document.getElementById('sw-my-link').value=sw.linkGiven;
+  document.getElementById('sw-driver').value=sw.driver||'';
+  document.getElementById('sw-received').value=sw.linkReceived;
+  setSwapScope(sw.scope||'week');
+  if(sw.scope==='day'){ const dsel=document.getElementById('sw-day'); if(dsel) dsel.value=String(sw.dayIdx||0); }
+  onSwapLinkInput();
+  swapEditingId=id;
+  const note=document.getElementById('sw-edit-note');
+  note.innerHTML='✏️ Editing your swap for <b>W/C '+fmtDDMM(parseDate(sw.wc))+'</b> (link '+sw.linkGiven+' → '+sw.linkReceived+'). Change anything, then tap <b>Save changes</b>.';
+  note.style.display='';
+  document.getElementById('sw-edit-cancel').style.display='';
+  document.getElementById('sw-save-btn').textContent='Save changes';
+  setTimeout(function(){ const c=document.querySelector('.swap-form'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'}); },80);
+}
+function cancelSwapEdit(){
+  swapEditingId=null;
+  document.getElementById('sw-edit-note').style.display='none';
+  document.getElementById('sw-edit-cancel').style.display='none';
+  document.getElementById('sw-save-btn').textContent='Record Swap';
+  document.getElementById('sw-received').value=''; document.getElementById('sw-driver').value='';
+  const cw=document.getElementById('sw-compare-wrap'); if(cw) cw.style.display='none';
+  toggleRecordSwap(false);
+}
 function saveSwapEdit(id){
   if(syncRole==='partner'){ toast('Partner view — cannot edit swaps'); return; }
   const sw=S.swaps.find(function(x){ return x.id===id; }); if(!sw) return;
@@ -7379,15 +7637,26 @@ function saveSwapInline(){
   if(!wc||!received||received<1||received>rosterSize()){ toast('Enter a valid other link'); return; }
   const mon=getMonday(parseDate(wc));
   const monStr=fmtDate(mon);
+  // Editing a saved swap: take the old one out first, and put everything back if the change is cancelled
+  const editing=swapEditingId?S.swaps.find(function(x){ return x.id===swapEditingId; }):null;
+  let snap=null;
+  if(editing){
+    snap={swaps:JSON.stringify(S.swaps),days:JSON.stringify(S.days)};
+    S.swaps=S.swaps.filter(function(x){ return x.id!==editing.id; });
+    swapDayKeys(editing).forEach(unswapDay);
+  }
+  const restore=function(){ if(snap){ S.swaps=JSON.parse(snap.swaps); S.days=JSON.parse(snap.days); } };
   const given=getLinkForWeek(mon)||HOME_LINK;
   const myBlp=countBlpSlp(given);
   const theirBlp=countBlpSlp(received);
   const swapIssues=swapRuleIssues(mon,received,swapInlineScope,parseInt(document.getElementById('sw-day').value||'0'));
-  if(swapIssues.length&&!confirm(ruleConfirmText(swapIssues))) return;
+  if(swapIssues.length&&!confirm(ruleConfirmText(swapIssues))){ restore(); return; }
   {
     const sp0=swapSpan(swapInlineScope,parseInt(document.getElementById('sw-day').value||'0'));
     const myB2=SWAP_PART[swapInlineScope]?countBlpSlp(given,sp0.from,sp0.to):myBlp, thB2=SWAP_PART[swapInlineScope]?countBlpSlp(received,sp0.from,sp0.to):theirBlp;
-    const swapRec={id:uid(),wc:monStr,linkGiven:given,linkReceived:received,driver,scope:swapInlineScope,myBlp:myB2,theirBlp:thB2,blpDiff:thB2-myB2};
+    const swapRec={id:editing?editing.id:uid(),wc:monStr,linkGiven:given,linkReceived:received,driver,scope:swapInlineScope,myBlp:myB2,theirBlp:thB2,blpDiff:thB2-myB2};
+    // A changed week, link or scope needs a new swap email
+    if(editing&&S.swapEmailSent&&(editing.wc!==monStr||editing.linkReceived!==received||editing.scope!==swapInlineScope||(editing.dayIdx||0)!==(swapRec.dayIdx||parseInt(document.getElementById('sw-day').value||'0')))) delete S.swapEmailSent[editing.id];
     if(swapInlineScope==='day') swapRec.dayIdx=parseInt(document.getElementById('sw-day').value||'0');
     S.swaps.push(swapRec);
     // Each swapped day remembers what was there before, so Undo Swap can put it back
@@ -7403,10 +7672,12 @@ function saveSwapInline(){
   document.getElementById('sw-received').value='';
   document.getElementById('sw-driver').value='';
   (function(){const _ge=document.getElementById('sw-compare-wrap');if(_ge)_ge.style.display='none';})();
+  const wasEdit=!!editing;
+  if(wasEdit) cancelSwapEdit();
   renderSwaps();
   if(currentScreen==='cal') renderCal();
   renderDash();
-  toast('Swap recorded · Link '+received+(driver?' · '+driver:''));
+  toast((wasEdit?'Swap updated':'Swap recorded')+' · Link '+received+(driver?' · '+driver:''));
 }
 
 // ── SHIFT FINDER ──────────────────────────────────────────────
@@ -7451,9 +7722,13 @@ function renderShiftFinder(){
       return '<button class="pmf-year-btn'+(y===sffYear?' active':'')+'" onclick="setSFFYear('+y+')">'+y+'</button>';
     }).join('');
   }
-  const typeFilter=document.getElementById('sff-type')?document.getElementById('sff-type').value:'pm';
+  const sffSel=document.getElementById('sff-type');
+  const savedT=localStorage.getItem('sff_type');
+  if(sffSel&&savedT&&sffSel.value!==savedT) sffSel.value=savedT;
+  const typeFilter=sffSel?sffSel.value:(savedT||'off');
   const el=document.getElementById('sff-results');
   if(!el) return;
+  if(typeFilter==='off'){ el.innerHTML='<div class="empty-state">Pick which shifts you want to find above, e.g. <b>Any PM</b> if you prefer AM shifts.</div>'; return; }
 
   if(!S.anchorLink||!S.anchorDate){
     el.innerHTML='<div class="empty-state">Set your link in Settings first.</div>';
@@ -8077,28 +8352,12 @@ function renderPay(){
     const hasImpact=impact.al>0||impact.lsl>0||impact.pc>0;
     if(hasImpact){
       projEl.style.display='block';
-      projEl.innerHTML=
-        '<div class="card-title" style="margin-bottom:8px;">Projected Balances <span style="font-weight:400;font-size:10px;color:var(--muted);">(after future planned leave)</span></div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'+
-          (impact.al>0?'<div style="text-align:center;padding:10px;background:var(--surface2);border-radius:8px;border-left:3px solid #dc2626;">'+
-            '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Annual Leave</div>'+
-            '<div style="font-size:11px;color:var(--muted);text-decoration:line-through;">'+S.leave.al.toFixed(1)+'h</div>'+
-            '<div style="font-size:16px;font-weight:800;color:#dc2626;">'+projAL+'h</div>'+
-            '<div style="font-size:9px;color:var(--muted);">-'+impact.al.toFixed(0)+'h planned</div>'+
-          '</div>':'<div></div>')+
-          (impact.lsl>0?'<div style="text-align:center;padding:10px;background:var(--surface2);border-radius:8px;border-left:3px solid #0d9488;">'+
-            '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Long Service</div>'+
-            '<div style="font-size:11px;color:var(--muted);text-decoration:line-through;">'+S.leave.lsl.toFixed(1)+'h</div>'+
-            '<div style="font-size:16px;font-weight:800;color:#0d9488;">'+projLSL+'h</div>'+
-            '<div style="font-size:9px;color:var(--muted);">-'+impact.lsl.toFixed(0)+'h planned</div>'+
-          '</div>':'<div></div>')+
-          (impact.pc>0?'<div style="text-align:center;padding:10px;background:var(--surface2);border-radius:8px;border-left:3px solid #7c3aed;">'+
-            '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Personal</div>'+
-            '<div style="font-size:11px;color:var(--muted);text-decoration:line-through;">'+S.leave.pc.toFixed(1)+'h</div>'+
-            '<div style="font-size:16px;font-weight:800;color:#7c3aed;">'+projPC+'h</div>'+
-            '<div style="font-size:9px;color:var(--muted);">-'+impact.pc.toFixed(0)+'h planned</div>'+
-          '</div>':'<div></div>')+
-        '</div>';
+      // One short line per leave type: now → after the planned leave
+      const pl=function(lbl,col,now,after,minus){ return '<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+col+';margin-right:6px;"></span>'+lbl+'</span><span><span style="color:var(--muted);">'+now.toFixed(1)+'h →</span> <b style="color:'+col+';">'+after+'h</b> <span style="color:var(--muted);font-size:11px;">(−'+minus.toFixed(0)+'h)</span></span></div>'; };
+      projEl.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">After planned leave</div>'+
+        (impact.al>0?pl('Annual leave','#dc2626',S.leave.al,projAL,impact.al):'')+
+        (impact.lsl>0?pl('Long service','#0d9488',S.leave.lsl,projLSL,impact.lsl):'')+
+        (impact.pc>0?pl('Personal','#7c3aed',S.leave.pc,projPC,impact.pc):'');
     } else {
       projEl.style.display='none';
     }
@@ -8337,6 +8596,15 @@ function calcAnnualTax(fnTaxable,payDate){
   return Math.max(0,Math.round(y))*2;
 }
 
+// Pay day: the Wednesday after each pay fortnight ends (paid fortnightly "no later than Wednesday", EBA 64)
+function payDayFor(ds){
+  const d=parseDate(ds); if(d.getDay()!==3) return null;
+  const a=parseDate(cycleAnchorDs()), days=Math.round((d-a)/86400000);
+  if(((days%14)+14)%14!==2) return null;
+  // A public holiday on the Monday or Tuesday of pay week can hold the pay up
+  const ph=[addDays(d,-2),addDays(d,-1)].filter(function(x){ return QLD_PH.has(fmtDate(x)); })[0]||null;
+  return {fnStart:addDays(d,-16), fnEnd:addDays(d,-3), ph:ph};
+}
 function getFortnightDates(offsetFortnights){
   // Current fortnight: from last even Monday (pay period is 2 weeks)
   const now=today();
@@ -8581,6 +8849,8 @@ function renderPayProjection(){
     '</div>';
 
   let html='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Fortnight: '+fnLabel+'</div>';
+  // Summary first (gross → deductions → tax → net); every line sits in "Details" underneath
+  const headHtml=html; html=''; let missingHtml='';
 
   // Column headers
   html+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding-bottom:4px;border-bottom:1px solid var(--border);">'+
@@ -8594,7 +8864,7 @@ function renderPayProjection(){
   const guarH=S.settings.guarHrs||80, ordGross=guarH*cph;
   html+=payRow('Ord Time ('+guarH+'h guaranteed)',guarH.toFixed(2),'100%',fmt$(ordGross),'');
   if(p.missing&&p.missing.length){
-    html+='<div class="pay-missing" style="margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.45);font-size:12px;line-height:1.45;">'+
+    missingHtml='<div class="pay-missing" style=""margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.45);font-size:12px;line-height:1.45;">'+
       '<b style="color:var(--accent);">Not in this estimate yet</b>'+
       p.missing.map(function(m){ const d=parseDate(m.ds); return '<div style="margin-top:4px;cursor:pointer;" data-ds="'+m.ds+'" onclick="openShiftModal(this.dataset.ds)">• <b>'+DAY3[dayIdx(d)]+' '+fmtDDMM(d)+'</b> '+escHtml(m.why)+' <span style="color:var(--accent);font-weight:700;">Edit ›</span></div>'; }).join('')+
       '</div>';
@@ -8683,12 +8953,19 @@ function renderPayProjection(){
           '<div style="font-size:13px;font-weight:700;color:#0d9488;">'+fmt$(p.sgSuper)+'</div>'+
         '</div>';
 
+  const detailsHtml=html;
+  const sumRow=function(l,v,c){ return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>'+l+'</span><b style="color:'+(c||'var(--text)')+';">'+v+'</b></div>'; };
+  html=headHtml+missingHtml+
+    sumRow('Gross pay',fmt$(p.totalGross),'var(--accent)')+
+    sumRow('Deductions','-'+fmt$(totalCustomPre+totalCustomPost),'#ef4444')+
+    sumRow('Tax','-'+fmt$(p.totalTax),'#ef4444');
   // Net
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-top:4px;">'+
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-top:8px;">'+
     '<div style="font-size:14px;font-weight:800;">Projected Net Pay</div>'+
     '<div style="font-size:22px;font-weight:900;color:var(--early);">'+fmt$(p.netPay)+'</div>'+
   '</div>';
 
+  html+='<details class="show-more pay-details"><summary>Details: every line, deductions, tax and super</summary><div style="margin-top:6px;">'+detailsHtml+'</div></details>';
   // Actual pay input
   const fnKey=fmtDate(p.fn.start);
   const existing=(S.payHistory||[]).find(function(ph){ return ph.fnStart===fnKey; });
@@ -8966,7 +9243,7 @@ function renderPlannedLeave(){
       '</div>'+
       status+
     '</div>';
-  }),3);
+  }),2);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -9459,9 +9736,10 @@ function loadSettingsUI(){
   document.getElementById('set-blp').value=S.settings.blpRate;
   document.getElementById('set-excess').value=S.settings.excessRate||170;
   document.getElementById('set-tax').value=S.settings.taxRate;
-  document.getElementById('set-al').value=S.leave.al;
-  document.getElementById('set-lsl').value=S.leave.lsl;
-  document.getElementById('set-pc').value=S.leave.pc;
+  const r2=function(v){ return v==null||v===''?'':Math.round(+v*100)/100; };
+  document.getElementById('set-al').value=r2(S.leave.al);
+  document.getElementById('set-lsl').value=r2(S.leave.lsl);
+  document.getElementById('set-pc').value=r2(S.leave.pc);
   renderBin();
   document.getElementById('set-link').oninput=previewLink;
   document.getElementById('set-anchor-date').oninput=previewLink;
@@ -9768,15 +10046,17 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-11-23';
+const APP_VERSION='2026-11-23b';
 const WHATS_NEW=[
-  'Incoming days: if a shift finishes after midnight and you can\'t work the next day\'s shift, that day is an "Incoming" day (INC on the calendar). It has no hours, but it still counts as a day toward the 11 days in a row for a CBO. To mark one: tap the day on the Calendar, then Edit Shift, then Incoming.'
+  'Pay day: a green $ on the calendar now marks pay day, the Wednesday after each pay fortnight. Tap the day to see which fortnight is being paid. If there\'s a public holiday on the Monday or Tuesday before, the $ turns orange and the app warns that pay may be delayed.',
+  'This week: a new card at the top of Home shows everything coming up in the next 7 days, like pay day, CBO, leave, swap emails and public holidays. Tap a line to open that day.',
+  'Tidier screens: Settings folds into sections, saved swaps can be fully edited (e.g. change a swap to Mon–Fri), Pay shows a short summary first, and colours are clearer in light mode.'
 ];
 // A note from the app's maker: shown at the top of Settings and the setup screen
 const OWNER_NOTE='Hi everyone! This app is just a little hobby project of mine. It\'s been shared around a lot, so welcome if you\'re new. I don\'t know every rule, so if something isn\'t working right or looks incorrect, please let me know. Kim Wood (my number is on the Drivers list) 😊';
 document.querySelectorAll('.owner-note-text').forEach(function(el){ el.textContent=OWNER_NOTE; });
 // Optional note at the top of the What's new card for this update ('' = none)
-const WHATS_NEW_NOTE=OWNER_NOTE;
+const WHATS_NEW_NOTE='';
 function showWhatsNew(){
   let seen=''; try{ seen=localStorage.getItem('app_version_seen')||''; }catch(e){}
   if(seen===APP_VERSION) return;
@@ -10015,6 +10295,9 @@ const HELP={
     tip:'Times come from your imported roster and job cards. Always check the posted roster for the final say.'},
   partnercard:{t:'Partner\'s shifts',w:'Your partner\'s shift today and their next shift, shown next to yours, so you can both see who\'s working when.',
     h:['Tap <b>Switch ⇄</b> to open your partner\'s roster (calendar, swaps, pay).','Tap it again (or the name at the top) to switch back to yours.','Set up or remove the partner in ⚙ Settings → <b>Partner\'s Roster</b>.']},
+  week:{t:'📅 This week',w:'Everything coming up in the next 7 days, in date order: pay day, public holidays, CBO, leave starting, swap emails due and roster rule warnings.',
+    h:['Tap a line to open that day on the Calendar.','Anything further away is in <b>Alerts</b> lower down.'],
+    tip:'An orange $ line means pay may be delayed by a public holiday on the Monday or Tuesday.'},
   alerts:{t:'Alerts',w:'Warnings the app spots in your roster, for example a swap or edited shift that may break a roster rule (rest between shifts, too many hours) or a claim to follow up.',
     h:['Read the alert, then tap it (or the day in the Calendar) for details.','Fix the shift or swap if needed, or check it with the Roster Office.'],
     tip:'Alerts are a guide only. The Enterprise Agreement and Roster Office have the final say.'},
@@ -10108,6 +10391,16 @@ const HELP={
   report:{t:'Report a problem',w:'Tell the app\'s maker about a bug or something that looks wrong.',
     h:['Describe what happened and what you expected (e.g. "Saturday pay shows 100% instead of 150%").','Tap <b>📨 Send Report</b>.']}
 };
+// Settings: every section folds; the heading opens it (My Roster Link starts open until the app is set up)
+function initSettingsFold(){
+  document.querySelectorAll('#screen-settings .settings-section').forEach(function(sec){
+    const t=sec.querySelector(':scope > .settings-section-title'); if(!t||sec.dataset.fold) return;
+    sec.dataset.fold='1'; t.classList.add('fold-title');
+    if(!(sec.querySelector('#set-link')&&!S.anchorLink)) sec.classList.add('folded');
+    t.addEventListener('click',function(e){ if(e.target.closest('.hb,button,a,input')) return; sec.classList.toggle('folded'); });
+  });
+}
+function unfoldSettingFor(el){ const s=el&&el.closest?el.closest('.settings-section'):null; if(s) s.classList.remove('folded'); }
 function openHelp(key,ev){
   if(ev){ ev.preventDefault(); ev.stopPropagation(); }
   const d=HELP[key]; if(!d) return;
@@ -10123,6 +10416,7 @@ function openHelp(key,ev){
   const b=m.querySelector('.modal'); if(b) b.scrollTop=0;
 }
 function closeHelp(){ const m=document.getElementById('help-modal'); m.style.display='none'; m.classList.remove('open'); }
+try{ initSettingsFold(); }catch(e){}
 document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ const m=document.getElementById('help-modal'); if(m&&m.style.display!=='none') closeHelp(); } });
 </script>
 
