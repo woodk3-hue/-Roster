@@ -663,6 +663,19 @@ body.day-mode #day-panel{background:rgba(240,242,248,0.97);}
   box-shadow:0 2px 8px var(--accent-glow);
 }
 
+/* ── THIS WEEK (Home) ── */
+.week-card{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:0 2px 12px var(--accent-glow);}
+.week-head{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.week-head span{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0;text-transform:none;margin-left:auto;}
+.week-row{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid var(--border);font-size:13px;line-height:1.4;cursor:pointer;}
+.week-row:first-of-type{border-top:none;}
+.week-day{flex:0 0 74px;font-size:11px;font-weight:800;color:var(--muted);padding-top:2px;}
+.week-ico{flex:0 0 18px;text-align:center;}
+.week-txt{flex:1;min-width:0;}
+.week-row.bad .week-day{color:#fca5a5;}
+.week-row.warn .week-day{color:#fbbf24;}
+.week-empty{font-size:13px;color:var(--muted);padding:4px 0;}
+
 /* ── BREAK BEFORE THE NEXT SHIFT ── */
 .rest-next{margin-top:6px;padding:6px 9px;border-radius:8px;background:var(--surface2);font-size:12px;line-height:1.4;color:var(--text);}
 .rest-next.short{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.45);color:#fca5a5;}
@@ -1152,6 +1165,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
   <!-- Backup reminder (shown by updateBackupReminder) -->
   <div id="whats-new"></div>
+  <div id="dash-week" class="owner-only"></div>
   <div id="partner-today"></div>
   <div id="backup-reminder" class="owner-only" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
     <div style="font-size:13px;font-weight:700;">💾 Time to back up</div>
@@ -5428,17 +5442,12 @@ function renderDash(){
     // One alert per leave once it's within the first reminder window (it used to add one per window)
     if(daysUntil>0&&daysUntil<=leaveThresholds[0].days){
       const msg=daysUntil===1?labels[lv.type]+' starts Tomorrow':''+labels[lv.type]+' starts in '+daysUntil+' days ('+fmtDDMM(start)+')';
-      alerts.push({dot:'dot-green',msg:msg,pri:2});
+      alerts.push({dot:'dot-green',msg:msg,pri:2,ds:lv.start});
     }
   });
 
   if(openClaims>0) alerts.push({dot:'dot-red',msg:openClaims+' unsubmitted claim'+(openClaims>1?'s':'')+' pending.',pri:3});
 
-  // Next pay day within a week, held up by a public holiday on the Monday or Tuesday
-  for(let i=0;i<=7;i++){
-    const pds=fmtDate(addDays(now,i)), pd=payDayFor(pds);
-    if(pd&&pd.ph){ alerts.push({dot:'dot-amber',msg:'💰 Pay on '+DAY3[dayIdx(parseDate(pds))]+' '+fmtDDMM(parseDate(pds))+' may be delayed because of the public holiday on '+DAY3[dayIdx(pd.ph)]+' '+fmtDDMM(pd.ph)+'.',pri:2,key:'paydelay-'+pds}); break; }
-  }
 
   // CBO alert — consecutive days (EBA 96): sick counts, leave resets, 32 hours off restarts
   (function(){
@@ -5449,16 +5458,16 @@ function renderDash(){
     if(cur>=11) hit={ds:todayStr,n:cur};
     if(hit){
       const d=parseDate(hit.ds);
-      alerts.push({dot:'dot-orange',msg:'⚠ '+(hit.ds===todayStr?'Today is day '+hit.n:'Day 11 in a row on '+DAY3[dayIdx(d)]+' '+fmtDDMM(d))+' — you must get 32 hours off at home after 11 days (CBO, EBA 96.1).',pri:1,key:'cbo-'+hit.ds});
+      alerts.push({dot:'dot-orange',msg:'⚠ '+(hit.ds===todayStr?'Today is day '+hit.n:'Day 11 in a row on '+DAY3[dayIdx(d)]+' '+fmtDDMM(d))+' — you must get 32 hours off at home after 11 days (CBO, EBA 96.1).',pri:1,key:'cbo-'+hit.ds,ds:hit.ds});
     } else if(cur>=9){
-      alerts.push({dot:'dot-orange',msg:'⚠ '+cur+' days in a row so far — a CBO is due after 11 (EBA 96.1).',pri:1,key:'cbo-'+todayStr});
+      alerts.push({dot:'dot-orange',msg:'⚠ '+cur+' days in a row so far — a CBO is due after 11 (EBA 96.1).',pri:1,key:'cbo-'+todayStr,ds:todayStr});
     }
   })();
   // Roster rule checks (EBA) for the next 4 weeks and this/next cycle
   if(syncRole!=='partner'&&S.anchorLink&&ROSTER&&Object.keys(ROSTER).length){
     for(let i=0;i<28;i++){
       const ds=fmtDate(addDays(now,i));
-      activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') alerts.push({dot:'dot-red',msg:'⚠ <b>'+ruleDayName(ds)+'</b>: '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+ds+'-'+x.c+'-'+x.msg.length}); });
+      activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') alerts.push({dot:'dot-red',msg:'⚠ <b>'+ruleDayName(ds)+'</b>: '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+ds+'-'+x.c+'-'+x.msg.length,ds:ds}); });
     }
     const p1=rulePeriodFor(now), p2=rulePeriodFor(addDays(p1.end,1));
     p1.issues.concat(p2.issues).forEach(function(x){ alerts.push({dot:'dot-red',msg:'⚠ '+escHtml(x.msg)+' <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>',pri:1,key:'rule-'+x.msg}); });
@@ -5473,7 +5482,9 @@ function renderDash(){
   alerts.sort(function(a,b){ return (a.pri||9)-(b.pri||9); });
 
   if(!S.dismissedAlerts) S.dismissedAlerts=[];
-  const visibleAlerts=alerts.filter(function(a){ return !S.dismissedAlerts.includes(a.key||a.msg); });
+  const weekEndStr=fmtDate(addDays(now,6));
+  try{ renderDashWeek(now); }catch(e){}
+  const visibleAlerts=alerts.filter(function(a){ return !S.dismissedAlerts.includes(a.key||a.msg)&&!(a.ds&&a.ds<=weekEndStr); });
   const alEl=document.getElementById('dash-alerts');
   if(visibleAlerts.length){
     alEl.innerHTML=firstFewThenMore(visibleAlerts.map(function(a){
@@ -5493,6 +5504,48 @@ function renderDash(){
   updateClaimsBadge();
 }
 
+// "This week" on Home: everything that needs attention in the next 7 days, in date order
+function renderDashWeek(now){
+  const el=document.getElementById('dash-week'); if(!el) return;
+  if(syncRole==='partner'||!S.anchorLink){ el.innerHTML=''; return; }
+  const items=[], add=function(ds,ico,html,cls){ items.push({ds:ds,ico:ico,html:html,cls:cls||''}); };
+  const todayStr=fmtDate(now), end=addDays(now,6), endStr=fmtDate(end);
+  let co=null; try{ co=cboOutlook(addDays(now,-30),37); }catch(e){}
+  for(let i=0;i<7;i++){
+    const d=addDays(now,i), ds=fmtDate(d);
+    const pd=payDayFor(ds);
+    if(pd) add(ds,'💰','<b>Pay day</b> (fortnight '+fmtDDMM(pd.fnStart)+'–'+fmtDDMM(pd.fnEnd)+')'+(pd.ph?'. <span style="color:#fbbf24;">May be delayed: public holiday '+DAY3[dayIdx(pd.ph)]+' '+fmtDDMM(pd.ph)+'.</span>':''),pd.ph?'warn':'');
+    if(QLD_PH.has(ds)) add(ds,'🎉','<b>Public holiday</b>');
+    (S.plannedLeave||[]).forEach(function(lv){ if(lv.start===ds){ const lab={al:'Annual leave',lsl:'Long service leave',sl:'Sick leave'}[lv.type]||'Leave'; add(ds,'✈️','<b>'+lab+' starts</b>'+(lv.notes?' · '+escHtml(lv.notes):'')+(lv.end&&lv.end!==lv.start?' (to '+fmtDDMM(parseDate(lv.end))+')':'')); } });
+    if(co){
+      if(co.n[ds]===11){ const w=(co.win||[]).filter(function(x){ return x.d11===ds; })[0]; add(ds,'🛑','<b>Day 11 in a row</b>. CBO'+(w?' '+cboWhen(w.from)+' to '+cboWhen(w.to):' due after this shift'),'bad'); }
+      else if(co.n[ds]>11) add(ds,'🛑','<b>Day '+co.n[ds]+' in a row</b>. A CBO was due after day 11','bad');
+    }
+    (S.swaps||[]).forEach(function(sw){
+      if(S.swapEmailSent&&S.swapEmailSent[sw.id]) return;
+      if(fmtDate(addDays(parseDate(sw.wc),-3))===ds) add(ds,'✉️','<b>Swap email due</b>: W/C '+fmtDDMM(parseDate(sw.wc))+', link '+sw.linkGiven+' → '+sw.linkReceived+(sw.driver?' ('+escHtml(sw.driver)+')':''));
+    });
+    try{ activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') add(ds,'⚠','<span style="color:#fca5a5;">'+escHtml(x.msg)+'</span> <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>','bad'); }); }catch(e){}
+  }
+  // Already on a CBO, or a run building up
+  if(co){
+    const cur=co.n[todayStr]||0, inCbo=co.due[todayStr];
+    if(inCbo) items.unshift({ds:todayStr,ico:'🛑',html:'<b>You\'re on CBO</b> until '+cboWhen(inCbo.to),cls:'bad'});
+    else if(cur>=9&&cur<11) items.unshift({ds:todayStr,ico:'📈',html:'<b>Day '+cur+' in a row</b> today. A CBO is due after 11'});
+  }
+  items.sort(function(a,b){ return a.ds<b.ds?-1:a.ds>b.ds?1:0; });
+  const dayLbl=function(ds){ return ds===todayStr?'Today':ds===fmtDate(addDays(now,1))?'Tomorrow':ruleDayName(ds); };
+  el.innerHTML='<div class="week-card"><div class="week-head">📅 This week <span>'+fmtDDMM(now)+'–'+fmtDDMM(end)+'</span><button type="button" class="hb" onclick="openHelp(\'week\',event)" aria-label="How to use this">?</button></div>'+
+    (items.length?items.map(function(it){ return '<div class="week-row '+it.cls+'" onclick="openDayFromDash(\''+it.ds+'\')"><span class="week-day">'+dayLbl(it.ds)+'</span><span class="week-ico">'+it.ico+'</span><span class="week-txt">'+it.html+'</span></div>'; }).join('')
+      :'<div class="week-empty">Nothing coming up this week ✓</div>')+'</div>';
+}
+function openDayFromDash(ds){
+  const d=parseDate(ds), now=today();
+  calMonthOffset=(d.getFullYear()-now.getFullYear())*12+(d.getMonth()-now.getMonth());
+  showScreen('cal');
+  try{ renderCal(); }catch(e){}
+  setTimeout(function(){ const c=document.querySelector('.cal-cell[data-ds="'+ds+'"]'); if(c) c.click(); },120);
+}
 function getShiftDisplayForDate(ds){
   const d=parseDate(ds);
   const mon=getMonday(d);
@@ -10064,6 +10117,9 @@ const HELP={
     tip:'Times come from your imported roster and job cards. Always check the posted roster for the final say.'},
   partnercard:{t:'Partner\'s shifts',w:'Your partner\'s shift today and their next shift, shown next to yours, so you can both see who\'s working when.',
     h:['Tap <b>Switch ⇄</b> to open your partner\'s roster (calendar, swaps, pay).','Tap it again (or the name at the top) to switch back to yours.','Set up or remove the partner in ⚙ Settings → <b>Partner\'s Roster</b>.']},
+  week:{t:'📅 This week',w:'Everything coming up in the next 7 days, in date order: pay day, public holidays, CBO, leave starting, swap emails due and roster rule warnings.',
+    h:['Tap a line to open that day on the Calendar.','Anything further away is in <b>Alerts</b> lower down.'],
+    tip:'An orange $ line means pay may be delayed by a public holiday on the Monday or Tuesday.'},
   alerts:{t:'Alerts',w:'Warnings the app spots in your roster, for example a swap or edited shift that may break a roster rule (rest between shifts, too many hours) or a claim to follow up.',
     h:['Read the alert, then tap it (or the day in the Calendar) for details.','Fix the shift or swap if needed, or check it with the Roster Office.'],
     tip:'Alerts are a guide only. The Enterprise Agreement and Roster Office have the final say.'},
