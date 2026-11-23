@@ -663,6 +663,31 @@ body.day-mode #day-panel{background:rgba(240,242,248,0.97);}
   box-shadow:0 2px 8px var(--accent-glow);
 }
 
+/* ── TODAY + NEXT SHIFT SIDE BY SIDE (Home) ── */
+.dash-shift-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;align-items:stretch;}
+.dash-shift-row .shift-preview-card{min-width:0;padding:10px 10px;}
+.dash-shift-row .shift-preview-time{font-size:21px!important;line-height:1.15;word-break:break-word;}
+.dash-shift-row .rest-next{font-size:11px;padding:5px 7px;}
+.dash-shift-row .dash-today-row{font-size:11.5px;}
+.dash-shift-row details.show-more>summary{font-size:11px;}
+.dash-shift-row .dash-today-meal{display:none;}   /* meal break is in the day panel; keeps the two boxes level */
+.dash-shift-row .dash-today-warn{font-size:11px;}
+
+/* ── COMPACT SWAP EMAIL LINES (Home) ── */
+.swap-email-row{display:flex;align-items:center;gap:6px;padding:8px 10px!important;cursor:pointer;}
+.ser-main{flex:1;min-width:0;}
+.ser-top{font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ser-who{font-weight:500;color:var(--muted);}
+.ser-sub{font-size:11px;color:var(--muted);}
+.ser-btn{font-size:11px!important;padding:5px 9px!important;white-space:nowrap;flex:0 0 auto;}
+
+/* ── SETTINGS: sections fold up (tap a heading) ── */
+#screen-settings .settings-section.folded > :not(.settings-section-title){display:none!important;}
+#screen-settings .settings-section.folded > .settings-section-title{margin-bottom:0;}
+.fold-title{cursor:pointer;display:flex;align-items:center;gap:4px;}
+.fold-title::after{content:'▸';margin-left:auto;color:var(--muted);font-size:14px;}
+#screen-settings .settings-section:not(.folded) > .fold-title::after{content:'▾';}
+
 /* ── THIS WEEK (Home) ── */
 .week-card{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:0 2px 12px var(--accent-glow);}
 .week-head{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
@@ -1096,7 +1121,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="form-group">
       <label class="form-label">Hourly Pay Rate ($)</label>
       <input type="number" class="form-input" id="setup-cph" step="any" min="0" placeholder="e.g. 66.504" inputmode="decimal">
-      <div style="font-size:11px;color:var(--muted);margin-top:4px;">From your payslip&#39;s RATE CPH column (cents per hour): move the decimal point two places left, e.g. <b>6650.40</b> = <b>66.504</b>.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Payslip RATE CPH ÷ 100, e.g. <b>6650.40</b> → <b>66.504</b>.</div>
     </div>
     <div class="form-group">
       <label class="form-label">Starting Leave Balances (hours, from your payslip)</label>
@@ -1193,7 +1218,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- Today's Shift + Next Shift -->
-  <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px;">
+  <div class="dash-shift-row">
     <div class="shift-preview-card" id="dash-today-shift" onclick="if(!event.target.closest('details,a,button'))openDashShiftEdit('today')">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Today <button type="button" class="hb" onclick="openHelp('today',event)" aria-label="How to use this">?</button></div>
       <div id="dash-today-content"><div style="color:var(--muted);font-size:12px;">—</div></div>
@@ -1205,7 +1230,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- Quick stats -->
-  <div class="dash-grid owner-only">
+  <div class="dash-grid owner-only" id="dash-claims-tile">
     <div class="dash-stat">
       <div class="dash-stat-val" id="dash-claims-open">0</div>
       <div class="dash-stat-lbl">Open Claims <button type="button" class="hb" onclick="openHelp('claims',event)" aria-label="How to use this">?</button></div>
@@ -1339,7 +1364,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
 
   <!-- ── RECORD SWAP FORM (always visible) ── -->
   <div class="card swap-form" style="margin-bottom:14px;">
-    <div class="card-title">Record a Swap <button type="button" class="hb" onclick="openHelp('recordswap',event)" aria-label="How to use this">?</button></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleRecordSwap()">
+      <div class="card-title" style="margin:0;">Record a Swap <button type="button" class="hb" onclick="openHelp('recordswap',event)" aria-label="How to use this">?</button></div>
+      <span id="rec-swap-arrow" style="color:var(--muted);font-size:16px;">▸</span>
+    </div>
+    <div id="rec-swap-body" style="display:none;margin-top:12px;">
 
     <!-- My link and W/C fill each other in -->
     <div style="display:flex;gap:10px;margin-bottom:10px;">
@@ -1394,7 +1423,12 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
 
     <div id="sw-blp-warn" style="display:none;margin-bottom:8px;padding:8px 10px;background:var(--surface2);border-radius:6px;font-size:11px;"></div>
-    <button class="btn btn-accent btn-full" style="margin-top:4px;" onclick="saveSwapInline()">Record Swap</button>
+    <div id="sw-edit-note" style="display:none;font-size:12px;margin:4px 0 6px;padding:6px 9px;border-radius:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);"></div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn" id="sw-edit-cancel" style="display:none;flex:1;" onclick="cancelSwapEdit()">Cancel</button>
+      <button class="btn btn-accent btn-full" id="sw-save-btn" style="flex:2;" onclick="saveSwapInline()">Record Swap</button>
+    </div>
+    </div>
   </div>
 
   <hr class="divider">
@@ -1575,7 +1609,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   <!-- Planned Leave -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
     <div class="section-label" style="margin:0;">Planned Leave <button type="button" class="hb" onclick="openHelp('plannedleave',event)" aria-label="How to use this">?</button></div>
-    <button class="btn btn-sm btn-accent" onclick="openLeaveModal()">+ Add Leave</button>
+    <button class="btn btn-accent" style="font-size:14px;padding:10px 16px;" onclick="openLeaveModal()">+ Add Leave</button>
   </div>
   <div id="planned-leave-list"></div>
 
@@ -1710,11 +1744,11 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div style="font-size:11px;color:var(--accent);min-height:16px;margin-bottom:10px;" id="set-link-preview"></div>
     <button class="btn btn-accent" onclick="saveRosterSettings()">Save Link</button>
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Import your depot's roster — the Link/Diagram PDF straight from the rostering system, or a roster.txt file.</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">The Link/Diagram PDF from rostering (or a .txt file).</div>
     <div id="roster-import-status" style="font-size:12px;margin-bottom:8px;"></div>
     <div style="text-align:right;margin:-2px 0 4px;"><a href="#" class="hb-link" onclick="openHelp('importroster',event);return false;">? How to import your roster</a></div><label for="roster-pdf-input" class="btn btn-accent" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">📄 Import Roster File (.txt or .pdf)</label>
     <input type="file" id="roster-pdf-input" accept=".txt,.pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importRosterPDF(this)">
-    <div style="font-size:11px;color:var(--muted);margin:14px 0 8px;">Import the job card PDF (all days in one file) to see each shift's job card, sign-off time and length when you tap a day.</div>
+    <div style="font-size:11px;color:var(--muted);margin:14px 0 8px;">Adds sign-off times and job details to each day.</div>
     <div id="jobcards-import-status" style="font-size:12px;margin-bottom:8px;"></div>
     <div style="text-align:right;margin:-2px 0 4px;"><a href="#" class="hb-link" onclick="openHelp('importjobcards',event);return false;">? What are job cards?</a></div><label for="jobcards-pdf-input" class="btn" style="width:100%;display:block;text-align:center;cursor:pointer;box-sizing:border-box;">🗂 Import Job Cards PDF</label>
     <input type="file" id="jobcards-pdf-input" accept=".pdf" multiple style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="importJobCards(this)">
@@ -1726,7 +1760,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
       <div class="form-group">
         <label class="form-label">Hourly Rate (CPH)</label>
         <input type="number" class="form-input" id="set-cph" step="any" placeholder="66.504">
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">From your payslip&#39;s RATE CPH column (cents per hour): move the decimal point two places left, e.g. <b>6650.40</b> = <b>66.504</b>.</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Payslip RATE CPH ÷ 100, e.g. <b>6650.40</b> → <b>66.504</b>.</div>
       </div>
       <div class="form-group">
         <label class="form-label">OT Multiplier</label>
@@ -1751,7 +1785,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     <div class="form-group">
       <label class="form-label">Nine-day fortnight starts</label>
       <input type="date" class="form-input" id="set-ninedayfrom" onchange="saveDateSetting('nineDayFrom',this)">
-      <div style="font-size:11px;color:var(--muted);margin-top:4px;">From this date: 152h cycles, max 9 attendances / min 5 leisure days a fortnight, and the lower leave accrual rates (EBA 80.2, 93.3). Change it if the start date moves. When it starts, also set guaranteed hours to 76 and your new hourly rate.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">152h cycles from this date (EBA 80.2, 93.3). Then set guaranteed hours to 76 and your new rate.</div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -1816,16 +1850,16 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
       <div style="font-size:13px;font-weight:700;">📱 Automatic Device Backup</div>
-      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">Every change is copied to a second spot on this phone, replacing the old copy. Nothing is sent online. If the app's saved data goes missing, it restores itself from this copy.</div>
+      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;">A second copy is kept on this phone and restores itself if your data goes missing.</div>
       <div id="backup-status" style="font-size:11px;color:var(--muted);">—</div>
       <div id="export-status" style="font-size:11px;color:var(--muted);margin-top:2px;">—</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px;">Clearing the browser's data or deleting the app removes both copies — tap <b>Export Backup</b> now and then and keep the file safe.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">Deleting the app wipes both copies, so <b>Export Backup</b> now and then.</div>
     </div>
   </div>
 
   <div class="settings-section">
     <div class="settings-section-title">Rules &amp; EBA <button type="button" class="hb" onclick="openHelp('rules',event)" aria-label="How to use this">?</button></div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">The Traincrew Enterprise Agreement 2024 and SEQ Roster Protocols in plain English. The app warns you when a swap or edited shift breaks a rule.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">The EBA and Roster Protocols in plain English.</div>
     <button class="btn" style="width:100%;" onclick="openRules()">📘 Open Rules</button>
   </div>
 
@@ -2987,6 +3021,7 @@ function openDisclaimer(){
   showScreen('settings');
   setTimeout(function(){
     const el=document.getElementById('about-disclaimer'), sc=document.getElementById('screen-settings');
+    unfoldSettingFor(el);
     if(el&&sc) sc.scrollTop=Math.max(0,el.getBoundingClientRect().top-sc.getBoundingClientRect().top+sc.scrollTop-20);
   },120);
 }
@@ -3424,6 +3459,7 @@ function setupAsPartner(){
   showScreen('settings');
   setTimeout(function(){
     const pin=document.getElementById('sync-pin');
+    unfoldSettingFor(pin);
     if(pin){ pin.scrollIntoView({behavior:'smooth',block:'center'}); pin.focus(); }
   },150);
   toast('Enter your partner\'s sync PIN and tap Connect');
@@ -5280,6 +5316,7 @@ function setToolsView(v){
 // ── Rules card on the Dash ──
 function renderDashRules(){
   const el=document.getElementById('dash-rules'); if(!el) return;
+  el.innerHTML=''; return;   // Rules open from the 📘 button at the top of Home
   if(!S.anchorLink||!ROSTER||!Object.keys(ROSTER).length){ el.innerHTML=''; return; }
   const p=rulePeriodFor(today()), w=ruleWeekendCounts();
   let probs=0; for(let i=0;i<28;i++) activeRuleIssues(fmtDate(addDays(today(),i))).forEach(function(x){ if(x.side!=='after') probs++; });
@@ -5390,6 +5427,7 @@ function renderDash(){
   const openClaims=S.claims.filter(function(c){ return !c.submitted; }).length;
   const upcomingSwaps=S.swaps.filter(function(sw){ const d=parseDate(sw.wc); return d>=now; }).length;
   document.getElementById('dash-claims-open').textContent=openClaims;
+  const clTile=document.getElementById('dash-claims-tile'); if(clTile) clTile.style.display=openClaims?'':'none';
 
   // Upcoming Swap Email Cards
   const emailEl=document.getElementById('dash-swap-emails');
@@ -5399,29 +5437,20 @@ function renderDash(){
     return d>now&&!sent;
   }).sort(function(a,b){ return a.wc.localeCompare(b.wc); });
   if(futureSwaps.length){
-    emailEl.innerHTML='<div class="section-label">Swap Email Due <button type="button" class="hb" onclick="openHelp(\'swapemail\',event)" aria-label="How to use this">?</button></div>'+
+    emailEl.innerHTML='<div class="section-label">Swap Emails <button type="button" class="hb" onclick="openHelp(\'swapemail\',event)" aria-label="How to use this">?</button></div>'+
       firstFewThenMore(futureSwaps.map(function(sw){
         const wcDate=parseDate(sw.wc);
         // Email due 3 days before WC
         const emailDue=addDays(wcDate,-3);
         const daysLeft=Math.ceil((emailDue-now)/(24*60*60*1000));
         const sent=S.swapEmailSent[sw.id];
-        const countdown=daysLeft<=0?'<span style="color:#ef4444;font-weight:700;">Due Now!</span>':daysLeft===1?'<span style="color:var(--accent);">Tomorrow</span>':'<span class="swap-email-countdown">'+daysLeft+'</span> days remaining';
-        return '<div class="swap-email-card" id="sec-'+sw.id+'" data-swid="'+sw.id+'" style="cursor:pointer;" onclick="if(!event.target.closest(\'button,input,.swap-edit\'))editSwap(\''+sw.id+'\',this)">'+
-          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">'+
-            '<div>'+
-              '<div style="font-size:12px;font-weight:800;">W/C '+fmtDDMM(wcDate)+' &nbsp;<span style="font-weight:400;color:var(--muted);">'+(sw.scope==='blp'?'<span style="color:#6366f1;font-weight:700;">BLP swap</span>':'Link '+sw.linkGiven+' → '+sw.linkReceived)+'</span></div>'+
-              (sw.driver?'<div style="font-size:11px;color:var(--muted);">'+sw.driver+'</div>':'')+
-              '<div style="font-size:11px;color:var(--muted);">Email due: '+fmtDDMM(emailDue)+' · '+countdown+'</div>'+
-            '</div>'+
-            (sent
-              ?'<div style="text-align:right;white-space:nowrap;"><span style="color:var(--early);font-size:11px;font-weight:700;">✓ Sent</span><br><button class="btn btn-sm" style="font-size:9px;padding:2px 6px;margin-top:2px;" data-swapid="'+sw.id+'" onclick="undoSwapEmailSentById(this)">Undo</button></div>'
-              :'<button class="btn btn-sm btn-accent" style="font-size:10px;white-space:nowrap;" data-swapid="'+sw.id+'" onclick="markSwapEmailSentById(this)">Mark Sent</button>')+
-          '</div>'+
-          '<div style="display:flex;gap:6px;margin-top:6px;">'+
-            '<button class="btn btn-sm" style="font-size:10px;flex:1;" onclick="editSwap(\''+sw.id+'\',this.closest(\'.swap-email-card\'))">✏️ Edit</button>'+
-            '<button class="btn btn-sm" style="font-size:10px;flex:2;" data-swapid="'+sw.id+'" onclick="generateSwapEmailById(this)">📧 Generate Email</button>'+
-          '</div>'+
+        const countdown=daysLeft<=0?'<span style="color:#ef4444;font-weight:700;">Due Now!</span>':daysLeft===1?'<span style="color:var(--accent);">Tomorrow</span>':'in <span class="swap-email-countdown">'+daysLeft+'</span> days';
+        // One compact line per swap: tap it to edit, ✉ writes the email, Sent ticks it off
+        return '<div class="swap-email-card swap-email-row" id="sec-'+sw.id+'" data-swid="'+sw.id+'" onclick="if(!event.target.closest(\'button,input,.swap-edit\'))editSwap(\''+sw.id+'\',this)">'+
+          '<div class="ser-main"><div class="ser-top">W/C '+fmtDDMM(wcDate)+' · '+(sw.scope==='blp'?'<span style="color:#6366f1;">BLP swap</span>':sw.linkGiven+' → '+sw.linkReceived)+(sw.driver?' <span class="ser-who">· '+escHtml(sw.driver)+'</span>':'')+'</div>'+
+          '<div class="ser-sub">Email by '+fmtDDMM(emailDue)+' · '+countdown+'</div></div>'+
+          '<button class="btn btn-sm ser-btn" title="Write the email" data-swapid="'+sw.id+'" onclick="generateSwapEmailById(this)">✉</button>'+
+          '<button class="btn btn-sm btn-accent ser-btn" data-swapid="'+sw.id+'" onclick="markSwapEmailSentById(this)">Sent</button>'+
         '</div>';
       }),3);
   } else {
@@ -5584,6 +5613,9 @@ function renderDashShift(which){
       if(['al','lsl','sick','family','lwop','rdo','incoming','mbo','cbo'].includes(info.typeKey)) continue;
       // Skip BLP/SLP only when no actual shift recorded
       if(['blp','slp'].includes(info.typeKey)&&!hasRecordedShift) continue;
+      // A day off inside a swap (the other link's BLP/SLP) or with no shift at all isn't a next shift
+      const fx=ruleDayFacts(candidate);
+      if(!fx.work&&!fx.att) continue;
       // This day has work — use it
       ds=candidate;
       break;
@@ -6850,6 +6882,13 @@ function updateRosterImportStatus(){
   }
 }
 
+function toggleRecordSwap(force){
+  const body=document.getElementById('rec-swap-body'), arrow=document.getElementById('rec-swap-arrow');
+  if(!body) return;
+  const open=force!=null?!force:body.style.display==='block';
+  body.style.display=open?'none':'block';
+  if(arrow) arrow.textContent=open?'▸':'▾';
+}
 function toggleBlpSwapSection(){
   const body=document.getElementById('blp-swap-body');
   const arrow=document.getElementById('blp-swap-arrow');
@@ -7163,6 +7202,7 @@ function swapDayKeys(sw){
 function editSwap(id,el){
   if(syncRole==='partner') return;
   const sw=S.swaps.find(function(x){ return x.id===id; }); if(!sw) return;
+  if(sw.scope!=='blp'){ editSwapFull(id); return; }
   const div=el||document.querySelector('#swap-log [data-swid="'+id+'"]'); if(!div||div.querySelector('.swap-edit')) return;
   const blp=sw.scope==='blp';
   const box=document.createElement('div');
@@ -7177,6 +7217,37 @@ function editSwap(id,el){
   const f=document.getElementById('swe-driver-'+id); if(f) f.focus();
 }
 function swapEditDone(){ renderSwapLog(); renderDash(); }
+// Edit a saved swap in the full Record a Swap form (change the week, links, other driver or scope)
+let swapEditingId=null;
+function editSwapFull(id){
+  const sw=S.swaps.find(function(x){ return x.id===id; }); if(!sw) return;
+  showScreen('swaps');
+  toggleRecordSwap(true);
+  document.getElementById('sw-wc').value=sw.wc;
+  onSwapWCChange();
+  document.getElementById('sw-my-link').value=sw.linkGiven;
+  document.getElementById('sw-driver').value=sw.driver||'';
+  document.getElementById('sw-received').value=sw.linkReceived;
+  setSwapScope(sw.scope||'week');
+  if(sw.scope==='day'){ const dsel=document.getElementById('sw-day'); if(dsel) dsel.value=String(sw.dayIdx||0); }
+  onSwapLinkInput();
+  swapEditingId=id;
+  const note=document.getElementById('sw-edit-note');
+  note.innerHTML='✏️ Editing your swap for <b>W/C '+fmtDDMM(parseDate(sw.wc))+'</b> (link '+sw.linkGiven+' → '+sw.linkReceived+'). Change anything, then tap <b>Save changes</b>.';
+  note.style.display='';
+  document.getElementById('sw-edit-cancel').style.display='';
+  document.getElementById('sw-save-btn').textContent='Save changes';
+  setTimeout(function(){ const c=document.querySelector('.swap-form'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'}); },80);
+}
+function cancelSwapEdit(){
+  swapEditingId=null;
+  document.getElementById('sw-edit-note').style.display='none';
+  document.getElementById('sw-edit-cancel').style.display='none';
+  document.getElementById('sw-save-btn').textContent='Record Swap';
+  document.getElementById('sw-received').value=''; document.getElementById('sw-driver').value='';
+  const cw=document.getElementById('sw-compare-wrap'); if(cw) cw.style.display='none';
+  toggleRecordSwap(false);
+}
 function saveSwapEdit(id){
   if(syncRole==='partner'){ toast('Partner view — cannot edit swaps'); return; }
   const sw=S.swaps.find(function(x){ return x.id===id; }); if(!sw) return;
@@ -7472,15 +7543,26 @@ function saveSwapInline(){
   if(!wc||!received||received<1||received>rosterSize()){ toast('Enter a valid other link'); return; }
   const mon=getMonday(parseDate(wc));
   const monStr=fmtDate(mon);
+  // Editing a saved swap: take the old one out first, and put everything back if the change is cancelled
+  const editing=swapEditingId?S.swaps.find(function(x){ return x.id===swapEditingId; }):null;
+  let snap=null;
+  if(editing){
+    snap={swaps:JSON.stringify(S.swaps),days:JSON.stringify(S.days)};
+    S.swaps=S.swaps.filter(function(x){ return x.id!==editing.id; });
+    swapDayKeys(editing).forEach(unswapDay);
+  }
+  const restore=function(){ if(snap){ S.swaps=JSON.parse(snap.swaps); S.days=JSON.parse(snap.days); } };
   const given=getLinkForWeek(mon)||HOME_LINK;
   const myBlp=countBlpSlp(given);
   const theirBlp=countBlpSlp(received);
   const swapIssues=swapRuleIssues(mon,received,swapInlineScope,parseInt(document.getElementById('sw-day').value||'0'));
-  if(swapIssues.length&&!confirm(ruleConfirmText(swapIssues))) return;
+  if(swapIssues.length&&!confirm(ruleConfirmText(swapIssues))){ restore(); return; }
   {
     const sp0=swapSpan(swapInlineScope,parseInt(document.getElementById('sw-day').value||'0'));
     const myB2=SWAP_PART[swapInlineScope]?countBlpSlp(given,sp0.from,sp0.to):myBlp, thB2=SWAP_PART[swapInlineScope]?countBlpSlp(received,sp0.from,sp0.to):theirBlp;
-    const swapRec={id:uid(),wc:monStr,linkGiven:given,linkReceived:received,driver,scope:swapInlineScope,myBlp:myB2,theirBlp:thB2,blpDiff:thB2-myB2};
+    const swapRec={id:editing?editing.id:uid(),wc:monStr,linkGiven:given,linkReceived:received,driver,scope:swapInlineScope,myBlp:myB2,theirBlp:thB2,blpDiff:thB2-myB2};
+    // A changed week, link or scope needs a new swap email
+    if(editing&&S.swapEmailSent&&(editing.wc!==monStr||editing.linkReceived!==received||editing.scope!==swapInlineScope||(editing.dayIdx||0)!==(swapRec.dayIdx||parseInt(document.getElementById('sw-day').value||'0')))) delete S.swapEmailSent[editing.id];
     if(swapInlineScope==='day') swapRec.dayIdx=parseInt(document.getElementById('sw-day').value||'0');
     S.swaps.push(swapRec);
     // Each swapped day remembers what was there before, so Undo Swap can put it back
@@ -7496,10 +7578,12 @@ function saveSwapInline(){
   document.getElementById('sw-received').value='';
   document.getElementById('sw-driver').value='';
   (function(){const _ge=document.getElementById('sw-compare-wrap');if(_ge)_ge.style.display='none';})();
+  const wasEdit=!!editing;
+  if(wasEdit) cancelSwapEdit();
   renderSwaps();
   if(currentScreen==='cal') renderCal();
   renderDash();
-  toast('Swap recorded · Link '+received+(driver?' · '+driver:''));
+  toast((wasEdit?'Swap updated':'Swap recorded')+' · Link '+received+(driver?' · '+driver:''));
 }
 
 // ── SHIFT FINDER ──────────────────────────────────────────────
@@ -8170,28 +8254,12 @@ function renderPay(){
     const hasImpact=impact.al>0||impact.lsl>0||impact.pc>0;
     if(hasImpact){
       projEl.style.display='block';
-      projEl.innerHTML=
-        '<div class="card-title" style="margin-bottom:8px;">Projected Balances <span style="font-weight:400;font-size:10px;color:var(--muted);">(after future planned leave)</span></div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'+
-          (impact.al>0?'<div style="text-align:center;padding:10px;background:var(--surface2);border-radius:8px;border-left:3px solid #dc2626;">'+
-            '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Annual Leave</div>'+
-            '<div style="font-size:11px;color:var(--muted);text-decoration:line-through;">'+S.leave.al.toFixed(1)+'h</div>'+
-            '<div style="font-size:16px;font-weight:800;color:#dc2626;">'+projAL+'h</div>'+
-            '<div style="font-size:9px;color:var(--muted);">-'+impact.al.toFixed(0)+'h planned</div>'+
-          '</div>':'<div></div>')+
-          (impact.lsl>0?'<div style="text-align:center;padding:10px;background:var(--surface2);border-radius:8px;border-left:3px solid #0d9488;">'+
-            '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Long Service</div>'+
-            '<div style="font-size:11px;color:var(--muted);text-decoration:line-through;">'+S.leave.lsl.toFixed(1)+'h</div>'+
-            '<div style="font-size:16px;font-weight:800;color:#0d9488;">'+projLSL+'h</div>'+
-            '<div style="font-size:9px;color:var(--muted);">-'+impact.lsl.toFixed(0)+'h planned</div>'+
-          '</div>':'<div></div>')+
-          (impact.pc>0?'<div style="text-align:center;padding:10px;background:var(--surface2);border-radius:8px;border-left:3px solid #7c3aed;">'+
-            '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Personal</div>'+
-            '<div style="font-size:11px;color:var(--muted);text-decoration:line-through;">'+S.leave.pc.toFixed(1)+'h</div>'+
-            '<div style="font-size:16px;font-weight:800;color:#7c3aed;">'+projPC+'h</div>'+
-            '<div style="font-size:9px;color:var(--muted);">-'+impact.pc.toFixed(0)+'h planned</div>'+
-          '</div>':'<div></div>')+
-        '</div>';
+      // One short line per leave type: now → after the planned leave
+      const pl=function(lbl,col,now,after,minus){ return '<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+col+';margin-right:6px;"></span>'+lbl+'</span><span><span style="color:var(--muted);">'+now.toFixed(1)+'h →</span> <b style="color:'+col+';">'+after+'h</b> <span style="color:var(--muted);font-size:11px;">(−'+minus.toFixed(0)+'h)</span></span></div>'; };
+      projEl.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">After planned leave</div>'+
+        (impact.al>0?pl('Annual leave','#dc2626',S.leave.al,projAL,impact.al):'')+
+        (impact.lsl>0?pl('Long service','#0d9488',S.leave.lsl,projLSL,impact.lsl):'')+
+        (impact.pc>0?pl('Personal','#7c3aed',S.leave.pc,projPC,impact.pc):'');
     } else {
       projEl.style.display='none';
     }
@@ -8683,6 +8751,8 @@ function renderPayProjection(){
     '</div>';
 
   let html='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Fortnight: '+fnLabel+'</div>';
+  // Summary first (gross → deductions → tax → net); every line sits in "Details" underneath
+  const headHtml=html; html=''; let missingHtml='';
 
   // Column headers
   html+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding-bottom:4px;border-bottom:1px solid var(--border);">'+
@@ -8696,7 +8766,7 @@ function renderPayProjection(){
   const guarH=S.settings.guarHrs||80, ordGross=guarH*cph;
   html+=payRow('Ord Time ('+guarH+'h guaranteed)',guarH.toFixed(2),'100%',fmt$(ordGross),'');
   if(p.missing&&p.missing.length){
-    html+='<div class="pay-missing" style="margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.45);font-size:12px;line-height:1.45;">'+
+    missingHtml='<div class="pay-missing" style=""margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.45);font-size:12px;line-height:1.45;">'+
       '<b style="color:var(--accent);">Not in this estimate yet</b>'+
       p.missing.map(function(m){ const d=parseDate(m.ds); return '<div style="margin-top:4px;cursor:pointer;" data-ds="'+m.ds+'" onclick="openShiftModal(this.dataset.ds)">• <b>'+DAY3[dayIdx(d)]+' '+fmtDDMM(d)+'</b> '+escHtml(m.why)+' <span style="color:var(--accent);font-weight:700;">Edit ›</span></div>'; }).join('')+
       '</div>';
@@ -8785,12 +8855,19 @@ function renderPayProjection(){
           '<div style="font-size:13px;font-weight:700;color:#0d9488;">'+fmt$(p.sgSuper)+'</div>'+
         '</div>';
 
+  const detailsHtml=html;
+  const sumRow=function(l,v,c){ return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>'+l+'</span><b style="color:'+(c||'var(--text)')+';">'+v+'</b></div>'; };
+  html=headHtml+missingHtml+
+    sumRow('Gross pay',fmt$(p.totalGross),'var(--accent)')+
+    sumRow('Deductions','-'+fmt$(totalCustomPre+totalCustomPost),'#ef4444')+
+    sumRow('Tax','-'+fmt$(p.totalTax),'#ef4444');
   // Net
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-top:4px;">'+
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-top:8px;">'+
     '<div style="font-size:14px;font-weight:800;">Projected Net Pay</div>'+
     '<div style="font-size:22px;font-weight:900;color:var(--early);">'+fmt$(p.netPay)+'</div>'+
   '</div>';
 
+  html+='<details class="show-more pay-details"><summary>Details: every line, deductions, tax and super</summary><div style="margin-top:6px;">'+detailsHtml+'</div></details>';
   // Actual pay input
   const fnKey=fmtDate(p.fn.start);
   const existing=(S.payHistory||[]).find(function(ph){ return ph.fnStart===fnKey; });
@@ -9068,7 +9145,7 @@ function renderPlannedLeave(){
       '</div>'+
       status+
     '</div>';
-  }),3);
+  }),2);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -9561,9 +9638,10 @@ function loadSettingsUI(){
   document.getElementById('set-blp').value=S.settings.blpRate;
   document.getElementById('set-excess').value=S.settings.excessRate||170;
   document.getElementById('set-tax').value=S.settings.taxRate;
-  document.getElementById('set-al').value=S.leave.al;
-  document.getElementById('set-lsl').value=S.leave.lsl;
-  document.getElementById('set-pc').value=S.leave.pc;
+  const r2=function(v){ return v==null||v===''?'':Math.round(+v*100)/100; };
+  document.getElementById('set-al').value=r2(S.leave.al);
+  document.getElementById('set-lsl').value=r2(S.leave.lsl);
+  document.getElementById('set-pc').value=r2(S.leave.pc);
   renderBin();
   document.getElementById('set-link').oninput=previewLink;
   document.getElementById('set-anchor-date').oninput=previewLink;
@@ -10214,6 +10292,16 @@ const HELP={
   report:{t:'Report a problem',w:'Tell the app\'s maker about a bug or something that looks wrong.',
     h:['Describe what happened and what you expected (e.g. "Saturday pay shows 100% instead of 150%").','Tap <b>📨 Send Report</b>.']}
 };
+// Settings: every section folds; the heading opens it (My Roster Link starts open until the app is set up)
+function initSettingsFold(){
+  document.querySelectorAll('#screen-settings .settings-section').forEach(function(sec){
+    const t=sec.querySelector(':scope > .settings-section-title'); if(!t||sec.dataset.fold) return;
+    sec.dataset.fold='1'; t.classList.add('fold-title');
+    if(!(sec.querySelector('#set-link')&&!S.anchorLink)) sec.classList.add('folded');
+    t.addEventListener('click',function(e){ if(e.target.closest('.hb,button,a,input')) return; sec.classList.toggle('folded'); });
+  });
+}
+function unfoldSettingFor(el){ const s=el&&el.closest?el.closest('.settings-section'):null; if(s) s.classList.remove('folded'); }
 function openHelp(key,ev){
   if(ev){ ev.preventDefault(); ev.stopPropagation(); }
   const d=HELP[key]; if(!d) return;
@@ -10229,6 +10317,7 @@ function openHelp(key,ev){
   const b=m.querySelector('.modal'); if(b) b.scrollTop=0;
 }
 function closeHelp(){ const m=document.getElementById('help-modal'); m.style.display='none'; m.classList.remove('open'); }
+try{ initSettingsFold(); }catch(e){}
 document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ const m=document.getElementById('help-modal'); if(m&&m.style.display!=='none') closeHelp(); } });
 </script>
 
