@@ -3962,7 +3962,11 @@ function fridgeDayInfo(ds){
   const sh=getEffectiveShift(ds);
   if(!sh) return null;
   if(['al','lsl','sl','family','repro','lwop'].includes(sh.typeKey)) return {kind:'leave',code:sh.code};
-  if(sh.time) return {kind:'shift',code:sh.job||sh.code||'',start:sh.time,end:sh.endTime||null};
+  if(sh.time){
+    let cd=sh.job||sh.code||'';
+    if(['blp_worked','blp_kept','blp_given'].includes(sh.typeKey)){ cd=String(cd).replace(/✓$/,'').replace(/^Working$/,'').trim(); cd=(cd?cd+' · ':'')+'BLP'; }
+    return {kind:'shift',code:cd,start:sh.time,end:sh.endTime||null};
+  }
   const c=sh.code;
   if(!c||c==='--'||c==='⇄') return null;
   return {kind:'off',code:c};
