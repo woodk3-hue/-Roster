@@ -6115,20 +6115,32 @@ function broughtFwdCalc(ds){
   const r2=function(h){ return Math.round(h*100)/100; };
   const over2=diff>120?'<div style="color:#fca5a5;">Brought forward more than 2 hours: that\'s only allowed if you agree (EBA 90.7).</div>':'';
   if(ontoLeis){
-    out.innerHTML='<div>Brought forward <b>'+gapWords(diff)+'</b> ('+escHtml(f.startStr)+' → '+escHtml(v)+' on '+ruleDayName(prevDs)+').</div>'+
-      '<div style="margin-top:4px;">🟢 <b>Your sign-on now falls on your '+(parseShift(getRaw(getLinkForWeek(getMonday(parseDate(prevDs))),dayIdx(parseDate(prevDs)))).typeKey==='slp'?'SLP':'BLP')+'.</b> An altered working that puts your sign-on on a leisure period isn\'t credited to your cycle (EBA 86.3.2); time worked on a leisure period is paid at <b>175%</b> (67.9).</div>'+
-      '<div>• The shift: '+(shiftH!=null?'<b>'+r2(shiftH)+'h at 175%</b>'+money(shiftH):'paid at 175% (add a finish time to see the hours)')+', not credited.</div>'+
-      '<div>• Alteration payment: <b>'+r2(credit)+'h at 175%</b>'+money(credit)+' instead of credited (91.2).</div>'+
+    // Split at midnight: on the BLP 175% (67.9), then the brought-forward time on your working day 50% credited (91.5)
+    const MAXS=9*3600000;
+    let finish=f.end!=null?f.end:null, capped=false;
+    if(finish!=null&&finish-newStart>MAXS){ finish=newStart+MAXS; capped=true; }
+    const onBlp=(dayStart-newStart)/3600000;
+    const altMins=Math.round((f.start-dayStart)/60000);
+    const altCred=Math.max(altMins,60)*0.5/60;
+    const restH=finish!=null?Math.max(0,(finish-f.start)/3600000):null;
+    const fin=finish!=null?new Date(finish):null;
+    const blpWord=parseShift(getRaw(getLinkForWeek(getMonday(parseDate(prevDs))),dayIdx(parseDate(prevDs)))).typeKey==='slp'?'SLP':'BLP';
+    out.innerHTML='<div>Brought forward <b>'+gapWords(diff)+'</b> ('+escHtml(f.startStr)+' → '+escHtml(v)+' on '+ruleDayName(prevDs)+', your '+blpWord+').</div>'+
+      '<div style="margin-top:4px;">• <b>'+escHtml(v)+' to midnight: '+r2(onBlp)+'h at 175%</b>'+money(onBlp)+'. Worked on your '+blpWord+', not credited (67.9).</div>'+
+      '<div>• <b>Midnight to '+escHtml(f.startStr)+': '+r2(altCred)+'h credited</b> to your cycle: 50% of the '+gapWords(altMins)+' brought forward'+(altMins<60?' (under 1 hour counts as 1 hour)':'')+' (91.4–91.5).</div>'+
+      (restH!=null?'<div>• <b>'+escHtml(f.startStr)+' to '+pad(fin.getHours())+':'+pad(fin.getMinutes())+'</b>: your shift as normal, '+r2(restH)+'h credited.</div>':'')+
+      (capped?'<div style="color:#fca5a5;">The longest shift is 9 hours, so you\'d finish by <b>'+pad(fin.getHours())+':'+pad(fin.getMinutes())+'</b> instead of '+escHtml(f.endStr)+'.</div>':'')+
       over2+rest+
-      '<div style="font-size:11px;color:var(--muted);margin-top:4px;">How the EBA reads (86.3.2, 67.9, 91.2). Check your payslip; tell the app\'s maker if payroll does it differently. Only applies when the roster changes it, not if you asked (91.10).</div>'+
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Guide only. Check your payslip; tell the app\'s maker if payroll pays it differently. Only applies when the roster changes it, not if you asked (91.10).</div>'+
       '<button class="btn btn-sm btn-accent" style="margin-top:6px;" onclick="recordBroughtFwd(\''+ds+'\',\''+v+'\',\''+f.startStr+'\')">Record it in Edit Shift</button>';
     return;
   }
-  out.innerHTML='<div>Brought forward <b>'+gapWords(diff)+'</b> ('+escHtml(f.startStr)+' → '+escHtml(v)+').</div>'+over2+
+  const cap9=(f.end!=null&&f.end-newStart>9*3600000)?(function(){ const x=new Date(newStart+9*3600000); return '<div style="color:#fca5a5;">The longest shift is 9 hours, so you\'d finish by <b>'+pad(x.getHours())+':'+pad(x.getMinutes())+'</b> instead of '+escHtml(f.endStr)+'.</div>'; })():'';
+  out.innerHTML='<div>Brought forward <b>'+gapWords(diff)+'</b> ('+escHtml(f.startStr)+' → '+escHtml(v)+').</div>'+over2+cap9+
     (leis?'<div>On a leisure day it\'s <b>paid at 175%</b> instead of credited: about <b>'+(Math.round(credit*100)/100)+'h</b>'+(cph?' (≈ '+fmt$(credit*cph*1.75)+')':'')+'.</div>'
       :'<div>You get <b>'+(Math.round(credit*100)/100)+'h credited</b> to your cycle hours: 50% of the time brought forward'+(diff<60?' (under 1 hour counts as 1 hour)':'')+' (EBA 91.4–91.5). It only adds to your pay if the cycle goes over its total (excess time).</div>')+
     rest+
-    '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Only applies when the roster changes it within 58 hours, not if you asked for it (91.10). Your finish time stays as rostered unless they tell you otherwise.</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Only applies when the roster changes it within 58 hours, not if you asked for it (91.10).</div>'+
     '<button class="btn btn-sm btn-accent" style="margin-top:6px;" onclick="recordBroughtFwd(\''+ds+'\',\''+v+'\',\''+f.startStr+'\')">Record it in Edit Shift</button>';
 }
 function recordBroughtFwd(ds,newT,origT){
