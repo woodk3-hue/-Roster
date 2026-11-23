@@ -4457,7 +4457,7 @@ function cboDayCounts(start,days){
     const dayStart=parseDate(ds).getTime();
     // "Incoming": no shift, but the day still counts — either marked so, or the day before's shift
     // finished on it (payroll counts every day a shift touches)
-    if(k==='incoming'||(k==='off'&&lastEnd!=null&&lastEnd>dayStart)){ n++; out.push({ds:ds,n:n,kind:'incoming'}); continue; }
+    if(k==='incoming'||(k==='off'&&lastEnd!=null&&lastEnd>dayStart)){ n++; out.push({ds:ds,n:n,kind:'incoming',end:lastEnd!=null?lastEnd:dayStart}); continue; }
     if(k==='off'){ dayOff=true; continue; }
     let st=dayStart, en=dayStart+86400000;
     if(k==='work'){
@@ -4469,7 +4469,7 @@ function cboDayCounts(start,days){
     // counting shifts on back-to-back days, even with a long break between them)
     if(lastEnd!=null&&dayOff&&st-lastEnd>=GAP) n=0;
     n++; lastEnd=en; dayOff=false;
-    out.push({ds:ds,n:n,kind:k});
+    out.push({ds:ds,n:n,kind:k,end:en});
   }
   return out;
 }
@@ -4481,12 +4481,19 @@ function cboOutlook(start,days){
   run.forEach(function(r){ o.n[r.ds]=r.n; o.kind[r.ds]=r.kind; });
   run.forEach(function(r){
     if(r.n!==11) return;
-    const next=fmtDate(addDays(parseDate(r.ds),1));
-    if(cboDayKind(next)!=='reset') o.due[next]=r.ds;   // not already a CBO / leave
+    const from=r.end, to=r.end+32*3600000, w={d11:r.ds,from:from,to:to};
+    o.win=o.win||[]; o.win.push(w);
+    // every day after day 11 that the 32 hours reach into (not one already a CBO / leave)
+    for(let i=1;i<=3;i++){
+      const ds=fmtDate(addDays(parseDate(r.ds),i));
+      if(parseDate(ds).getTime()>=to) break;
+      if(cboDayKind(ds)!=='reset') o.due[ds]=w;
+    }
   });
   return o;
 }
 // Day-11 days from yesterday to 8 weeks ahead (to spot a new CBO after a shift is saved)
+function cboWhen(ms){ const d=new Date(ms); return DAY3[dayIdx(d)]+' '+fmtDDMM(d)+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
 function cboDay11List(){
   const o=cboOutlook(addDays(today(),-30),87), t0=fmtDate(addDays(today(),-1));
   return Object.keys(o.n).filter(function(ds){ return o.n[ds]===11&&ds>=t0; });
@@ -6114,9 +6121,9 @@ function renderDayPanel(ds){
   // Days in a row / CBO due
   try{
     const co=cboOutlook(addDays(parseDate(ds),-30),31), cn=co.n[ds];
-    if(co.due[ds]) html+='<div class="rest-next short" style="margin-top:10px;">🛑 <b>CBO due</b>: '+ruleDayName(co.due[ds])+' is day 11 in a row. You need at least 32 hours off at home from the end of that shift (EBA 96.1).</div>';
+    if(co.due[ds]){ const w=co.due[ds]; html+='<div class="rest-next short" style="margin-top:10px;">🛑 <b>CBO due</b>: '+ruleDayName(w.d11)+' is day 11 in a row, so you need 32 hours off at home: <b>'+cboWhen(w.from)+' to '+cboWhen(w.to)+'</b> (EBA 96.1).</div>'; }
     else if(cn>=12) html+='<div class="rest-next short" style="margin-top:10px;">⚠ <b>Day '+cn+' in a row.</b> A CBO (32 hours off) was due after day 11 (EBA 96.1).</div>';
-    else if(cn===11) html+='<div class="rest-next" style="margin-top:10px;border:1px solid rgba(234,88,12,.5);">⚠ <b>Day 11 in a row.</b> A CBO (32 hours off at home) is due after this shift (EBA 96.1).</div>';
+    else if(cn===11){ const w=(co.win||[]).filter(function(x){ return x.d11===ds; })[0]; html+='<div class="rest-next" style="margin-top:10px;border:1px solid rgba(234,88,12,.5);">⚠ <b>Day 11 in a row.</b> A CBO (32 hours off at home) is due after this shift'+(w?': <b>'+cboWhen(w.from)+' to '+cboWhen(w.to)+'</b>':'')+' (EBA 96.1).</div>'; }
     else if(cn>=9&&co.kind[ds]!=='incoming') html+='<div class="rest-next" style="margin-top:10px;">Day <b>'+cn+'</b> in a row. A CBO is due after 11.</div>';
   }catch(e){}
   // Incoming day: no shift, but it counts toward the days in a row (CBO)
@@ -6384,10 +6391,10 @@ function cboWarnNew(before){
   try{
     const now=cboDay11List().filter(function(x){ return before.indexOf(x)<0; });
     if(!now.length) return;
-    const d11=now[0], due=fmtDate(addDays(parseDate(d11),1));
+    const d11=now[0], o=cboOutlook(addDays(parseDate(d11),-30),32), w=(o.win||[]).filter(function(x){ return x.d11===d11; })[0];
     setTimeout(function(){
       showNotice('🛑 CBO coming up','<p>With this shift, <b>'+ruleDayName(d11)+'</b> becomes <b>day 11 in a row</b>.</p>'+
-        '<p>You need a <b>CBO</b>: at least 32 hours off at home from the end of that shift, so from <b>'+ruleDayName(due)+'</b> (EBA 96.1). It\'s marked <b>CBO due</b> on the calendar.</p>'+
+        '<p>You need a <b>CBO</b>: at least 32 hours off at home from the end of that shift'+(w?', <b>'+cboWhen(w.from)+' to '+cboWhen(w.to)+'</b>':'')+' (EBA 96.1). It\'s marked <b>CBO due</b> on the calendar.</p>'+
         '<div class="help-note">Days count from shifts, sick days and incoming days. Annual leave, MBO, CBO or 32 hours off restart the count. Guide only. Check with the Roster Office.</div>');
     },350);
   }catch(e){}
