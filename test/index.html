@@ -717,6 +717,17 @@ body.day-mode #day-panel{background:rgba(240,242,248,0.97);}
 .fold-title::after{content:'▸';margin-left:auto;color:var(--muted);font-size:14px;}
 #screen-settings .settings-section:not(.folded) > .fold-title::after{content:'▾';}
 
+/* ── SWAPS: choose Record a Swap or BLP Swap ── */
+.swap-choose{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.swap-choose-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px;border-radius:12px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text);cursor:pointer;text-align:left;font:inherit;}
+.swap-choose-btn span{font-size:14px;font-weight:800;}
+.swap-choose-btn small{font-size:11px;color:var(--muted);}
+.swap-choose-btn.active{border-color:var(--accent);background:rgba(245,158,11,.12);box-shadow:0 2px 10px var(--accent-glow);}
+.swap-old-head{pointer-events:none;margin-bottom:6px;}
+.swap-old-head .hb{pointer-events:auto;}
+#rec-swap-arrow,#blp-swap-arrow{display:none;}
+#rec-swap-body,#blp-swap-body{margin-top:4px!important;}
+
 /* ── THIS WEEK (Home) ── */
 .week-card{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:0 2px 12px var(--accent-glow);}
 .week-head{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
@@ -1400,8 +1411,13 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
 
   <!-- ── RECORD SWAP FORM (always visible) ── -->
-  <div class="card swap-form" style="margin-bottom:14px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleRecordSwap()">
+  <!-- Choose which swap to record: the form drops down underneath -->
+  <div class="swap-choose">
+    <button type="button" class="swap-choose-btn" id="choose-rec" onclick="chooseSwapForm('rec')"><span>⇄ Record a Swap</span><small>Week, day or part week</small></button>
+    <button type="button" class="swap-choose-btn" id="choose-blp" onclick="chooseSwapForm('blp')"><span>🌙 BLP Swap</span><small>Swap a BLP for a shift</small></button>
+  </div>
+  <div class="card swap-form" id="swap-card-rec" style="margin-bottom:14px;display:none;">
+    <div class="swap-old-head" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleRecordSwap()">
       <div class="card-title" style="margin:0;">Record a Swap <button type="button" class="hb" onclick="openHelp('recordswap',event)" aria-label="How to use this">?</button></div>
       <span id="rec-swap-arrow" style="color:var(--muted);font-size:16px;">▸</span>
     </div>
@@ -1468,11 +1484,9 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
     </div>
   </div>
 
-  <hr class="divider">
-
   <!-- ── BLP SWAP SECTION ── -->
-  <div class="card" style="margin-bottom:14px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleBlpSwapSection()">
+  <div class="card" id="swap-card-blp" style="margin-bottom:14px;display:none;">
+    <div class="swap-old-head" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleBlpSwapSection()">
       <div class="card-title" style="margin:0;">BLP Swap <button type="button" class="hb" onclick="openHelp('blpswap',event)" aria-label="How to use this">?</button></div>
       <span id="blp-swap-arrow" style="color:var(--muted);font-size:16px;">▸</span>
     </div>
@@ -4703,7 +4717,7 @@ function dayIsLeisureRoster(ds){
   // A whole-week swap means the other link's roster applies
   const ws=(S.swaps||[]).find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
   const ov=S.days[ds];  // a day swapped on its own (single day, Mon–Fri, Mon–Sat) follows the other link
-  const sh=parseShift(getRaw(ov&&ov.type==='swap'&&ov.swapTo?ov.swapTo:(ws?ws.linkReceived:getLinkForWeek(mon)),dayIdx(d)));
+  const sh=parseShift(getRaw(ov&&ov.swapTo&&['swap','blp_given','blp_kept'].includes(ov.type)?ov.swapTo:(ws?ws.linkReceived:getLinkForWeek(mon)),dayIdx(d)));
   return sh.typeKey==='blp'||sh.typeKey==='slp';
 }
 // Hours credited to one 4-week cycle: shifts worked, leave (rostered hours) and roster alteration credits
@@ -6933,13 +6947,25 @@ function updateRosterImportStatus(){
 }
 
 function toggleRecordSwap(force){
-  const body=document.getElementById('rec-swap-body'), arrow=document.getElementById('rec-swap-arrow');
-  if(!body) return;
-  const open=force!=null?!force:body.style.display==='block';
-  body.style.display=open?'none':'block';
-  if(arrow) arrow.textContent=open?'▸':'▾';
+  const want=force!=null?force:document.getElementById('swap-card-rec').style.display==='none';
+  setSwapForm(want?'rec':null);
+}
+// Record a Swap / BLP Swap: two buttons side by side; the chosen form drops down underneath
+function setSwapForm(k){
+  [['rec','swap-card-rec','rec-swap-body','choose-rec'],['blp','swap-card-blp','blp-swap-body','choose-blp']].forEach(function(x){
+    const on=x[0]===k, card=document.getElementById(x[1]), body=document.getElementById(x[2]), btn=document.getElementById(x[3]);
+    if(card) card.style.display=on?'':'none';
+    if(body) body.style.display=on?'block':'none';
+    if(btn) btn.classList.toggle('active',on);
+  });
+}
+function chooseSwapForm(k){
+  const open=document.getElementById(k==='rec'?'swap-card-rec':'swap-card-blp').style.display!=='none';
+  setSwapForm(open?null:k);
+  if(!open) setTimeout(function(){ const c=document.getElementById(k==='rec'?'swap-card-rec':'swap-card-blp'); if(c) c.scrollIntoView({behavior:'smooth',block:'nearest'}); },60);
 }
 function toggleBlpSwapSection(){
+  setSwapForm(document.getElementById('swap-card-blp').style.display==='none'?'blp':null); return;
   const body=document.getElementById('blp-swap-body');
   const arrow=document.getElementById('blp-swap-arrow');
   if(!body) return;
@@ -6955,18 +6981,21 @@ function onBlpSwapWCChange(){
   const mon=getMonday(parseDate(wc));
   const link=getLinkForWeek(mon);
   if(!link){ container.innerHTML='<div style="font-size:12px;color:var(--muted);">No roster link found for this week</div>'; return; }
-  // Find BLP days for this link this week
+  // Your BLP days on the roster you're actually working: a swapped week (or swapped days) uses the
+  // other link's BLPs, plus any day you kept as your BLP ("Keep this BLP")
   const DAY3N=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const ws=(S.swaps||[]).find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
   blpSwapGiveDays=[];
-  let html='';
+  let html='', swappedDays=false;
   for(let i=0;i<7;i++){
-    const raw=getRaw(link,i);
-    const sh=parseShift(raw);
-    if(sh.typeKey==='blp'||sh.typeKey==='slp'){
-      html+='<button class="btn btn-sm" data-day="'+i+'" onclick="toggleBlpGive(this)" style="background:#312e81;color:#c7d2fe;">'+DAY3N[i]+'</button>';
-    }
+    const ds=fmtDate(addDays(mon,i)), ov=S.days[ds];
+    if(ov&&ov.type==='swap') swappedDays=true;
+    const isBlp=(ov&&ov.type==='blp_kept')||(dayIsLeisureRoster(ds)&&!(ov&&(ov.type==='blp_given'||ov.start)));
+    if(isBlp) html+='<button class="btn btn-sm" data-day="'+i+'" onclick="toggleBlpGive(this)" style="background:#312e81;color:#c7d2fe;">'+DAY3N[i]+'</button>';
   }
-  container.innerHTML=html||'<div style="font-size:12px;color:var(--muted);">No BLP/SLP days found this week</div>';
+  const note=ws?'<div style="width:100%;font-size:11px;color:var(--muted);margin-bottom:2px;">Swapped this week: BLPs from link '+ws.linkReceived+(ws.driver?' ('+escHtml(ws.driver)+')':'')+'</div>'
+    :swappedDays?'<div style="width:100%;font-size:11px;color:var(--muted);margin-bottom:2px;">Includes the BLPs of the days you swapped</div>':'';
+  container.innerHTML=note+(html||'<div style="font-size:12px;color:var(--muted);">No BLP/SLP days found this week</div>');
 }
 
 function toggleBlpGive(btn){
@@ -7033,7 +7062,7 @@ function saveBlpSwap(){
   // Save swap record
   const swapRec={
     id:uid(), wc:monStr, driver:driver, scope:'blp',
-    linkGiven:link, linkReceived:null,
+    linkGiven:(function(){ const w=(S.swaps||[]).find(function(sw){ return sw.wc===monStr&&sw.scope==='week'; }); return w?w.linkReceived:link; })(), linkReceived:null,
     blpGiveIdxs:[...blpSwapGiveDays],
     blpRecvIdx:blpSwapRecvDay,
     recvTime:recvTime||'',
@@ -7044,14 +7073,16 @@ function saveBlpSwap(){
 
   // Stamp calendar
   // Given days → clear to normal working day (green dot)
+  // A day that was part of a link swap keeps that link (and what was there before), so Undo works
+  const keepSwap=function(ds,rec){ const o=S.days[ds]; if(o&&o.type==='swap'){ rec.swapFrom=o.swapFrom; rec.swapTo=o.swapTo; rec.linkSwapPartner=o.swapPartner; if(o.before) rec.before=o.before; } else if(o&&!rec.before) rec.before=JSON.parse(JSON.stringify(o)); return rec; };
   blpSwapGiveDays.forEach(function(i){
     const ds=fmtDate(addDays(mon,i));
-    S.days[ds]={type:'blp_given',swapPartner:driver,start:'',end:'',job:'',guards:'',notes:'BLP given to '+driver+' (BLP swap)'};
+    S.days[ds]=keepSwap(ds,{type:'blp_given',swapPartner:driver,start:'',end:'',job:'',guards:'',notes:'BLP given to '+driver+' (BLP swap)'});
   });
 
   // Received day → BLP (with optional shift info)
   const recvDs=fmtDate(addDays(mon,blpSwapRecvDay));
-  S.days[recvDs]={
+  S.days[recvDs]=keepSwap(recvDs,{
     type:'blp_kept',
     swapPartner:driver,
     start:recvTime||'',
@@ -7059,7 +7090,7 @@ function saveBlpSwap(){
     job:recvJob||recvCode||'',
     guards:'',
     notes:'BLP received from '+driver+(recvTime?' · '+recvTime:recvCode?' · '+recvCode:'')+(recvJob?' · '+recvJob:'')
-  };
+  });
 
   // Capture for toast before reset
   const gaveStr=blpSwapGiveDays.map(function(i){ return ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]; }).join('/');
@@ -10005,7 +10036,8 @@ function toast(msg){
 const APP_VERSION='2026-11-23b';
 const WHATS_NEW=[
   'Pay day: a green $ on the calendar now marks pay day, the Wednesday after each pay fortnight. Tap the day to see which fortnight is being paid. If there\'s a public holiday on the Monday or Tuesday before, the $ turns orange and the app warns that pay may be delayed.',
-  'This week: a new card at the top of Home shows everything coming up in the next 7 days, like pay day, CBO, leave, swap emails and public holidays. Tap a line to open that day.'
+  'This week: a new card at the top of Home shows everything coming up in the next 7 days, like pay day, CBO, leave, swap emails and public holidays. Tap a line to open that day.',
+  'Tidier screens: Settings folds into sections, saved swaps can be fully edited (e.g. change a swap to Mon–Fri), Pay shows a short summary first, and colours are clearer in light mode.'
 ];
 // A note from the app's maker: shown at the top of Settings and the setup screen
 const OWNER_NOTE='Hi everyone! This app is just a little hobby project of mine. It\'s been shared around a lot, so welcome if you\'re new. I don\'t know every rule, so if something isn\'t working right or looks incorrect, please let me know. Kim Wood (my number is on the Drivers list) 😊';
