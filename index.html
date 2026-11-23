@@ -4444,7 +4444,9 @@ function cboDayKind(ds){
   if(tk==='sl'||tk==='sick'||tk==='repro') return 'sick';
   if(['al','lsl','family','lwop','mbo','cbo','ph_booked_off'].includes(tk)) return 'reset';
   if(tk==='incoming') return 'incoming';
-  return ruleDayFacts(ds).work?'work':'off';
+  // A spare / available day (AM1–3, PM1–3, AFA, AFP) is a working day even before times are typed in
+  const f=ruleDayFacts(ds);
+  return (f.work||f.att)?'work':'off';
 }
 function cboDayCounts(start,days){
   const out=[]; let n=0, lastEnd=null;
@@ -4458,7 +4460,11 @@ function cboDayCounts(start,days){
     if(k==='incoming'||(k==='off'&&lastEnd!=null&&lastEnd>dayStart)){ n++; out.push({ds:ds,n:n,kind:'incoming'}); continue; }
     if(k==='off') continue;
     let st=dayStart, en=dayStart+86400000;
-    if(k==='work'){ const f=ruleDayFacts(ds); st=f.start; en=f.end!=null?f.end:f.start+8*3600000; }
+    if(k==='work'){
+      const f=ruleDayFacts(ds);
+      if(f.start!=null){ st=f.start; en=f.end!=null?f.end:f.start+8*3600000; }
+      else { st=dayStart+6*3600000; en=dayStart+14*3600000; }  // spare day, no times yet: assume a day shift
+    }
     if(lastEnd!=null&&st-lastEnd>=GAP) n=0;
     n++; lastEnd=en;
     out.push({ds:ds,n:n,kind:k});
