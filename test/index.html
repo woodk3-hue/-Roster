@@ -4449,24 +4449,26 @@ function cboDayKind(ds){
   return (f.work||f.att)?'work':'off';
 }
 function cboDayCounts(start,days){
-  const out=[]; let n=0, lastEnd=null;
+  const out=[]; let n=0, lastEnd=null, dayOff=false;
   const GAP=32*3600000;
   for(let i=0;i<days;i++){
     const ds=fmtDate(addDays(start,i)), k=cboDayKind(ds);
-    if(k==='reset'){ n=0; lastEnd=null; continue; }
+    if(k==='reset'){ n=0; lastEnd=null; dayOff=false; continue; }
     const dayStart=parseDate(ds).getTime();
     // "Incoming": no shift, but the day still counts — either marked so, or the day before's shift
     // finished on it (payroll counts every day a shift touches)
     if(k==='incoming'||(k==='off'&&lastEnd!=null&&lastEnd>dayStart)){ n++; out.push({ds:ds,n:n,kind:'incoming'}); continue; }
-    if(k==='off') continue;
+    if(k==='off'){ dayOff=true; continue; }
     let st=dayStart, en=dayStart+86400000;
     if(k==='work'){
       const f=ruleDayFacts(ds);
       if(f.start!=null){ st=f.start; en=f.end!=null?f.end:f.start+8*3600000; }
       else { st=dayStart+6*3600000; en=dayStart+14*3600000; }  // spare day, no times yet: assume a day shift
     }
-    if(lastEnd!=null&&st-lastEnd>=GAP) n=0;
-    n++; lastEnd=en;
+    // 32 hours off restarts the count, but only across a whole day with no shift (payroll keeps
+    // counting shifts on back-to-back days, even with a long break between them)
+    if(lastEnd!=null&&dayOff&&st-lastEnd>=GAP) n=0;
+    n++; lastEnd=en; dayOff=false;
     out.push({ds:ds,n:n,kind:k});
   }
   return out;
