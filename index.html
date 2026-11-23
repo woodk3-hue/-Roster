@@ -4703,7 +4703,7 @@ function dayIsLeisureRoster(ds){
   // A whole-week swap means the other link's roster applies
   const ws=(S.swaps||[]).find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
   const ov=S.days[ds];  // a day swapped on its own (single day, Mon–Fri, Mon–Sat) follows the other link
-  const sh=parseShift(getRaw(ov&&ov.type==='swap'&&ov.swapTo?ov.swapTo:(ws?ws.linkReceived:getLinkForWeek(mon)),dayIdx(d)));
+  const sh=parseShift(getRaw(ov&&ov.swapTo&&['swap','blp_given','blp_kept'].includes(ov.type)?ov.swapTo:(ws?ws.linkReceived:getLinkForWeek(mon)),dayIdx(d)));
   return sh.typeKey==='blp'||sh.typeKey==='slp';
 }
 // Hours credited to one 4-week cycle: shifts worked, leave (rostered hours) and roster alteration credits
@@ -6955,18 +6955,21 @@ function onBlpSwapWCChange(){
   const mon=getMonday(parseDate(wc));
   const link=getLinkForWeek(mon);
   if(!link){ container.innerHTML='<div style="font-size:12px;color:var(--muted);">No roster link found for this week</div>'; return; }
-  // Find BLP days for this link this week
+  // Your BLP days on the roster you're actually working: a swapped week (or swapped days) uses the
+  // other link's BLPs, plus any day you kept as your BLP ("Keep this BLP")
   const DAY3N=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const ws=(S.swaps||[]).find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
   blpSwapGiveDays=[];
-  let html='';
+  let html='', swappedDays=false;
   for(let i=0;i<7;i++){
-    const raw=getRaw(link,i);
-    const sh=parseShift(raw);
-    if(sh.typeKey==='blp'||sh.typeKey==='slp'){
-      html+='<button class="btn btn-sm" data-day="'+i+'" onclick="toggleBlpGive(this)" style="background:#312e81;color:#c7d2fe;">'+DAY3N[i]+'</button>';
-    }
+    const ds=fmtDate(addDays(mon,i)), ov=S.days[ds];
+    if(ov&&ov.type==='swap') swappedDays=true;
+    const isBlp=(ov&&ov.type==='blp_kept')||(dayIsLeisureRoster(ds)&&!(ov&&(ov.type==='blp_given'||ov.start)));
+    if(isBlp) html+='<button class="btn btn-sm" data-day="'+i+'" onclick="toggleBlpGive(this)" style="background:#312e81;color:#c7d2fe;">'+DAY3N[i]+'</button>';
   }
-  container.innerHTML=html||'<div style="font-size:12px;color:var(--muted);">No BLP/SLP days found this week</div>';
+  const note=ws?'<div style="width:100%;font-size:11px;color:var(--muted);margin-bottom:2px;">Swapped this week: BLPs from link '+ws.linkReceived+(ws.driver?' ('+escHtml(ws.driver)+')':'')+'</div>'
+    :swappedDays?'<div style="width:100%;font-size:11px;color:var(--muted);margin-bottom:2px;">Includes the BLPs of the days you swapped</div>':'';
+  container.innerHTML=note+(html||'<div style="font-size:12px;color:var(--muted);">No BLP/SLP days found this week</div>');
 }
 
 function toggleBlpGive(btn){
@@ -7033,7 +7036,7 @@ function saveBlpSwap(){
   // Save swap record
   const swapRec={
     id:uid(), wc:monStr, driver:driver, scope:'blp',
-    linkGiven:link, linkReceived:null,
+    linkGiven:(function(){ const w=(S.swaps||[]).find(function(sw){ return sw.wc===monStr&&sw.scope==='week'; }); return w?w.linkReceived:link; })(), linkReceived:null,
     blpGiveIdxs:[...blpSwapGiveDays],
     blpRecvIdx:blpSwapRecvDay,
     recvTime:recvTime||'',
@@ -7044,14 +7047,16 @@ function saveBlpSwap(){
 
   // Stamp calendar
   // Given days → clear to normal working day (green dot)
+  // A day that was part of a link swap keeps that link (and what was there before), so Undo works
+  const keepSwap=function(ds,rec){ const o=S.days[ds]; if(o&&o.type==='swap'){ rec.swapFrom=o.swapFrom; rec.swapTo=o.swapTo; rec.linkSwapPartner=o.swapPartner; if(o.before) rec.before=o.before; } else if(o&&!rec.before) rec.before=JSON.parse(JSON.stringify(o)); return rec; };
   blpSwapGiveDays.forEach(function(i){
     const ds=fmtDate(addDays(mon,i));
-    S.days[ds]={type:'blp_given',swapPartner:driver,start:'',end:'',job:'',guards:'',notes:'BLP given to '+driver+' (BLP swap)'};
+    S.days[ds]=keepSwap(ds,{type:'blp_given',swapPartner:driver,start:'',end:'',job:'',guards:'',notes:'BLP given to '+driver+' (BLP swap)'});
   });
 
   // Received day → BLP (with optional shift info)
   const recvDs=fmtDate(addDays(mon,blpSwapRecvDay));
-  S.days[recvDs]={
+  S.days[recvDs]=keepSwap(recvDs,{
     type:'blp_kept',
     swapPartner:driver,
     start:recvTime||'',
@@ -7059,7 +7064,7 @@ function saveBlpSwap(){
     job:recvJob||recvCode||'',
     guards:'',
     notes:'BLP received from '+driver+(recvTime?' · '+recvTime:recvCode?' · '+recvCode:'')+(recvJob?' · '+recvJob:'')
-  };
+  });
 
   // Capture for toast before reset
   const gaveStr=blpSwapGiveDays.map(function(i){ return ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]; }).join('/');
