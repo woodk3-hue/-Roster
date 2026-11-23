@@ -6026,6 +6026,83 @@ function tapCalDay(ds){
   setTimeout(function(){ document.getElementById('day-panel').scrollIntoView({behavior:'smooth',block:'nearest'}); },50);
 }
 
+// BLP/SLP day: earliest sign-on and latest sign-off for a shift picked up on it (12 hours either side, EBA 82.1)
+function blpWindowHtml(ds){
+  const d=parseDate(ds), dayStart=d.getTime(), dayEnd=addDays(d,1).getTime();
+  let prev=null, next=null;
+  for(let i=1;i<=7&&!prev;i++){ const f=ruleDayFacts(fmtDate(addDays(d,-i))); if(f.work) prev=f; }
+  for(let i=1;i<=7&&!next;i++){ const f=ruleDayFacts(fmtDate(addDays(d,i))); if(f.work) next=f; }
+  const REST=12*3600000, MAX=9*3600000, MIN=6*3600000;
+  const hm=function(ms,withDay){ const x=new Date(ms); return (withDay?DAY3[dayIdx(x)]+' ':'')+pad(x.getHours())+':'+pad(x.getMinutes()); };
+  let lines=[], earliest=dayStart, latest=null;
+  // A CBO (32 hours off) running into this day comes first
+  let cbo=null; try{ cbo=cboOutlook(addDays(d,-30),31).due[ds]||null; }catch(e){}
+  if(cbo&&cbo.to>=dayEnd) return '<div class="rest-next short" style="margin-top:10px;">🛑 <b>Don\'t pick up a shift on this day.</b> It\'s inside your CBO (32 hours off), which runs until <b>'+cboWhen(cbo.to)+'</b> (EBA 96.1).</div>';
+  if(prev&&prev.end!=null){
+    const e12=prev.end+REST;
+    earliest=Math.max(dayStart,e12);
+    if(e12<=dayStart) lines.push('<b>Earliest sign-on: any time</b> (your '+ruleDayName(prev.ds)+' shift finishes '+escHtml(prev.endStr)+', more than 12h before)');
+    else lines.push('<b>Earliest sign-on: '+(earliest>=dayEnd?'not this day':hm(earliest))+'</b> (12h after your '+ruleDayName(prev.ds)+' shift finishes '+escHtml(prev.endStr)+')');
+  } else if(prev) lines.push('Earliest sign-on: add a finish time to your '+ruleDayName(prev.ds)+' shift to work this out');
+  if(cbo&&cbo.to>earliest){
+    earliest=cbo.to;
+    lines.push('<b>Not before '+(cbo.to>=dayEnd?hm(cbo.to,true):hm(cbo.to))+'</b>: your CBO (32 hours off) runs until then');
+  }
+  if(next&&next.start!=null){
+    latest=next.start-REST;
+    if(latest>=dayEnd+MAX) lines.push('<b>Latest sign-off: any time</b> (your next shift, '+ruleDayName(next.ds)+' '+escHtml(next.startStr)+', is far enough away)');
+    else lines.push('<b>Latest sign-off: '+(latest<=dayStart?'before this day starts':hm(latest,latest>=dayEnd))+'</b> (12h before your '+ruleDayName(next.ds)+' shift starts '+escHtml(next.startStr)+')');
+  }
+  if(!lines.length) return '';
+  let room='';
+  if(latest!=null&&earliest<dayEnd){
+    const span=latest-earliest;
+    if(span<MIN) room='<div style="margin-top:4px;color:#fca5a5;">Not enough room for a 6-hour shift between your shifts.</div>';
+    else room='<div style="margin-top:4px;">Room for a shift of up to <b>'+gapWords(Math.round(Math.min(span,MAX)/60000))+'</b>'+(span>MAX?' (9 hours is the longest shift)':'')+'.</div>';
+  }
+  return '<div class="rest-next" style="margin-top:10px;">🕑 <b>If you pick up a shift on this day</b><div style="margin-top:4px;">'+lines.join('<br>')+'</div>'+room+
+    '<div style="margin-top:4px;font-size:11px;color:var(--muted);">12 hours between shifts at your home depot (EBA 82.1). Guide only.</div></div>';
+}
+// Working day: what being brought forward (an earlier sign-on) means
+function broughtFwdHtml(ds){
+  return '<details class="show-more" style="margin-top:8px;"><summary>⏪ What if I\'m brought forward?</summary>'+
+    '<div style="font-size:12px;color:var(--muted);margin:4px 0 6px;">Type the new sign-on time the roster gave you.</div>'+
+    '<input type="time" class="form-input" id="bf-time" oninput="broughtFwdCalc(\''+ds+'\')" style="max-width:160px;">'+
+    '<div id="bf-out" style="margin-top:8px;font-size:12.5px;line-height:1.5;"></div></details>';
+}
+function broughtFwdCalc(ds){
+  const out=document.getElementById('bf-out'), v=(document.getElementById('bf-time')||{}).value;
+  if(!out) return; if(!v){ out.innerHTML=''; return; }
+  const f=ruleDayFacts(ds); if(!f.work){ out.innerHTML=''; return; }
+  const sm=parseTime(f.startStr), nm=parseTime(v);
+  let diff=sm-nm; if(diff<-720) diff+=1440; if(diff>720) diff-=1440;
+  if(diff<=0){ out.innerHTML='<span style="color:var(--muted);">That isn\'t earlier than your rostered '+escHtml(f.startStr)+' sign-on. A later sign-on is "deferred" (Edit Shift → Roster alteration).</span>'; return; }
+  const credit=altCredit('brought',f.startStr,v), leis=dayIsLeisureRoster(ds);
+  const newStart=f.start-diff*60000;
+  const prevDs=fmtDate(addDays(parseDate(ds),-1)), pf=ruleDayFacts(prevDs);
+  let rest='';
+  if(pf.work&&pf.end!=null){
+    const g=Math.round((newStart-pf.end)/60000);
+    rest=g<720?'<div style="color:#fca5a5;">⚠ Only <b>'+gapWords(Math.max(g,0))+'</b> off after your '+ruleDayName(prevDs)+' shift (finishes '+escHtml(pf.endStr)+'). You need 12 hours (EBA 82.1).</div>'
+      :'<div>✓ '+gapWords(g)+' off after your '+ruleDayName(prevDs)+' shift, so the 12-hour break is OK.</div>';
+  }
+  const cph=(S.settings&&S.settings.cph)||0;
+  out.innerHTML='<div>Brought forward <b>'+gapWords(diff)+'</b> ('+escHtml(f.startStr)+' → '+escHtml(v)+').</div>'+
+    (leis?'<div>On a leisure day it\'s <b>paid at 175%</b> instead of credited: about <b>'+(Math.round(credit*100)/100)+'h</b>'+(cph?' (≈ '+fmt$(credit*cph*1.75)+')':'')+'.</div>'
+      :'<div>You get <b>'+(Math.round(credit*100)/100)+'h credited</b> to your cycle hours: 50% of the time brought forward'+(diff<60?' (under 1 hour counts as 1 hour)':'')+' (EBA 91.4–91.5). It only adds to your pay if the cycle goes over its total (excess time).</div>')+
+    rest+
+    '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Only applies when the roster changes it within 58 hours, not if you asked for it (91.10). Your finish time stays as rostered unless they tell you otherwise.</div>'+
+    '<button class="btn btn-sm btn-accent" style="margin-top:6px;" onclick="recordBroughtFwd(\''+ds+'\',\''+v+'\',\''+f.startStr+'\')">Record it in Edit Shift</button>';
+}
+function recordBroughtFwd(ds,newT,origT){
+  openShiftModal(ds);
+  setTimeout(function(){
+    const st=document.getElementById('sm-start'); if(st) st.value=newT;
+    const k=document.getElementById('sm-alt-kind'); if(k) k.value='brought';
+    const o=document.getElementById('sm-alt-orig'); if(o) o.value=origT;
+    try{ onAltChange(); }catch(e){}
+  },60);
+}
 function renderDayPanel(ds){
   const sh=getEffectiveShift(ds);
   const ov=S.days[ds];
@@ -6118,6 +6195,11 @@ function renderDayPanel(ds){
   if(ov&&ov.notes&&ov.notes.trim()){
     html+='<div style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--muted);">'+ov.notes+'</div>';
   }
+  // BLP/SLP day not worked: when a picked-up shift could start and finish; working day: brought forward
+  try{
+    if(!lv&&(['blp','slp'].includes(sh.typeKey)||(sh.typeKey==='swap'&&['blp','slp'].includes(sh.swapInnerType)))&&!leisureWorked(ds)) html+=blpWindowHtml(ds);
+    else if(sh.time&&!leaveTypeKey&&ruleDayFacts(ds).work) html+=broughtFwdHtml(ds);
+  }catch(e){}
   // Days in a row / CBO due
   try{
     const co=cboOutlook(addDays(parseDate(ds),-30),31), cn=co.n[ds];
