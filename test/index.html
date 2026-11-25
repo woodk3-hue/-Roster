@@ -5519,15 +5519,16 @@ function renderDash(){
     emailEl.innerHTML='<div class="section-label">Swap Emails <button type="button" class="hb" onclick="openHelp(\'swapemail\',event)" aria-label="How to use this">?</button></div>'+
       firstFewThenMore(futureSwaps.map(function(sw){
         const wcDate=parseDate(sw.wc);
-        // Email due 3 days before WC
-        const emailDue=addDays(wcDate,-3);
+        // Email window: from 2 weeks before the week, due 82 hours before the first swapped shift
+        const est=swapEmailStatus(sw);
+        const emailDue=new Date(est.w.due);
         const daysLeft=Math.ceil((emailDue-now)/(24*60*60*1000));
         const sent=S.swapEmailSent[sw.id];
         const countdown=daysLeft<=0?'<span style="color:#ef4444;font-weight:700;">Due Now!</span>':daysLeft===1?'<span style="color:var(--accent);">Tomorrow</span>':'in <span class="swap-email-countdown">'+daysLeft+'</span> days';
         // One compact line per swap: tap it to edit, ✉ writes the email, Sent ticks it off
         return '<div class="swap-email-card swap-email-row" id="sec-'+sw.id+'" data-swid="'+sw.id+'" onclick="if(!event.target.closest(\'button,input,.swap-edit\'))editSwap(\''+sw.id+'\',this)">'+
           '<div class="ser-main"><div class="ser-top">W/C '+fmtDDMM(wcDate)+' · '+(sw.scope==='blp'?'<span style="color:#6366f1;">BLP swap</span>':sw.linkGiven+' → '+sw.linkReceived)+(sw.driver?' <span class="ser-who">· '+escHtml(sw.driver)+'</span>':'')+'</div>'+
-          '<div class="ser-sub">Email by '+fmtDDMM(emailDue)+' · '+countdown+'</div></div>'+
+          '<div class="ser-sub">'+est.html+'</div></div>'+
           '<button class="btn btn-sm ser-btn" title="Write the email" data-swapid="'+sw.id+'" onclick="generateSwapEmailById(this)">✉</button>'+
           '<button class="btn btn-sm btn-accent ser-btn" data-swapid="'+sw.id+'" onclick="markSwapEmailSentById(this)">Sent</button>'+
         '</div>';
@@ -5631,7 +5632,9 @@ function renderDashWeek(now){
     }
     (S.swaps||[]).forEach(function(sw){
       if(S.swapEmailSent&&S.swapEmailSent[sw.id]) return;
-      if(fmtDate(addDays(parseDate(sw.wc),-3))===ds) add(ds,'✉️','<b>Swap email due</b>: W/C '+fmtDDMM(parseDate(sw.wc))+', link '+sw.linkGiven+' → '+sw.linkReceived+(sw.driver?' ('+escHtml(sw.driver)+')':''));
+      const ew=swapEmailWindow(sw);
+      if(fmtDate(new Date(ew.open))===ds&&ew.open>Date.now()-86400000) add(ds,'✉️','<b>Swap email can be sent from today</b>: W/C '+fmtDDMM(parseDate(sw.wc))+(sw.scope==='blp'?' (BLP swap)':', link '+sw.linkGiven+' → '+sw.linkReceived));
+      if(fmtDate(new Date(ew.due))===ds) add(ds,'✉️','<b>Swap email due by '+pad(new Date(ew.due).getHours())+':'+pad(new Date(ew.due).getMinutes())+'</b>: W/C '+fmtDDMM(parseDate(sw.wc))+', link '+sw.linkGiven+' → '+sw.linkReceived+(sw.driver?' ('+escHtml(sw.driver)+')':''));
     });
     try{ activeRuleIssues(ds).forEach(function(x){ if(x.side!=='after') add(ds,'⚠','<span style="color:#fca5a5;">'+escHtml(x.msg)+'</span> <a href="#" class="rule-ref" onclick="openRules(\''+x.c+'\');return false;">EBA '+x.c+'</a>','bad'); }); }catch(e){}
   }
@@ -6943,6 +6946,7 @@ function renderBlpSwapEmailCards(){
         ' &nbsp;<span style="color:#6366f1;font-weight:700;">BLP Swap</span>'+
         (sw.driver?' &nbsp;<span style="color:var(--muted);font-weight:400;">'+sw.driver+'</span>':'')+
       '</div>'+
+      '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+swapEmailStatus(sw).html+'</div>'+
       '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+
         (S.myName||'Driver')+' BLP: '+myNewBlp+' &nbsp;·&nbsp; '+
         (sw.driver||'Them')+' BLP: '+theirNewBlp+
@@ -7556,6 +7560,28 @@ function populateInlineSwapDaySelect(mon,link){
 
 // Days a swap covers: whole week, Mon–Fri, Mon–Sat, or one day
 const SWAP_PART={monfri:{to:4,name:'Mon–Fri',long:'Monday to Friday',keep:'weekend'},monsat:{to:5,name:'Mon–Sat',long:'Monday to Saturday',keep:'Sunday'}};
+// When a swap email can be sent: from 2 weeks before the week, and by 82 hours before the first swapped shift
+function swapEmailWindow(sw){
+  const mon=parseDate(sw.wc);
+  let days=[];
+  if(sw.scope==='blp') days=(sw.blpGiveIdxs||[]).concat(sw.blpRecvIdx!=null?[sw.blpRecvIdx]:[]);
+  else { const sp=swapSpan(sw.scope||'week',sw.dayIdx||0); for(let i=sp.from;i<=sp.to;i++) days.push(i); }
+  days.sort(function(a,b){ return a-b; });
+  let first=null;
+  days.forEach(function(i){ if(first!=null) return; const f=ruleDayFacts(fmtDate(addDays(mon,i))); if(f.work&&f.start!=null) first=f.start; });
+  if(first==null) first=addDays(mon,days.length?days[0]:0).getTime();
+  return {open:addDays(mon,-14).getTime(), due:first-82*3600000, first:first};
+}
+function swapEmailWhen(ms){ const d=new Date(ms); return DAY3[dayIdx(d)]+' '+fmtDDMM(d)+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
+// "Can send from …" / "Send by … · in N days" / "Overdue"
+function swapEmailStatus(sw){
+  const w=swapEmailWindow(sw), nowMs=Date.now();
+  if(nowMs<w.open) return {state:'early',html:'Can send from '+DAY3[dayIdx(new Date(w.open))]+' '+fmtDDMM(new Date(w.open)),w:w};
+  if(nowMs>w.due) return {state:'late',html:'<span style="color:#ef4444;font-weight:700;">Overdue</span> (was due '+swapEmailWhen(w.due)+')',w:w};
+  const days=Math.floor((w.due-nowMs)/86400000), hrs=Math.floor((w.due-nowMs)/3600000);
+  const left=hrs<24?'<span style="color:#ef4444;font-weight:700;">'+hrs+'h left</span>':'in <span class="swap-email-countdown">'+days+'</span> day'+(days===1?'':'s');
+  return {state:'open',html:'Send by '+swapEmailWhen(w.due)+' · '+left,w:w};
+}
 function swapSpan(scope,dayIdx){
   if(scope==='day') return {from:dayIdx||0,to:dayIdx||0};
   if(SWAP_PART[scope]) return {from:0,to:SWAP_PART[scope].to};
@@ -10318,7 +10344,7 @@ const HELP={
   alerts:{t:'Alerts',w:'Warnings the app spots in your roster, for example a swap or edited shift that may break a roster rule (rest between shifts, too many hours) or a claim to follow up.',
     h:['Read the alert, then tap it (or the day in the Calendar) for details.','Fix the shift or swap if needed, or check it with the Roster Office.'],
     tip:'Alerts are a guide only. The Enterprise Agreement and Roster Office have the final say.'},
-  swapemail:{t:'Swap Email Due',w:'A reminder to send your swap request email before the swap week. The card counts down to 3 days before the week starts.',
+  swapemail:{t:'Swap emails',w:'A reminder to send your swap request email. You can send it from 2 weeks before the swap week, and it\'s due 82 hours before your first swapped shift. Each line shows "Can send from…" or "Send by…" with the exact time',
     h:['Tap the card to see or change the swap.','Send the email to rostering (use the button on the card if there is one).','Mark it as sent so the reminder goes away.']},
 
   cal:{t:'📅 Calendar',w:'Your whole roster month by month: every shift time, rest day (BLP/SLP), leave, swap, public holiday and event.',
