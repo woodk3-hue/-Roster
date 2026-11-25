@@ -4508,6 +4508,11 @@ function restToNextHtml(ds,isToday){
     const short=m<720;
     return '<div class="rest-next'+(short?' short':'')+'">'+(short?'⚠ ':'⏳ ')+'<b>'+gapWords(m)+'</b> between this shift and '+tmw+' shift at '+escHtml(n.startStr)+(short?'. That\'s under 12 hours.':'.')+'</div>';
   }
+  // Tomorrow is a spare / available day with no time yet
+  if(n.att&&!n.work){
+    const nc=getEffectiveShift(nextDs).code||'spare';
+    return '<div class="rest-next">📋 '+(isToday?'Tomorrow':ruleDayName(nextDs).split(' ')[0])+' is <b>'+escHtml(nc)+'</b> (spare, no start time yet).</div>';
+  }
   // Next day isn't a worked shift: say when the next one is
   for(let i=2;i<=14;i++){
     const ds2=fmtDate(addDays(parseDate(ds),i)), g=ruleDayFacts(ds2);
@@ -5715,7 +5720,9 @@ function renderDashShift(which){
     return;
   }
   if(!info.start){
-    el.innerHTML='<div style="color:var(--muted);font-size:12px;">'+(info.code||'—')+'</div>';
+    el.innerHTML=(which==='next'?'<div style="font-size:10px;color:var(--muted);margin-bottom:2px;">'+d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})+'</div>':'')+
+      '<div class="shift-preview-time" style="font-size:20px;">'+escHtml(info.code||'—')+'</div>'+
+      (/^(AM|PM|AF)/i.test(info.code||'')?'<div class="shift-preview-meta">Spare, no start time yet</div>':'');
     return;
   }
 
