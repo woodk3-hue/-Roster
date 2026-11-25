@@ -5930,16 +5930,29 @@ function renderCal(){
     while(curW<=monthEnd){
       const wLink=getLinkForWeek(curW);
       if(wLink&&ROSTER[String(wLink)]){
-        const hasMatch=ROSTER[String(wLink)].some(function(raw){
+        // A matching shift on a day you're on leave doesn't need swapping (e.g. a whole week of annual leave)
+        const onLeave=function(i){
+          const ds=fmtDate(addDays(curW,i)), ov=S.days[ds];
+          if((S.plannedLeave||[]).some(function(l){ return ds>=l.start&&ds<=(l.end||l.start); })) return true;
+          return !!(ov&&['al','lsl','sick','family','repro','lwop'].includes(ov.type));
+        };
+        const hasMatch=ROSTER[String(wLink)].some(function(raw,i){
           const sh=parseShift(raw);
-          return passesShiftTypeFilter(sh,typeFilter);
+          return passesShiftTypeFilter(sh,typeFilter)&&!onLeave(i);
         });
         if(hasMatch){
           const wEnd=addDays(curW,6);
           if(wEnd>=nowD){
             futureTotal++;
-            const isSwapped=S.swaps.some(function(sw){ return sw.wc===fmtDate(curW)&&sw.scope==='week'; });
-            if(!isSwapped) futureUnswapped++;
+            // Done when every such shift (not on leave) is swapped away: a whole-week swap, or the day is in a
+            // part-week / single-day / BLP swap
+            const weekSwap=S.swaps.some(function(sw){ return sw.wc===fmtDate(curW)&&sw.scope==='week'; });
+            const allDone=weekSwap||ROSTER[String(wLink)].every(function(raw,i){
+              if(!passesShiftTypeFilter(parseShift(raw),typeFilter)||onLeave(i)) return true;
+              const ov=S.days[fmtDate(addDays(curW,i))];
+              return !!(ov&&(ov.type==='swap'||ov.type==='blp_given'||ov.type==='blp_kept'));
+            });
+            if(!allDone) futureUnswapped++;
           }
         }
       }
