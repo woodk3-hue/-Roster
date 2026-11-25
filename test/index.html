@@ -6456,6 +6456,12 @@ function renderDayPanel(ds){
   // Pay day
   try{ const pd=payDayFor(ds); if(pd) html+='<div class="rest-next" style="margin-top:10px;">💰 <b>Pay day</b>: pay for the fortnight '+fmtDDMM(pd.fnStart)+'–'+fmtDDMM(pd.fnEnd)+' goes in by today (EBA 64).'+
     (pd.ph?'<div style="margin-top:4px;color:#fbbf24;">⚠ Pay may be delayed because of the public holiday on '+DAY3[dayIdx(pd.ph)]+' '+fmtDDMM(pd.ph)+'.</div>':'')+'</div>'; }catch(e){}
+  // The day a CBO's 32 hours finish (including right at midnight)
+  try{
+    const co0=cboOutlook(addDays(parseDate(ds),-30),31), d0=parseDate(ds).getTime(), d1=addDays(parseDate(ds),1).getTime();
+    const ended=(co0.win||[]).filter(function(w){ return w.to>=d0&&w.to<d1; })[0];
+    if(ended&&!co0.due[ds]) html+='<div class="rest-next" style="margin-top:10px;border:1px solid rgba(234,88,12,.5);">🛑 <b>CBO</b> (32 hours from '+cboWhen(ended.from)+') <b>finishes '+cboWhen(ended.to)+'</b>.</div>';
+  }catch(e){}
   // BLP/SLP day not worked: when a picked-up shift could start and finish; working day: brought forward
   try{
     if(!lv&&(['blp','slp'].includes(sh.typeKey)||(sh.typeKey==='swap'&&['blp','slp'].includes(sh.swapInnerType)))&&!leisureWorked(ds)) html+=blpWindowHtml(ds);
