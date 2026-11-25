@@ -7560,7 +7560,8 @@ function populateInlineSwapDaySelect(mon,link){
 
 // Days a swap covers: whole week, Mon–Fri, Mon–Sat, or one day
 const SWAP_PART={monfri:{to:4,name:'Mon–Fri',long:'Monday to Friday',keep:'weekend'},monsat:{to:5,name:'Mon–Sat',long:'Monday to Saturday',keep:'Sunday'}};
-// When a swap email can be sent: from 2 weeks before the week, and by 82 hours before the first swapped shift
+// When a swap email can be sent: from 2 weeks before the week, and before the roster for the first swapped
+// shift is posted — at 2pm, about 80 hours before the shift (the last 2pm at least 80 hours before it)
 function swapEmailWindow(sw){
   const mon=parseDate(sw.wc);
   let days=[];
@@ -7570,7 +7571,9 @@ function swapEmailWindow(sw){
   let first=null;
   days.forEach(function(i){ if(first!=null) return; const f=ruleDayFacts(fmtDate(addDays(mon,i))); if(f.work&&f.start!=null) first=f.start; });
   if(first==null) first=addDays(mon,days.length?days[0]:0).getTime();
-  return {open:addDays(mon,-14).getTime(), due:first-82*3600000, first:first};
+  const cut=new Date(first-80*3600000), post=new Date(cut.getFullYear(),cut.getMonth(),cut.getDate(),14,0,0,0);
+  if(post.getTime()>cut.getTime()) post.setDate(post.getDate()-1);
+  return {open:addDays(mon,-14).getTime(), due:post.getTime(), first:first};
 }
 function swapEmailWhen(ms){ const d=new Date(ms); return DAY3[dayIdx(d)]+' '+fmtDDMM(d)+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
 // "Can send from …" / "Send by … · in N days" / "Overdue"
@@ -10344,7 +10347,7 @@ const HELP={
   alerts:{t:'Alerts',w:'Warnings the app spots in your roster, for example a swap or edited shift that may break a roster rule (rest between shifts, too many hours) or a claim to follow up.',
     h:['Read the alert, then tap it (or the day in the Calendar) for details.','Fix the shift or swap if needed, or check it with the Roster Office.'],
     tip:'Alerts are a guide only. The Enterprise Agreement and Roster Office have the final say.'},
-  swapemail:{t:'Swap emails',w:'A reminder to send your swap request email. You can send it from 2 weeks before the swap week, and it\'s due 82 hours before your first swapped shift. Each line shows "Can send from…" or "Send by…" with the exact time',
+  swapemail:{t:'Swap emails',w:'A reminder to send your swap request email. You can send it from 2 weeks before the swap week, and it\'s due before the roster for your first swapped shift is posted (2pm, about 80 hours before the shift). Each line shows "Can send from…" or "Send by…" with the exact time',
     h:['Tap the card to see or change the swap.','Send the email to rostering (use the button on the card if there is one).','Mark it as sent so the reminder goes away.']},
 
   cal:{t:'📅 Calendar',w:'Your whole roster month by month: every shift time, rest day (BLP/SLP), leave, swap, public holiday and event.',
