@@ -6243,7 +6243,7 @@ function blpWindowHtml(ds){
   let lines=[], earliest=dayStart, latest=null;
   // A CBO (32 hours off) running into this day comes first
   let cbo=null; try{ cbo=cboOutlook(addDays(d,-30),31).due[ds]||null; }catch(e){}
-  if(cbo&&cbo.to>=dayEnd) return '<div class="rest-next" style="margin-top:10px;">🛑 <b>You\'re on CBO.</b> Your CBO finishes <b>'+cboWhen(cbo.to)+'</b>.</div>';
+  if(cbo&&cbo.to>=dayEnd) return '';   // the CBO line below already says when you can work again
   if(prev&&prev.end!=null){
     const e12=prev.end+REST;
     earliest=Math.max(dayStart,e12);
@@ -6460,7 +6460,11 @@ function renderDayPanel(ds){
   try{
     const co0=cboOutlook(addDays(parseDate(ds),-30),31), d0=parseDate(ds).getTime(), d1=addDays(parseDate(ds),1).getTime();
     const ended=(co0.win||[]).filter(function(w){ return w.to>=d0&&w.to<d1; })[0];
-    if(ended&&!co0.due[ds]) html+='<div class="rest-next" style="margin-top:10px;border:1px solid rgba(234,88,12,.5);">🛑 <b>CBO</b> (32 hours from '+cboWhen(ended.from)+') <b>finishes '+cboWhen(ended.to)+'</b>.</div>';
+    if(ended&&!co0.due[ds]){
+      const atMid=ended.to<=d0, x=new Date(ended.to);
+      html+='<div class="rest-next" style="margin-top:10px;border:1px solid rgba(234,88,12,.5);"><b>CBO</b> (32 hours from '+cboWhen(ended.from)+') '+(atMid?'finished':'finishes')+' <b>'+cboWhen(ended.to)+'</b>.'+
+        '<div style="margin-top:4px;font-weight:800;">'+(atMid?'✅ You can work this day.':'🛑 Can\'t work until '+pad(x.getHours())+':'+pad(x.getMinutes())+'.')+'</div></div>';
+    }
   }catch(e){}
   // BLP/SLP day not worked: when a picked-up shift could start and finish; working day: brought forward
   try{
@@ -6470,7 +6474,7 @@ function renderDayPanel(ds){
   // Days in a row / CBO due
   try{
     const co=cboOutlook(addDays(parseDate(ds),-30),31), cn=co.n[ds];
-    if(co.due[ds]){ const w=co.due[ds]; html+='<div class="rest-next short" style="margin-top:10px;">🛑 <b>CBO due</b>: '+ruleDayName(w.d11)+' is day 11 in a row, so you need 32 hours off at home: <b>'+cboWhen(w.from)+' to '+cboWhen(w.to)+'</b> (EBA 96.1).</div>'; }
+    if(co.due[ds]){ const w=co.due[ds]; html+='<div class="rest-next short" style="margin-top:10px;">🛑 <b>You\'re on CBO</b>: '+ruleDayName(w.d11)+' was day 11 in a row, so you need 32 hours off at home: <b>'+cboWhen(w.from)+' to '+cboWhen(w.to)+'</b> (EBA 96.1).<div style="margin-top:4px;font-weight:800;">Can\'t work until '+cboWhen(w.to)+'.</div></div>'; }
     else if(cn>=12) html+='<div class="rest-next short" style="margin-top:10px;">⚠ <b>Day '+cn+' in a row.</b> A CBO (32 hours off) was due after day 11 (EBA 96.1).</div>';
     else if(cn===11){ const w=(co.win||[]).filter(function(x){ return x.d11===ds; })[0]; html+='<div class="rest-next" style="margin-top:10px;border:1px solid rgba(234,88,12,.5);">⚠ <b>Day 11 in a row.</b> A CBO (32 hours off at home) is due after this shift'+(w?': <b>'+cboWhen(w.from)+' to '+cboWhen(w.to)+'</b>':'')+' (EBA 96.1).</div>'; }
     else if(cn>=9&&co.kind[ds]!=='incoming') html+='<div class="rest-next" style="margin-top:10px;">Day <b>'+cn+'</b> in a row. A CBO is due after 11.</div>';
