@@ -5644,7 +5644,7 @@ function renderRosterChange(){
   el.innerHTML='<div class="rc-card"><div class="rc-head">📢 The new roster starts '+sdTxt+'<button class="rc-x" onclick="dismissRosterChange()" aria-label="Hide">×</button></div>'+
     '<div class="rc-sub">Two quick things so your shifts and pay are right:</div>'+
     step(1,done1,'Import the new roster','Save the new Link/Diagram PDF from rostering to your phone, then tap below (or ⚙ Settings → My Roster Link → 📄 Import Roster File). Check your link number after.','<button class="btn btn-sm btn-accent" onclick="document.getElementById(\'roster-pdf-input\').click()">📄 Import roster</button>')+
-    step(2,done2,'Set the nine-day fortnight to '+ndTxt,'Starts '+DAY3[dayIdx(nd)]+' '+ndTxt+' (152-hour cycles). One tap does it, or ⚙ Settings → Pay Settings.','<button class="btn btn-sm btn-accent" onclick="setRosterChangeNineDay()">Set it now</button>')+
+    step(2,done2,'Set the nine-day fortnight to '+ndTxt,'The 152-hour cycles and nine-day fortnight rules are already built into the app; it just needs the start date. One tap does it, or ⚙ Settings → Pay Settings.','<button class="btn btn-sm btn-accent" onclick="setRosterChangeNineDay()">Set it now</button>')+
   '</div>';
 }
 function setRosterChangeNineDay(){
@@ -10147,7 +10147,7 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 const APP_VERSION='2026-11-27';
 const WHATS_NEW=[
-  'New roster from Mon 30/11: import the new roster file and set the nine-day fortnight to 30/11/2026. The blue card at the top of Home walks you through both (one tap for the nine-day fortnight).'
+  'New roster from Mon 30/11: import the new roster file and set the nine-day fortnight to 30/11/2026. The 152-hour cycles are already built in; the app just needs that start date. The blue card at the top of Home walks you through both (one tap for the nine-day fortnight).'
 ];
 // A note from the app's maker: shown at the top of Settings and the setup screen
 const OWNER_NOTE='Hi everyone! This app is just a little hobby project of mine. It\'s been shared around a lot, so welcome if you\'re new. I don\'t know every rule, so if something isn\'t working right or looks incorrect, please let me know. Kim Wood (my number is on the Drivers list) 😊';
