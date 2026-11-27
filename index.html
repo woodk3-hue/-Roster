@@ -5720,6 +5720,12 @@ function getShiftDisplayForDate(ds){
   const end=(ov&&ov.end)?ov.end:null;
   const dur=start&&end?calcDur(start,end):null;
   const guards=(ov&&ov.guards)?ov.guards.split('\n')[0]:'';
+  // Planned leave (Leave planner) covers the day, unless the day itself was set to something else or has times entered
+  const lv=(S.plannedLeave||[]).find(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
+  if(lv&&!(ov&&ov.start)&&!(ov&&ov.type&&ov.type!=='normal')){
+    const lt=lv.type==='sl'?'sick':(lv.type||'al');
+    return {start:null,end:null,dur:null,guards:'',typeKey:lt,code:lt.toUpperCase(),link:effectiveLink,leaveNotes:lv.notes||''};
+  }
   const typeKey=(ov&&ov.type&&ov.type!=='normal')?ov.type:sh.typeKey;
   if(typeKey==='incoming'||typeKey==='mbo'||typeKey==='cbo') return {start:null,end:null,dur:null,guards,typeKey,code:typeKey==='incoming'?'INC':typeKey.toUpperCase(),link:effectiveLink};
   return {start,end,dur,guards,typeKey,code:sh.code,link:effectiveLink};
@@ -5739,7 +5745,7 @@ function renderDashShift(which){
       const ov=S.days[candidate];
       const hasRecordedShift=ov&&ov.start; // user entered actual times
       // Always skip leave/LWOP/RDO
-      if(['al','lsl','sick','family','lwop','rdo','incoming','mbo','cbo'].includes(info.typeKey)) continue;
+      if(['al','lsl','sick','family','repro','lwop','rdo','incoming','mbo','cbo'].includes(info.typeKey)) continue;
       // Skip BLP/SLP only when no actual shift recorded
       if(['blp','slp'].includes(info.typeKey)&&!hasRecordedShift) continue;
       // A day off inside a swap (the other link's BLP/SLP) or with no shift at all isn't a next shift
@@ -5764,9 +5770,11 @@ function renderDashShift(which){
     el.innerHTML='<div style="font-size:13px;font-weight:700;color:var(--muted);">Incoming</div><div style="font-size:10px;color:var(--muted);">No shift today. Still counts as a day in a row (CBO).</div>';
     return;
   }
-  if(['al','lsl','sick','family'].includes(info.typeKey)){
-    const lbl={al:'Annual Leave',lsl:'Long Service Leave',sick:'Sick Leave',family:'Family / Carer\'s Leave'}[info.typeKey]||info.typeKey;
-    el.innerHTML='<div style="font-size:12px;font-weight:700;color:#dc2626;">'+lbl+'</div>';
+  if(['al','lsl','sick','family','repro','lwop'].includes(info.typeKey)){
+    const lbl={al:'Annual Leave',lsl:'Long Service Leave',sick:'Sick Leave',family:'Family / Carer\'s Leave',repro:'Reproductive Health Leave',lwop:'Leave Without Pay'}[info.typeKey]||info.typeKey;
+    el.innerHTML='<div class="shift-preview-time" style="font-size:20px;color:#dc2626;">'+lbl+'</div>'+
+      (info.leaveNotes?'<div class="shift-preview-meta">'+escHtml(info.leaveNotes)+'</div>':'')+
+      (which==='today'?'<div class="shift-preview-meta">Rostered '+escHtml(String(parseShift(getRaw(info.link,dayIdx(d))||'').code||'—'))+' · no work today</div>':'');
     return;
   }
   if(!info.start){
