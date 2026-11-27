@@ -733,6 +733,18 @@ body.day-mode #day-panel{background:rgba(240,242,248,0.97);}
 .dash-link-line{font-size:12px;color:var(--muted);margin-top:2px;}
 .dash-link-line b{color:var(--text);}
 
+/* ── ROSTER CHANGE NOTICE (Home) ── */
+.rc-card{background:rgba(59,130,246,.10);border:2px solid #3b82f6;border-radius:14px;padding:11px 12px;margin-bottom:10px;}
+.rc-head{font-size:15px;font-weight:800;display:flex;align-items:center;gap:6px;}
+.rc-x{margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 2px;line-height:1;}
+.rc-sub{font-size:12px;color:var(--muted);margin:2px 0 6px;}
+.rc-step{display:flex;gap:9px;padding:8px 0;border-top:1px solid var(--border);font-size:13px;line-height:1.4;}
+.rc-num{flex:0 0 24px;height:24px;border-radius:50%;background:#3b82f6;color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;}
+.rc-step.done .rc-num{background:#16a34a;}
+.rc-step.done b{color:var(--muted);text-decoration:line-through;}
+.rc-body{flex:1;min-width:0;}
+.rc-how{font-size:12px;color:var(--muted);margin:2px 0 6px;}
+
 /* ── THIS WEEK (Home) ── */
 .week-card{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:0 2px 12px var(--accent-glow);}
 .week-head{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
@@ -1245,6 +1257,7 @@ body.day-mode .pmf-not-swapped{background:#1e3a8a;color:#bfdbfe;}
   </div>
   <!-- Backup reminder (shown by updateBackupReminder) -->
   <div id="whats-new"></div>
+  <div id="dash-roster-change" class="owner-only"></div>
   <div id="dash-week" class="owner-only"></div>
   <div id="partner-today"></div>
   <div id="backup-reminder" class="owner-only" style="display:none;background:rgba(245,158,11,.12);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
@@ -2495,7 +2508,8 @@ async function importRosterPDF(input){
       loadSettingsUI();
     }
     const asAt=(text.match(/AS AT\s+(\d{2}\/\d{2}\/\d{4})/)||[])[1]||'';
-    try{ localStorage.setItem('roster_asat',asAt); }catch(e){}
+    try{ localStorage.setItem('roster_asat',asAt); localStorage.setItem('roster_imported_at',String(Date.now())); }catch(e){}
+    try{ renderRosterChange(); }catch(e){}
     pushRosterTable();
     scheduleAutoBackup();
     let msg='✓ '+count+' links imported'+(asAt?' (roster as at '+asAt+')':'');
@@ -5593,6 +5607,7 @@ function renderDash(){
   if(!S.dismissedAlerts) S.dismissedAlerts=[];
   const weekEndStr=fmtDate(addDays(now,6));
   try{ renderDashWeek(now); }catch(e){}
+  try{ renderRosterChange(); }catch(e){}
   const visibleAlerts=alerts.filter(function(a){ return !S.dismissedAlerts.includes(a.key||a.msg)&&!(a.ds&&a.ds<=weekEndStr); });
   const alEl=document.getElementById('dash-alerts');
   if(visibleAlerts.length){
@@ -5613,6 +5628,32 @@ function renderDash(){
   updateClaimsBadge();
 }
 
+// One-off notice: a new roster starts. Two steps (import it, set the nine-day fortnight); each ticks itself off
+const ROSTER_CHANGE={id:'roster-2026-11-30', starts:'2026-11-30', nineDay:'2026-11-30', from:'2026-11-20', until:'2026-12-20'};
+function renderRosterChange(){
+  const el=document.getElementById('dash-roster-change'); if(!el) return;
+  const rc=ROSTER_CHANGE, td=fmtDate(today());
+  let dismissed=false; try{ dismissed=localStorage.getItem('rc_dismissed')===rc.id; }catch(e){}
+  if(syncRole==='partner'||!S.anchorLink||td<rc.from||td>rc.until||dismissed){ el.innerHTML=''; return; }
+  let imp=0; try{ imp=+(localStorage.getItem('roster_imported_at')||0); }catch(e){}
+  const done1=imp>=parseDate(rc.from).getTime(), done2=nineDayFromDs()===rc.nineDay;
+  if(done1&&done2){ el.innerHTML=''; return; }
+  const sd=parseDate(rc.starts), nd=parseDate(rc.nineDay);
+  const sdTxt=DAY3[dayIdx(sd)]+' '+fmtDDMM(sd), ndTxt=nd.getDate()+'/'+(nd.getMonth()+1)+'/'+nd.getFullYear();
+  const step=function(n,done,title,how,btn){ return '<div class="rc-step'+(done?' done':'')+'"><div class="rc-num">'+(done?'✓':n)+'</div><div class="rc-body"><b>'+title+'</b>'+(done?'':'<div class="rc-how">'+how+'</div>'+btn)+'</div></div>'; };
+  el.innerHTML='<div class="rc-card"><div class="rc-head">📢 The new roster starts '+sdTxt+'<button class="rc-x" onclick="dismissRosterChange()" aria-label="Hide">×</button></div>'+
+    '<div class="rc-sub">Two quick things so your shifts and pay are right:</div>'+
+    step(1,done1,'Import the new roster','Save the new Link/Diagram PDF from rostering to your phone, then tap below (or ⚙ Settings → My Roster Link → 📄 Import Roster File). Check your link number after.','<button class="btn btn-sm btn-accent" onclick="document.getElementById(\'roster-pdf-input\').click()">📄 Import roster</button>')+
+    step(2,done2,'Set the nine-day fortnight to '+ndTxt,'Starts '+DAY3[dayIdx(nd)]+' '+ndTxt+' (152-hour cycles). One tap does it, or ⚙ Settings → Pay Settings.','<button class="btn btn-sm btn-accent" onclick="setRosterChangeNineDay()">Set it now</button>')+
+  '</div>';
+}
+function setRosterChangeNineDay(){
+  S.settings.nineDayFrom=ROSTER_CHANGE.nineDay; saveState();
+  try{ refreshAllScreens(); }catch(e){}
+  renderRosterChange();
+  toast('Nine-day fortnight starts '+fmtDDMM(parseDate(ROSTER_CHANGE.nineDay))+' ✓');
+}
+function dismissRosterChange(){ try{ localStorage.setItem('rc_dismissed',ROSTER_CHANGE.id); }catch(e){} renderRosterChange(); }
 // "This week" on Home: everything that needs attention in the next 7 days, in date order
 function renderDashWeek(now){
   const el=document.getElementById('dash-week'); if(!el) return;
@@ -10104,11 +10145,9 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════
 // WHAT'S NEW — shown once after an update. Update APP_VERSION and the list with each release.
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION='2026-11-23b';
+const APP_VERSION='2026-11-27';
 const WHATS_NEW=[
-  'Pay day: a green $ on the calendar now marks pay day, the Wednesday after each pay fortnight. Tap the day to see which fortnight is being paid. If there\'s a public holiday on the Monday or Tuesday before, the $ turns orange and the app warns that pay may be delayed.',
-  'This week: a new card at the top of Home shows everything coming up in the next 7 days, like pay day, CBO, leave, swap emails and public holidays. Tap a line to open that day.',
-  'Tidier screens: Settings folds into sections, saved swaps can be fully edited (e.g. change a swap to Mon–Fri), Pay shows a short summary first, and colours are clearer in light mode.'
+  'New roster from Mon 30/11: import the new roster file and set the nine-day fortnight to 30/11/2026. The blue card at the top of Home walks you through both (one tap for the nine-day fortnight).'
 ];
 // A note from the app's maker: shown at the top of Settings and the setup screen
 const OWNER_NOTE='Hi everyone! This app is just a little hobby project of mine. It\'s been shared around a lot, so welcome if you\'re new. I don\'t know every rule, so if something isn\'t working right or looks incorrect, please let me know. Kim Wood (my number is on the Drivers list) 😊';
