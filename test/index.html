@@ -7952,7 +7952,7 @@ function renderShiftFinder(){
   if(onlyUnsw){
     const before=weekResults.length;
     const kept=weekResults.filter(function(r){
-      if(S.swaps.some(function(sw){ return sw.wc===r.wcStr&&sw.scope==='week'; })) return false;
+      if(S.swaps.some(function(sw){ return sw.wc===r.wcStr&&(sw.scope==='week'||SWAP_PART[sw.scope]); })) return false; // whole week, Mon–Fri or Mon–Sat swap = swapped week
       return (r.days||[]).some(function(raw,i){
         if(!passesShiftFilter(parseShift(raw),typeFilter)) return false;
         const ds=fmtDate(addDays(r.wc,i)), ov=S.days[ds];
