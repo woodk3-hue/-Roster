@@ -6660,7 +6660,9 @@ function openShiftModal(ds){
 
   const ov=S.days[ds]||{};
   const mon=getMonday(d);
-  const link=getLinkForWeek(mon);
+  // Start from the link you're actually working: a day/part-week swap, then a whole-week swap, then your roster
+  const wkSw=S.swaps.find(function(sw){ return sw.wc===fmtDate(mon)&&sw.scope==='week'; });
+  const link=(ov.swapTo&&['swap','blp_given','blp_kept'].includes(ov.type))?ov.swapTo:(wkSw?wkSw.linkReceived:getLinkForWeek(mon));
   const raw=getRaw(link,idx);
   const sh=parseShift(raw);
 
