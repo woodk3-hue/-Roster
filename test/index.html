@@ -5722,7 +5722,7 @@ function getShiftDisplayForDate(ds){
   const guards=(ov&&ov.guards)?ov.guards.split('\n')[0]:'';
   // Planned leave (Leave planner) covers the day, unless the day itself was set to something else or has times entered
   const lv=(S.plannedLeave||[]).find(function(l){ return ds>=l.start&&ds<=(l.end||l.start); });
-  if(lv&&!(ov&&ov.start)&&!(ov&&ov.type&&ov.type!=='normal')){
+  if(lv&&!(ov&&ov.start)&&!(ov&&ov.type&&!['normal','swap','single_day_swap'].includes(ov.type))){ // a swapped day still goes on leave
     const lt=lv.type==='sl'?'sick':(lv.type||'al');
     return {start:null,end:null,dur:null,guards:'',typeKey:lt,code:lt.toUpperCase(),link:effectiveLink,leaveNotes:lv.notes||''};
   }
